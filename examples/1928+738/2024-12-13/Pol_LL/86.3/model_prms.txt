@@ -1,0 +1,10 @@
+# (86.3 GHz) Model 1 : 0.485v 0.000v 0.000v 0.162v
+# (86.3 GHz) Model 2 : 0.409v 0.519v 177.691v 0.289v
+Chi2_vis       :      0.540 | AIC_vis       :  -1247.668 | BIC_vis       :  -1234.535
+Chi2_amp       :      0.169 | AIC_amp       :  -1394.124 | BIC_amp       :  -1380.992
+Chi2_log.clamp :      0.267 | AIC_log.clamp :   -290.525 | BIC_log.clamp :   -277.392
+Chi2_clphs     :      0.727 | AIC_clphs     :   -403.012 | BIC_clphs     :   -389.879
+Chi2_tot :    0.896
+AIC_tot  : -1797.136
+BIC_tot  : -1770.871
+logz : 584.727 +/- 0.164

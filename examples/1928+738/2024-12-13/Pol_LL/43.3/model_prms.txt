@@ -1,0 +1,12 @@
+# (43.3 GHz) Model 1 : 2.807v 0.000v 0.000v 0.616v
+# (43.3 GHz) Model 2 : 0.260v 4.960v 173.336v 4.805v
+# (43.3 GHz) Model 3 : 0.050v 8.742v -145.467v 2.350v
+# (43.3 GHz) Model 4 : 0.019v 10.975v 164.836v 0.248v
+Chi2_vis       :      1.112 | AIC_vis       :   -937.147 | BIC_vis       :   -924.375
+Chi2_amp       :      0.337 | AIC_amp       :  -1215.944 | BIC_amp       :  -1203.172
+Chi2_log.clamp :      0.626 | AIC_log.clamp :   -385.850 | BIC_log.clamp :   -373.078
+Chi2_clphs     :      1.268 | AIC_clphs     :   -507.598 | BIC_clphs     :   -494.826
+Chi2_tot :    1.605
+AIC_tot  : -1723.542
+BIC_tot  : -1697.998
+logz : 614.160 +/- 0.248
