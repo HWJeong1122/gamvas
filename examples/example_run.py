@@ -60,10 +60,10 @@ file_d = f"edt_f24sl02b_1928+738_{bands[3]}.uvf"
 
 # load uv-fits files
 uvw = "u"   # uv-weighting // u:uniform, n:natural
-uvf1 = gv.load.open_fits(path=path_uvf, file=file_k, mrng=mrng * gv.mas)
-uvf2 = gv.load.open_fits(path=path_uvf, file=file_q, mrng=mrng * gv.mas)
-uvf3 = gv.load.open_fits(path=path_uvf, file=file_w, mrng=mrng * gv.mas)
-uvf4 = gv.load.open_fits(path=path_uvf, file=file_d, mrng=mrng * gv.mas)
+uvf1 = gv.load.open_fits(path=path_uvf, file=file_k, snrflag=snrflag, mrng=mrng * gv.mas)
+uvf2 = gv.load.open_fits(path=path_uvf, file=file_q, snrflag=snrflag, mrng=mrng * gv.mas)
+uvf3 = gv.load.open_fits(path=path_uvf, file=file_w, snrflag=snrflag, mrng=mrng * gv.mas)
+uvf4 = gv.load.open_fits(path=path_uvf, file=file_d, snrflag=snrflag, mrng=mrng * gv.mas)
 uvf1.load_uvf(select=select, uvw=uvw)
 uvf2.load_uvf(select=select, uvw=uvw)
 uvf3.load_uvf(select=select, uvw=uvw)
