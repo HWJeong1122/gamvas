@@ -656,13 +656,13 @@ class modeling:
             path_fig = self.path_fig+f"{freq:.1f}/"
             gamvas.utils.mkdir(path_fig)
 
-            uvf.ploter.draw_tplot(
-                uvf, plotimg=False, show_title=False,
-                instrument=self.instrument,
-                save_path=path_fig,
-                save_name=f"{self.source}.{self.date}.tplot",
-                save_form="pdf"
-            )
+            # uvf.ploter.draw_tplot(
+            #     uvf, plotimg=False, show_title=False,
+            #     instrument=self.instrument,
+            #     save_path=path_fig,
+            #     save_name=f"{self.source}.{self.date}.tplot",
+            #     save_form="pdf"
+            # )
             uvf.ploter.draw_radplot(
                 uvf, plotimg=False, show_title=False,
                 save_path=path_fig,
@@ -972,10 +972,10 @@ class modeling:
             fwght = self.fwght.copy()
         self.fdict = dict(zip(ftype, fwght))
 
-        uvf.ploter.draw_tplot(
-            uvf, plotimg=False, show_title=False, instrument=self.instrument,
-            save_path=self.path_fig, save_name=f"{self.source}.{self.date}.mf.tplot", save_form="pdf"
-        )
+        # uvf.ploter.draw_tplot(
+        #     uvf, plotimg=False, show_title=False, instrument=self.instrument,
+        #     save_path=self.path_fig, save_name=f"{self.source}.{self.date}.mf.tplot", save_form="pdf"
+        # )
 
         uvf.ploter.draw_radplot(
             uvf, plotimg=False, show_title=False,

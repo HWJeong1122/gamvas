@@ -340,7 +340,7 @@ def print_stats(uvf, uvcomb, k, logz, dlogz, ftype):
             outft = ft
         elif ft in ["clamp"]:
             outft = "log.clamp"
-        print(f"# ({outft:10s})" + f"| Chi2 : {chi:-10.2f} | AIC : {aic:-10.2f} | BIC : {bic:-10.2f}")
+        print(f"# ({outft:9s}) " + f"| Chi2 : {chi:-10.2f} | AIC : {aic:-10.2f} | BIC : {bic:-10.2f}")
         out_fty.append(outft)
         out_chi.append(chi)
         out_aic.append(aic)

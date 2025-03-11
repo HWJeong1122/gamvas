@@ -34,7 +34,6 @@ doampcal   = True       # amplitude self-calibration
 dophscal   = True       # phase self-calibration
 maxn       = 10         # maximum number of model
 scanlen    = 300        # scan-length [sec]
-instrument = "kvn"      # instrument name
 select     = "ll"       # polarization type
 snrflag    = 3          # snr-flagging value
 uvave      = 60         # uv-averaging  [sec] // "scan" for scan-average, "none" for no averaging
@@ -71,6 +70,10 @@ uvf3.load_uvf(select=select, uvw=uvw)
 uvf4.load_uvf(select=select, uvw=uvw)
 
 # uv-average
+# available 'uvave' options:
+#    "none": no averaging
+#    float : time interval (time-average)
+#    "scan": scan-average
 uvf1.uvave(uvave=uvave, scanlen=scanlen)
 uvf2.uvave(uvave=uvave, scanlen=scanlen)
 uvf3.uvave(uvave=uvave, scanlen=scanlen)
@@ -85,19 +88,19 @@ ufreq = np.array([uvfs[i].freq for i in range(len(uvfs))])
 # observing date
 date  = uvfs[0].date
 
-# turnover frequency boundary condition
+# turnover frequency boundary condition (from 22 to 129 GHz)
 bnd_f = [uvfs[0].freq, uvfs[-1].freq]
 
 # set out path
-path_fig_ = path + f"/{source}/"                             ; gv.utils.mkdir(path_fig_)
-path_fig_ = path + f"/{source}/{date}/"                      ; gv.utils.mkdir(path_fig_)
-path_fig_ = path + f"/{source}/{date}/Pol_{select.upper()}/" ; gv.utils.mkdir(path_fig_)
+path_fig_ = path + f"/{source}/"
+gv.utils.mkdir(path_fig_)
+path_fig_ = path + f"/{source}/{date}/"
+gv.utils.mkdir(path_fig_)
+path_fig_ = path + f"/{source}/{date}/Pol_{select.upper()}/"
+gv.utils.mkdir(path_fig_)
 
 # set multi-frequency uv-fits
 uvall = gv.utils.set_uvf(uvfs, type="mf")
-
-# set instrument name (for plotting time plots)
-uvall.instrument = instrument
 
 # check visibility data
 uvall.ploter.draw_radplot(uvall, plotimg=True)
@@ -126,6 +129,10 @@ print(f"# Number of closure phase      : ", ncphs)
 print(f"# Selected polarization: {select.upper()}", "\n")
 
 # run model-fitting
+# available options for sampler:
+#   "rwalk" : random walk (fastest but less accurate)
+#   "rslice": multivariate random slice (intermediate between "rwalk" and "slice")
+#   "slice" : multivariate principle axes slice (slowest but more accurate)
 mfu = gv.modeling.modeling(
     uvfs=uvfs, select=select, factor_zblf=1.5, sampler="slice", bound="multi",
     runfit_sf=runfit_sf, runfit_mf=runfit_mf, runfit_set=runfit_set,
@@ -134,5 +141,4 @@ mfu = gv.modeling.modeling(
     npix=npix, mrng=mrng, bnd_l=bnd_l, bnd_m=bnd_m, bnd_f=bnd_f,
     uvw=uvw, path_fig=path_fig_, source=source, date=date, ncpu=ncpu
 )
-mfu.instrument = instrument
 mfu.run()
