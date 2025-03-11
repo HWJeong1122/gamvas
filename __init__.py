@@ -20,3 +20,16 @@ rad = units.rad
 
 import warnings
 warnings.filterwarnings("ignore")
+
+import matplotlib as mpl
+mpl.rcParams["xtick.major.size" ] = 5.0*1.0
+mpl.rcParams["xtick.major.width"] = 2.0*1.0
+mpl.rcParams["xtick.minor.size" ] = 2.5*1.0
+mpl.rcParams["xtick.minor.width"] = 1.0*1.0
+
+mpl.rcParams["ytick.major.size" ] = 5.0*1.0
+mpl.rcParams["ytick.major.width"] = 2.0*1.0
+mpl.rcParams["ytick.minor.size" ] = 2.5*1.0
+mpl.rcParams["ytick.minor.width"] = 1.0*1.0
+
+mpl.rc("font", weight="bold")

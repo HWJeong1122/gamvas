@@ -1,12 +1,13 @@
-# (43.3 GHz) Model 1 : 2.807v 0.000v 0.000v 0.616v
-# (43.3 GHz) Model 2 : 0.260v 4.960v 173.336v 4.805v
-# (43.3 GHz) Model 3 : 0.050v 8.742v -145.467v 2.350v
-# (43.3 GHz) Model 4 : 0.019v 10.975v 164.836v 0.248v
-Chi2_vis       :      1.112 | AIC_vis       :   -937.147 | BIC_vis       :   -924.375
-Chi2_amp       :      0.337 | AIC_amp       :  -1215.944 | BIC_amp       :  -1203.172
-Chi2_log.clamp :      0.626 | AIC_log.clamp :   -385.850 | BIC_log.clamp :   -373.078
-Chi2_clphs     :      1.268 | AIC_clphs     :   -507.598 | BIC_clphs     :   -494.826
-Chi2_tot :    1.605
-AIC_tot  : -1723.542
-BIC_tot  : -1697.998
-logz : 614.160 +/- 0.248
+# (43.3 GHz) Model 1 : 2.787v 0.000v 0.000v 0.576v
+# (43.3 GHz) Model 2 : 0.289v 4.603v 170.613v 4.801v
+# (43.3 GHz) Model 3 : 0.021v 11.447v -179.065v 1.166v
+# (43.3 GHz) Model 4 : 0.032v 11.300v 164.512v 1.236v
+# (43.3 GHz) Model 5 : 0.032v 8.653v -149.597v 1.728v
+Chi2_vis       :      0.999 | AIC_vis       :   -977.559 | BIC_vis       :   -964.787
+Chi2_amp       :      0.266 | AIC_amp       :  -1241.345 | BIC_amp       :  -1228.573
+Chi2_log.clamp :      0.478 | AIC_log.clamp :   -403.594 | BIC_log.clamp :   -390.822
+Chi2_clphs     :      1.147 | AIC_clphs     :   -529.349 | BIC_clphs     :   -516.577
+Chi2_tot :    1.413
+AIC_tot  : -1770.693
+BIC_tot  : -1745.150
+logz : 592.691 +/- 0.343

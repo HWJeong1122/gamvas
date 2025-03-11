@@ -1,10 +1,10 @@
-# (129.3 GHz) Model 1 : 0.691v 0.000v 0.000v 0.572v
-# (129.3 GHz) Model 2 : 0.508v 2.263v 121.772v 1.442v
-Chi2_vis       :      7.913 | AIC_vis       :    846.234 | BIC_vis       :    855.957
-Chi2_amp       :      7.792 | AIC_amp       :    825.816 | BIC_amp       :    835.539
+# (129.3 GHz) Model 1 : 0.610v 0.000v 0.000v 0.523v
+# (129.3 GHz) Model 2 : 0.374v 0.437v -174.878v 1.014v
+Chi2_vis       :      6.932 | AIC_vis       :    681.320 | BIC_vis       :    691.043
+Chi2_amp       :      6.617 | AIC_amp       :    628.411 | BIC_amp       :    638.134
 Chi2_log.clamp :        nan | AIC_log.clamp :        nan | BIC_log.clamp :        nan
-Chi2_clphs     :      0.274 | AIC_clphs     :    -44.185 | BIC_clphs     :    -34.462
-Chi2_tot :    8.066
-AIC_tot  :  781.631
-BIC_tot  :  801.077
-logz : -13.577 +/- 0.113
+Chi2_clphs     :      0.840 | AIC_clphs     :    -12.481 | BIC_clphs     :     -2.758
+Chi2_tot :    7.457
+AIC_tot  :  615.930
+BIC_tot  :  635.377
+logz : -14.546 +/- 0.136
