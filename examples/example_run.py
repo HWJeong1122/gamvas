@@ -1,9 +1,9 @@
 
 import os
 import sys
+import copy
 import numpy as np
 import gamvas as gv
-import copy
 
 # set the number of CPU core (for multi-processing)
 ncpu = 1                # use only one CPU core

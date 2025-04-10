@@ -44,20 +44,23 @@ def cal_rms(image):
     Returns:
         float: statistical RMS value of the input image
     """
-    cent = image.size
-    unit = int(cent / 10)
-    roi_1 = image[0:unit, 0:unit].reshape(-1)
-    roi_2 = image[0:unit, cent - int(unit / 2):cent + int(unit / 2)].reshape(-1)
-    roi_3 = image[0:unit, -unit:-1].reshape(-1)
-    roi_4 = image[-unit:-1, 0:unit].reshape(-1)
-    roi_5 = image[-unit:-1, cent - int(unit / 2):cent + int(unit / 2)].reshape(-1)
-    roi_6 = image[-unit:-1, -unit:-1].reshape(-1)
-    rois = np.concatenate((roi_1, roi_2, roi_3, roi_4, roi_5, roi_6))
-    statistical_rms = np.nanstd(rois)
-    return statistical_rms
+    # cent = image.size
+    # unit = int(cent / 10)
+    # roi_1 = image[0:unit, 0:unit].reshape(-1)
+    # roi_2 = image[0:unit, cent - int(unit / 2):cent + int(unit / 2)].reshape(-1)
+    # roi_3 = image[0:unit, -unit:-1].reshape(-1)
+    # roi_4 = image[-unit:-1, 0:unit].reshape(-1)
+    # roi_5 = image[-unit:-1, cent - int(unit / 2):cent + int(unit / 2)].reshape(-1)
+    # roi_6 = image[-unit:-1, -unit:-1].reshape(-1)
+    # rois = np.concatenate((roi_1, roi_2, roi_3, roi_4, roi_5, roi_6))
+    # rms = np.nanstd(rois)
+    rms1 = np.abs(np.percentile(image, 16) - np.percentile(image, 50))
+    rms2 = np.abs(np.percentile(image, 84) - np.percentile(image, 50))
+    rms = (rms1 + rms2) / 2
+    return rms
 
 
-def make_cntr(image, contour_snr=3, scale=np.sqrt(2)):
+def make_cntr(image, rms=None, contour_snr=3, scale=np.sqrt(2)):
     """
     Set contour levels for the input image.
         Arguments:
@@ -71,7 +74,12 @@ def make_cntr(image, contour_snr=3, scale=np.sqrt(2)):
     """
     fmax = np.max(image)
     fmin = np.min(image)
-    statistical_rms = cal_rms(image)
+
+    if rms is None:
+        statistical_rms = cal_rms(image)
+    else:
+        statistical_rms = rms
+
     if abs(fmax) >= abs(fmin):
         neg_cntr_level = [-contour_snr * statistical_rms]
         pos_cntr_level = [+contour_snr * statistical_rms]
@@ -571,8 +579,8 @@ def set_uvcombination(vdat, tmpl_clamp, tmpl_clphs):
 
 
 def set_boundary(
-    nmod=1, spectrum="single", select="I",
-    zblf=1, mrng=10, bnd_l=[-10, +10], bnd_m=[-10, +10], bnd_f=[13.5, 140]
+    nmod=1, spectrum="single", select="I", zblf=1,
+    width=5, mrng=10, bnd_l=[-10, +10], bnd_m=[-10, +10], bnd_f=[13.5, 140]
 ):
     """
     Set the boundary for the a priori
@@ -592,16 +600,15 @@ def set_boundary(
 
     if select.upper() in ["I", "RR", "LL", "P"]:
         # zblf (float): zero-baseline flux
-        width = 5
-        in_bnd_S = [[+0.1*zblf, +1.0*zblf]]
+        in_bnd_S = [[+0.1 * zblf, +1.0 * zblf]]
         in_bnd_a = [[+0.00, +1.00]]
-        in_bnd_l = [[+0.00, +mrng/4]]
-        in_bnd_m = [[+0.00, +mrng/4]]
+        in_bnd_l = [[+0.00, +mrng / 4]]
+        in_bnd_m = [[+0.00, +mrng / 4]]
         in_bnd_f = [bnd_f]
         in_bnd_i = [[-4.00, +0.00]]
 
         if nmod >= 2:
-            nmod_ = nmod-1
+            nmod_ = nmod - 1
 
             if spectrum in ["single", "spl"]:
                 for i in range(nmod_):

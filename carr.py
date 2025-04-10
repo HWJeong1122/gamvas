@@ -109,7 +109,7 @@ class create_array:
         scd1 = source_coord.transform_to(AltAz(obstime=obs_times, location=loc1))
         scd2 = source_coord.transform_to(AltAz(obstime=obs_times, location=loc2))
 
-        mask_elevation = np.logical_and(scd1.alt.value>=self.ellim, scd2.alt.value>=self.ellim)
+        mask_elevation = (scd1.alt.value >= self.ellim) & (scd2.alt.value >= self.ellim)
         loc1 = loc1[mask_elevation]
         loc2 = loc2[mask_elevation]
         scd1 = scd1[mask_elevation]
@@ -149,8 +149,8 @@ class create_array:
 
 def add_vis(inputdat, select):
     out = inputdat.copy()
-    out = rfn.append_fields(out, "vis_{0}"  .format(select.lower()), np.zeros(out.shape[0], "c8"))
-    out = rfn.append_fields(out, "sigma_{0}".format(select.lower()), np.zeros(out.shape[0], "f8"))
+    out = rfn.append_fields(out, "vis_{0}"  .format(select.lower()), np.zeros(out.shape[0], "c8"), usemask=False)
+    out = rfn.append_fields(out, "sigma_{0}".format(select.lower()), np.zeros(out.shape[0], "f8"), usemask=False)
     return out
 
 

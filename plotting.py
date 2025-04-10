@@ -27,8 +27,8 @@ m2d = u.mas.to(u.deg)
 m2r = u.mas.to(u.rad)
 
 class plotter:
-    def __init__(
-        self, mrng=False, npix=128, nmod=False, prms=False, freq_ref=False, freq=False,
+    def __init__(self,
+        mrng=False, npix=128, nmod=False, prms=False, freq_ref=False, freq=False,
         bmin=False, bmaj=False, bpa=False, bnom=False, source=False, date=False
     ):
 
@@ -58,9 +58,7 @@ class plotter:
         self.spectrum = None
 
 
-    def set_beamprms(
-        self
-    ):
+    def set_beamprms(self):
         if not isinstance(self.bmin, bool):
             bmin = self.bmin
         else:
@@ -128,7 +126,11 @@ class plotter:
             data_ = data[freqs == freq]
             cgain1_ = cgain1[freqs == freq]
             cgain2_ = cgain2[freqs == freq]
-            amplim = [0.9*min(np.nanmin(np.abs(cgain1_)), np.nanmin(np.abs(cgain2_))), 1.1*max(np.nanmax(np.abs(cgain1_)), np.nanmax(np.abs(cgain2_)))]
+            amplim =\
+                [
+                    0.9 * min(np.nanmin(np.abs(cgain1_)), np.nanmin(np.abs(cgain2_))),
+                    1.1 * max(np.nanmax(np.abs(cgain1_)), np.nanmax(np.abs(cgain2_)))
+                ]
             newdat = gamvas.utils.sarray(
                 data =[data_["time"], data_["ant_name1"], data_["ant_name2"], cgain1_, cgain2_],
                 field=["time", "ant_name1", "ant_name2", "cgain1", "cgain2"],
@@ -163,7 +165,7 @@ class plotter:
                     ant = uant[k+10*i]
                     mask1 = newdat["ant_name1"] == ant
                     mask2 = newdat["ant_name2"] == ant
-                    newdat_ = newdat[np.logical_or(mask1, mask2)]
+                    newdat_ = newdat[mask1 | mask2]
                     mask1_ = newdat_["ant_name1"] == ant
                     mask2_ = newdat_["ant_name2"] == ant
                     ax_cgamp.scatter(newdat_["time"][mask1_], np.abs(newdat_["cgain1"][mask1_]), c="black", marker="o", s=12, label=f"{ant} ({freq:.1f} GHz)")
@@ -180,7 +182,7 @@ class plotter:
                 if save_name:
                     save_path_ = save_path + "plot_cgain/"
                     gamvas.utils.mkdir(save_path_)
-                    save_name_ = save_name + f".{freq:.0f}.{i+1}"
+                    save_name_ = save_name + f".{freq:.0f}.v{i + 1}"
                     fig_cgain.savefig(f"{save_path_}" + f"{save_name_}.{save_form}", format=save_form, dpi=200)
                 if plotimg:
                     plt.show()
@@ -231,8 +233,8 @@ class plotter:
                 else:
                     label = None
                 mask_freq = freqs == freq
-                mask_ants = np.logical_or(data["ant_name1"] == ant, data["ant_name2"] == ant)
-                data_ = data[np.logical_and(mask_freq, mask_ants)]
+                mask_ants = (data["ant_name1"] == ant) | (data["ant_name2"] == ant)
+                data_ = data[mask_freq & mask_ants]
                 ndat_ = len(data_)
                 addidx = 1 + dict_ants[ant] + len(ufreq) * nfreq
                 ax_tplot.scatter(data_["time"], np.zeros(ndat_) + addidx, c="black", marker="+", s=200, label=label)
@@ -276,7 +278,7 @@ class plotter:
 
 
     def draw_radplot(self,
-        uvf, select=None, plot_vism=False, plotimg=True, plotsnr=False, show_title=False,
+        uvf, select=None, plotvism=False, plotimg=True, plotsnr=False, show_title=False,
         save_path=False, save_name=False, save_form="png"
     ):
         if save_path:
@@ -377,7 +379,7 @@ class plotter:
                     marker="o", s=mss, fc=mfc, ec=mec
                 )
 
-        if plot_vism:
+        if plotvism:
             vism = np.where(data["u"] < 0, data["vism"].conj(), data["vism"])
             ampm = np.abs(vism)
             phsm = np.angle(vism) * u.rad.to(u.deg)
@@ -750,7 +752,7 @@ class plotter:
             nidx = 1
         sidx = [0]
         for i in range(nmod):
-            n = i+1
+            n = i + 1
             if pol:
                 field = [r"$S_{%s}$"%(n)]
                 nidx_ = 1
@@ -857,33 +859,36 @@ class plotter:
 
             for i in range(nfreq):
                 clq_obs_1 = clq_obs[clq_obs["freq"] == ufreq[i]]
+                if len(clq_obs_1) == 0:
+                    print("WARNING: Empty closure amplitude data! Skip drawing closure amplitude.")
+                    continue
 
                 if model:
                     clq_mod_1 = clq_mod[clq_obs["freq"] == ufreq[i]]
 
                 uquad = np.unique(clq_obs_1["quadra"])
                 nquad = len(uquad)
-                nfig = nquad//10
-                nax = nquad%10
+                nfig = nquad // 10
+                nax = nquad % 10
 
                 if nax != 0:
                     nfig += 1
 
                 for j in range(nfig):
-                    if j != nfig-1:
+                    if j != nfig - 1:
                         nax = 10
                     else:
                         if int(nfig*10) == nquad:
                             nax = 10
                         else:
-                            nax = nquad%10
+                            nax = nquad % 10
 
-                    fig_clamp, ax_clamp = plt.subplots(nax, 1, figsize=(fsize, fsize*(nax+1)/10), sharex=True)
+                    fig_clamp, ax_clamp = plt.subplots(nax, 1, figsize=(fsize, fsize * (nax + 1)/10), sharex=True)
 
                     for k in range(nax):
-                        clq_obs_2 = clq_obs_1[clq_obs_1["quadra"] == uquad[10*j+k]]
+                        clq_obs_2 = clq_obs_1[clq_obs_1["quadra"] == uquad[10 * j + k]]
                         if model:
-                            clq_mod_2 = clq_mod_1[clq_obs_1["quadra"] == uquad[10*j+k]]
+                            clq_mod_2 = clq_mod_1[clq_obs_1["quadra"] == uquad[10 * j + k]]
                         if nax > 1:
                             plot_ax = ax_clamp[k]
                         else:
@@ -913,9 +918,9 @@ class plotter:
                     if save_img:
                         if save_path is not None and save_name is not None:
                             if nfreq == 1:
-                                save_name_ = save_name + f".{j+1}"
+                                save_name_ = save_name + f".{j + 1}"
                             else:
-                                save_name_ = save_name + f".{ufreq[i]:.0f}.{j+1}"
+                                save_name_ = save_name + f".{ufreq[i]:.0f}.{j + 1}"
                             fig_clamp.savefig(f"{save_path_}" + f"{save_name_}.{save_form}", format=save_form, dpi=200)
                         else:
                             raise Exception("'save_path' and/or 'save_name' not given (closure amplitude).")
@@ -932,6 +937,10 @@ class plotter:
             nfreq = len(ufreq)
             for i in range(nfreq):
                 clq_obs_1 = clq_obs[clq_obs["freq"] == ufreq[i]]
+                if len(clq_obs_1) == 0:
+                    print("WARNING: Empty closure phase data! Skip drawing closure phase.")
+                    continue
+
                 if model:
                     clq_mod_1 = clq_mod[clq_obs["freq"] == ufreq[i]]
                 utria = np.unique(clq_obs_1["triangle"])
@@ -941,31 +950,31 @@ class plotter:
                 if nax != 0:
                     nfig += 1
                 for j in range(nfig):
-                    if j != nfig-1:
+                    if j != nfig - 1:
                         nax = 10
                     else:
                         if int(nfig*10) == ntria:
                             nax = 10
                         else:
-                            nax = ntria%10
-                    fig_clphs, ax_clphs = plt.subplots(nax, 1, figsize=(fsize, fsize*(nax+1)/10), sharex=True)
+                            nax = ntria % 10
+                    fig_clphs, ax_clphs = plt.subplots(nax, 1, figsize=(fsize, fsize * (nax + 1) / 10), sharex=True)
                     for k in range(nax):
-                        clq_obs_2 = clq_obs_1[clq_obs_1["triangle"] == utria[10*j+k]]
+                        clq_obs_2 = clq_obs_1[clq_obs_1["triangle"] == utria[10 * j + k]]
                         if model:
-                            clq_mod_2 = clq_mod_1[clq_obs_1["triangle"] == utria[10*j+k]]
+                            clq_mod_2 = clq_mod_1[clq_obs_1["triangle"] == utria[10 * j + k]]
                         if nax > 1:
                             plot_ax = ax_clphs[k]
                         else:
                             plot_ax = ax_clphs
                         plot_ax.set_rasterized(True)
                         plot_ax.errorbar(
-                            clq_obs_2["utime"], r2d*clq_obs_2["clphs"], r2d*clq_obs_2["sigma_clphs"],
+                            clq_obs_2["utime"], r2d * clq_obs_2["clphs"], r2d * clq_obs_2["sigma_clphs"],
                             marker="o", markersize=6, c="black", ls="", mfc="black", mec="dimgray",
                             capsize=6, capthick=1, zorder=1,
-                            label=f"{utria[10*j+k]} ({ufreq[i]:.1f} GHz)")
+                            label=f"{utria[10 * j + k]} ({ufreq[i]:.1f} GHz)")
                         if model:
                             plot_ax.plot(
-                                clq_obs_2["utime"], r2d*clq_mod_2,
+                                clq_obs_2["utime"], r2d * clq_mod_2,
                                 marker="o", markersize=4, c="red", ls=":", zorder=2
                             )
                         plot_ax.xaxis.set_major_locator(MultipleLocator(2.0))
@@ -980,7 +989,7 @@ class plotter:
                     fig_clphs.tight_layout()
                     if save_img:
                         if save_path is not None and save_name is not None:
-                            save_name_ = save_name + f".{ufreq[i]:.0f}.{j+1}"
+                            save_name_ = save_name + f".{ufreq[i]:.0f}.{j + 1}"
                             fig_clphs.savefig(f"{save_path_}" + f"{save_name_}.{save_form}", format=save_form, dpi=200)
                         else:
                             raise Exception("'save_path' and/or 'save_name' not given (closure phase).")
@@ -1000,10 +1009,10 @@ class plotter:
         rl = data["vis_rl"]
         lr = data["vis_lr"]
 
-        rlrr = rl/rr
-        lrrr = lr/rr
-        rlll = rl/ll
-        lrll = lr/ll
+        rlrr = rl / rr
+        lrrr = lr / rr
+        rlll = rl / ll
+        lrll = lr / ll
         axlim = 1.2 * max(
             np.max(np.abs(rlrr)),
             np.max(np.abs(lrrr)),
@@ -1086,49 +1095,49 @@ class plotter:
         ygrid = uvf.ygrid
         image = np.zeros(xgrid.shape)
         mrng = np.max(xgrid)
-        psize = mrng/xgrid.shape[0]*2
+        psize = mrng / xgrid.shape[0] * 2
 
         for i in range(nmod):
             if pol:
-                S = pprms[f"{i+1}_S"]
-                prm_a_ = prms[f"{i+1}_a"]
+                S = pprms[f"{i + 1}_S"]
+                prm_a_ = prms[f"{i + 1}_a"]
                 if i == 0:
                     prm_l_ = 0
                     prm_m_ = 0
                 else:
-                    prm_l_ = prms[f"{i+1}_l"]
-                    prm_m_ = prms[f"{i+1}_m"]
+                    prm_l_ = prms[f"{i + 1}_l"]
+                    prm_m_ = prms[f"{i + 1}_m"]
             else:
-                prm_S_ = prms[f"{i+1}_S"]
-                prm_a_ = prms[f"{i+1}_a"]
+                prm_S_ = prms[f"{i + 1}_S"]
+                prm_a_ = prms[f"{i + 1}_a"]
                 if ifsingle:
                     if i == 0:
                         prm_l_ = 0
                         prm_m_ = 0
                     else:
-                        prm_l_ = prms[f"{i+1}_l"]
-                        prm_m_ = prms[f"{i+1}_m"]
+                        prm_l_ = prms[f"{i + 1}_l"]
+                        prm_m_ = prms[f"{i + 1}_m"]
                     S = prm_S_
                 else:
                     if set_spectrum:
-                        prm_i_ = prms[f"{i+1}_alpha"]
+                        prm_i_ = prms[f"{i + 1}_alpha"]
                         if spectrum in ["spl"]:
                             if i == 0:
                                 prm_l_ = 0
                                 prm_m_ = 0
                             else:
-                                prm_l_ = prms[f"{i+1}_l"]
-                                prm_m_ = prms[f"{i+1}_m"]
+                                prm_l_ = prms[f"{i + 1}_l"]
+                                prm_m_ = prms[f"{i + 1}_m"]
                             S = gamvas.functions.S_spl(freq_ref, freq, prm_S_, prm_i_)
                         elif spectrum in ["cpl", "ssa"]:
-                            prm_f_ = prms[f"{i+1}_freq"]
+                            prm_f_ = prms[f"{i + 1}_freq"]
                             if i == 0:
                                 prm_l_ = 0
                                 prm_m_ = 0
                             else:
-                                mask_sindex = int(np.round(prms[f"{i+1}_thick"])) == 0
-                                prm_l_ = prms[f"{i+1}_l"]
-                                prm_m_ = prms[f"{i+1}_m"]
+                                mask_sindex = int(np.round(prms[f"{i + 1}_thick"])) == 0
+                                prm_l_ = prms[f"{i + 1}_l"]
+                                prm_m_ = prms[f"{i + 1}_m"]
                             if spectrum in ["cpl"]:
                                 if i == 0:
                                     S = gamvas.functions.S_cpl(freq, prm_S_, prm_f_, prm_i_)
@@ -1150,27 +1159,27 @@ class plotter:
                             prm_l_ = 0
                             prm_m_ = 0
                         else:
-                            prm_l_ = prms[f"{i+1}_l"]
-                            prm_m_ = prms[f"{i+1}_m"]
+                            prm_l_ = prms[f"{i + 1}_l"]
+                            prm_m_ = prms[f"{i + 1}_m"]
                         S = prm_S_
 
-            ax = prm_a_/np.sqrt(8*np.log(2))
-            ay = prm_a_/np.sqrt(8*np.log(2))
+            ax = prm_a_ / np.sqrt(8 * np.log(2))
+            ay = prm_a_ / np.sqrt(8 * np.log(2))
             if ax > psize:
-                I = S/(2*np.pi*ax*ay)
+                I = S / (2 * np.pi * ax * ay)
                 gaussian_model = Gaussian2D(amplitude=I, x_mean=prm_l_, y_mean=prm_m_, x_stddev=ax, y_stddev=ay, theta=0)
                 addimg = gaussian_model(xgrid, ygrid)
             elif ax <= psize:
                 I = S/psize**2
-                loc = [int(np.round((-prm_l_+mrng)/psize)), int(np.round((-prm_m_+mrng)/psize))]
+                loc = [int(np.round((-prm_l_ + mrng) / psize)), int(np.round((-prm_m_ + mrng) / psize))]
                 addimg = np.zeros(xgrid.shape)
                 addimg[loc[0], loc[1]] = I
             image += addimg
         self.image = image
 
 
-    def convolve_image(
-        self, uvf, npix, image=False, bnom=False
+    def convolve_image(self,
+        uvf, npix, image=False, bnom=False
     ):
         """
         convolve the generated intensity image with restoring beam (Jy/beam)
@@ -1254,25 +1263,25 @@ class plotter:
             if "mf" in save_name_:
                 self.img_count = 0
                 if "_C" in save_name_:
-                    save_name_=save_name_.replace("_C", "")
+                    save_name_ = save_name_.replace("_C", "")
                     self.img_count += 1
                 if "_X" in save_name_:
-                    save_name_=save_name_.replace("_X", "")
+                    save_name_ = save_name_.replace("_X", "")
                     self.img_count += 1
                 if "_U" in save_name_:
-                    save_name_=save_name_.replace("_U", "")
+                    save_name_ = save_name_.replace("_U", "")
                     self.img_count += 1
                 if "_K" in save_name_:
-                    save_name_=save_name_.replace("_K", "")
+                    save_name_ = save_name_.replace("_K", "")
                     self.img_count += 1
                 if "_Q" in save_name_:
-                    save_name_=save_name_.replace("_Q", "")
+                    save_name_ = save_name_.replace("_Q", "")
                     self.img_count += 1
                 if "_W" in save_name_:
-                    save_name_=save_name_.replace("_W", "")
+                    save_name_ = save_name_.replace("_W", "")
                     self.img_count += 1
                 if "_D" in save_name_:
-                    save_name_=save_name_.replace("_D", "")
+                    save_name_ = save_name_.replace("_D", "")
                     self.img_count += 1
             else:
                 self.img_count = 1
@@ -1289,13 +1298,11 @@ class plotter:
             resim = uvf.resid
             image += resim
 
-            rms1 = np.abs(np.percentile(resim, 16)-np.percentile(resim, 50))
-            rms2 = np.abs(np.percentile(resim, 84)-np.percentile(resim, 50))
-            rms = (rms1+rms2)/2
+            rms = gamvas.utils.cal_rms(resim)
             if rms == 0:
-                rms = 0.01*np.max(image)
+                rms = 0.01 * np.max(image)
 
-            levels = [mindr*rms]
+            levels = [mindr * rms]
             if mindr*rms < np.max(image)*np.sqrt(2):
                 while levels[-1] < np.max(image):
                     levels.append(levels[-1]*np.sqrt(2))
@@ -1309,7 +1316,7 @@ class plotter:
         if genlevels:
             levels = [maxlev]
             while levels[-1] > minlev:
-                levels.append(levels[-1]/step)
+                levels.append(levels[-1] / step)
             levels = np.sort(np.max(image) * np.array(levels))
 
         xgrid = uvf.xgrid
@@ -1369,11 +1376,11 @@ class plotter:
             if i == 0:
                 ra, dec = 0, 0
             else:
-                ra, dec = prms[f"{i+1}_l"], prms[f"{i+1}_m"]
-            a = prms[f"{i+1}_a"]
+                ra, dec = prms[f"{i + 1}_l"], prms[f"{i + 1}_m"]
+            a = prms[f"{i + 1}_a"]
             Gmodel = patches.Ellipse((ra, dec), a, a, angle=0, fc="none", ec="cyan", lw=1.0)
-            stick1 = patches.ConnectionPatch(xyA=(ra-a/2, dec), xyB=(ra+a/2, dec), coordsA="data", color="cyan", lw=1.0)
-            stick2 = patches.ConnectionPatch(xyA=(ra, dec-a/2), xyB=(ra, dec+a/2), coordsA="data", color="cyan", lw=1.0)
+            stick1 = patches.ConnectionPatch(xyA=(ra -a / 2, dec), xyB=(ra +a / 2, dec), coordsA="data", color="cyan", lw=1.0)
+            stick2 = patches.ConnectionPatch(xyA=(ra, dec -a / 2), xyB=(ra, dec +a / 2), coordsA="data", color="cyan", lw=1.0)
             ax_map.add_patch(Gmodel)
             ax_map.add_patch(stick1)
             ax_map.add_patch(stick2)
@@ -1385,7 +1392,7 @@ class plotter:
 
         if returned:
             close_figure(fig_map)
-            return image
+            return (image, resim)
         if outfig:
             close_figure(fig_map)
             return (fig_map, ax_map)
@@ -1393,21 +1400,23 @@ class plotter:
 
 
     def draw_fits_image(self,
-        uvf, select="i", xlim=False, ylim=False, cmap_snr_i=3, cmap_snr_p=3,
+        uvf, select="i", rms=None, xlim=False, ylim=False, cmap_snr_i=3, cmap_snr_p=3,
         fsize=6, contourw=0.3, pagap=30, plotimg=True, show_title=False,
         save_path=False, save_name=False, save_form="png"
     ):
         if select.lower() == "i":
             image = uvf.fits_image_vi
-            rms = gamvas.utils.cal_rms(image)
-            cntr = gamvas.utils.make_cntr(image)
+            if rms is None:
+                rms = gamvas.utils.cal_rms(image)
+            cntr = gamvas.utils.make_cntr(image, rms=rms)
             cmap = "gist_heat"
             vmin = cmap_snr_i*rms
             vmax = np.max(image)
         elif select.lower() == "q":
             image = uvf.fits_image_q
-            rms = gamvas.utils.cal_rms(image)
-            cntr = gamvas.utils.make_cntr(image)
+            if rms is None:
+                rms = gamvas.utils.cal_rms(image)
+            cntr = gamvas.utils.make_cntr(image, rms=rms)
             cmap = "gist_heat"
             peak_min = np.nanmin(image)
             peak_max = np.nanmax(image)
@@ -1419,8 +1428,9 @@ class plotter:
                 vmax = peak_max
         elif select.lower() == "u":
             image = uvf.fits_image_u
-            rms = gamvas.utils.cal_rms(image)
-            cntr = gamvas.utils.make_cntr(image)
+            if rms is None:
+                rms = gamvas.utils.cal_rms(image)
+            cntr = gamvas.utils.make_cntr(image, rms=rms)
             cmap = "gist_heat"
             peak_min = np.nanmin(image)
             peak_max = np.nanmax(image)
@@ -1432,8 +1442,9 @@ class plotter:
                 vmax = peak_max
         elif select.lower() == "p":
             image = uvf.fits_image_vi
-            rms = gamvas.utils.cal_rms(image)
-            cntr = gamvas.utils.make_cntr(image)
+            if rms is None:
+                rms = gamvas.utils.cal_rms(image)
+            cntr = gamvas.utils.make_cntr(image, rms=rms)
             cmap = "gist_heat"
             vmin = cmap_snr_p*rms
             vmax = np.nanmax(image)
@@ -1442,8 +1453,15 @@ class plotter:
             rms_p = uvf.fits_image_rms_p * 1e3
             rms_f = rms_p/rms/1e3
             cmap_p = polcba
-            vmin_p = cmap_snr_p*rms_p
+            vmin_p = cmap_snr_p * rms_p
             vmax_p = np.nanmax(image_p)
+
+            if vmin_p > 3 * vmax_p:
+                vmin_p = rms_p
+
+            if np.isnan(vmax_p):
+                vmax_p = 100 * rms_p
+
             vmin_f = cmap_snr_p*rms_f
             vmax_f = 100
             pa_x = uvf.fits_image_evpa_x

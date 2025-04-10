@@ -79,17 +79,21 @@ class polarization:
             def compute_bic(in_res, in_sig2, in_type, in_nobs, in_nmprm):
                 penalty = in_nmprm * np.log(in_nobs)
                 if in_type == "vis":
-                    nll = 0.5 * (np.nansum(in_res**2 / in_sig2 + np.log(2 * np.pi * in_sig2))) / 2
+                    nll =\
+                        0.5 *\
+                        (np.nansum(0.5 * (in_res**2 / in_sig2) + np.log(2 * np.pi * in_sig2)))
                 else:
-                    nll = 0.5 * (np.nansum(in_res**2 / in_sig2 + np.log(2 * np.pi * in_sig2)))
+                    nll =\
+                        0.5 *\
+                        (np.nansum(1.0 * (in_res**2 / in_sig2) + np.log(2 * np.pi * in_sig2)))
                 return 2 * nll + penalty
 
             if "vis" in ftypes:
                 vis_obs = y[0]
                 vis_mod = model
-                vis_res = vis_mod-vis_obs
+                vis_sig2 = yerr[0]**2
+                vis_res = np.abs(vis_mod - vis_obs)
                 nobs = len(y[0])
-                vis_sig2 = yerr_amp**2
                 objective -= self.fdict["vis"] * compute_bic(vis_res, vis_sig2, "vis", nobs, nmprm)
 
             if "amp" in ftypes:
@@ -375,7 +379,7 @@ class polarization:
                     zblf.append(uzblf)
 
             uiflux = np.sum(zblf)
-            zblf = unp.nominal_values(zblf)
+            zblf = unp.nominal_values(zblf) / np.sqrt(2)
 
             for nstoke, stoke in enumerate(stokes):
                 # set ata
@@ -386,6 +390,7 @@ class polarization:
                 iprms_a = [iprms[f"{i + 1}_a"] for i in range(nmod)]
                 iprms_l = [0] + [iprms[f"{i + 2}_l"] for i in range(nmod - 1)]
                 iprms_m = [0] + [iprms[f"{i + 2}_m"] for i in range(nmod - 1)]
+
                 x =\
                 (
                     np.ma.getdata(uvf.data["u"]),
@@ -397,10 +402,16 @@ class polarization:
 
                 if runmf:
                     fitset = "mf"
+                    set_spectrum_ = True
+                    ifsingle = False
                 else:
                     fitset = "sf"
+                    set_spectrum_ = True
+                    ifsingle = True
+
+                # append polarization model visibility
                 uvf.append_visibility_model(
-                    freq_ref=uvf.freq,
+                    freq_ref=freq_ref,
                     freq=uvf.freq,
                     theta=iprms,
                     fitset=fitset,
@@ -408,6 +419,38 @@ class polarization:
                     set_spectrum=True,
                     args=x
                 )
+
+                # extract total emission map (nominal beam)
+                uvf.ploter.bnom = uvf.beam_prms
+                uvf.ploter.prms = iprms
+                uvf.ploter.fitset = fitset
+                uvf.ploter.spectrum = spectrum
+                returned =\
+                    uvf.ploter.draw_image(
+                        uvf=uvf,
+                        returned=True,
+                        plotimg=False,
+                        npix=self.npix,
+                        mindr=self.mindr,
+                        plot_resi=True,
+                        addnoise=True,
+                        freq_ref=freq_ref,
+                        freq=uvf.freq,
+                        ifsingle=ifsingle,
+                        set_spectrum=set_spectrum_,
+                    )
+                uvf_.fits_image_vi = returned[0]
+                uvf_.fits_image_rms_i = gamvas.utils.cal_rms(returned[1])
+                uvf_.fits_imgcntr_i = gamvas.utils.make_cntr(returned[0], rms=uvf_.fits_image_rms_i)
+                uvf_.fits_clean_vflux_i = unp.nominal_values(uiflux)
+                uvf_.fits_clean_dflux_i = unp.std_devs(uiflux)
+
+                # extract total emission map (restored beam)
+                bnom_ = uvf.ploter.bnom
+                if fitset == "mf":
+                    uvf.ploter.bnom = self.beam_prms
+                else:
+                    uvf.ploter.bnom = (bnom_[0], bnom_[0], 0)
                 returned =\
                     uvf.ploter.draw_image(
                         uvf=uvf,
@@ -420,13 +463,12 @@ class polarization:
                         freq_ref=uvf.freq,
                         freq=uvf.freq,
                         ifsingle=True,
-                        set_spectrum="mf",
+                        set_spectrum=set_spectrum_,
                     )
-                uvf_.fits_image_vi = returned
-                uvf_.fits_image_rms_i = gamvas.utils.cal_rms(returned)
-                uvf_.fits_imgcntr_i = gamvas.utils.make_cntr(returned)
-                uvf_.fits_clean_vflux_i = unp.nominal_values(uiflux)
-                uvf_.fits_clean_dflux_i = unp.std_devs(uiflux)
+                uvf.ploter.bnom = bnom_
+                uvf_.fits_image_vi_res = returned[0]
+                uvf_.fits_image_rms_i_res = gamvas.utils.cal_rms(returned[1])
+                uvf_.fits_imgcntr_i_res = gamvas.utils.make_cntr(returned[0], rms=uvf_.fits_image_rms_i)
 
                 # load polarization uvf
                 uvf.load_uvf(select=stoke, uvw=uvf.uvw, snrflag=0, pinfo=False)
@@ -455,6 +497,7 @@ class polarization:
                     gamvas.utils.set_boundary(
                         nmod=nmod, select=stoke, spectrum="single", zblf=zblf
                     )
+
                 bnds =\
                     gamvas.utils.sarray(
                         bnd_S,
@@ -475,9 +518,6 @@ class polarization:
                             )
                     else:
                         fwght = copy.deepcopy(self.fwght)
-                if not "phs" in ftype:
-                    ftype += ["phs"]
-                    fwght += [1]
                 self.fdict = dict(zip(ftype, fwght))
 
                 # set uv-combinations
@@ -611,7 +651,7 @@ class polarization:
                     stats=(fty, chi, aic, bic, logz_v, logz_d),
                     printmsg=True,
                     save_path=save_path_,
-                    save_name="model_prms.txt"
+                    save_name="model_result.txt"
                 )
 
                 uvf.ploter.bnom = uvf.beam_prms
@@ -635,7 +675,7 @@ class polarization:
                     set_spectrum=False,
                     fontsize=20,
                     save_path=save_path_,
-                    save_name=f"{self.source}.{self.date}.trplot",
+                    save_name=f"{self.source}.{self.date}.trplot.{fitset}",
                     save_form="pdf"
                 )
 
@@ -647,7 +687,7 @@ class polarization:
                     set_spectrum=False,
                     fontsize=20,
                     save_path=save_path_,
-                    save_name=f"{self.source}.{self.date}.cnplot",
+                    save_name=f"{self.source}.{self.date}.cnplot.{fitset}",
                     save_form="pdf"
                 )
 
@@ -656,9 +696,9 @@ class polarization:
                     select=self.stoke,
                     plotimg=False,
                     show_title=False,
-                    plot_vism=True,
+                    plotvism=True,
                     save_path=save_path_,
-                    save_name=f"{self.source}.{self.date}.radplot.model",
+                    save_name=f"{self.source}.{self.date}.radplot.{fitset}.model",
                     save_form="pdf"
                 )
 
@@ -669,7 +709,7 @@ class polarization:
                         plotimg=False,
                         save_img=True,
                         save_path=save_path_,
-                        save_name=f"{self.source}.{self.date}.clphs",
+                        save_name=f"{self.source}.{self.date}.clphs.{fitset}",
                         save_form="pdf"
                     )
 
@@ -680,7 +720,7 @@ class polarization:
                         plotimg=False,
                         save_img=True,
                         save_path=save_path_,
-                        save_name=f"{self.source}.{self.date}.clphs",
+                        save_name=f"{self.source}.{self.date}.clphs.{fitset}",
                         save_form="pdf"
                     )
 
@@ -699,31 +739,34 @@ class polarization:
                         ifsingle=True,
                         set_spectrum="sf",
                         save_path=save_path_,
-                        save_name=f"{self.source}.{self.date}.img",
+                        save_name=f"{self.source}.{self.date}.img.{fitset}",
                         save_form="pdf"
                     )
 
                 if self.stoke.upper() == "Q":
-                    uvf_.fits_image_vq = returned
-                    uvf_.fits_image_rms_q = gamvas.utils.cal_rms(returned)
-                    uvf_.fits_imgcntr_q = gamvas.utils.make_cntr(returned)
+                    uvf_.fits_image_vq = returned[0]
+                    uvf_.fits_image_rms_q = gamvas.utils.cal_rms(returned[1])
+                    uvf_.fits_imgcntr_q = gamvas.utils.make_cntr(returned[0], rms=uvf_.fits_image_rms_q)
                     uvf_.fits_clean_vflux_q = unp.nominal_values(self.uflux)
                     uvf_.fits_clean_dflux_q = unp.std_devs(self.uflux)
                 if self.stoke.upper() == "U":
-                    uvf_.fits_image_vu = returned
-                    uvf_.fits_image_rms_u = gamvas.utils.cal_rms(returned)
-                    uvf_.fits_imgcntr_u = gamvas.utils.make_cntr(returned)
+                    uvf_.fits_image_vu = returned[0]
+                    uvf_.fits_image_rms_u = gamvas.utils.cal_rms(returned[1])
+                    uvf_.fits_imgcntr_u = gamvas.utils.make_cntr(returned[0], rms=uvf_.fits_image_rms_u)
                     uvf_.fits_clean_vflux_u = unp.nominal_values(self.uflux)
                     uvf_.fits_clean_dflux_u = unp.std_devs(self.uflux)
                 if self.stoke.upper() == "V":
-                    uvf_.fits_image_vv = returned
-                    uvf_.fits_image_rms_v = gamvas.utils.cal_rms(returned)
-                    uvf_.fits_imgcntr_v = gamvas.utils.make_cntr(returned)
+                    uvf_.fits_image_vv = returned[0]
+                    uvf_.fits_image_rms_v = gamvas.utils.cal_rms(returned[1])
+                    uvf_.fits_imgcntr_v = gamvas.utils.make_cntr(returned[0], rms=uvf_.fits_image_rms_v)
                     uvf_.fits_clean_vflux_v = unp.nominal_values(self.uflux)
                     uvf_.fits_clean_dflux_v = unp.std_devs(self.uflux)
 
                 # set restoring beam parameters
-                uvf.ploter.bnom = self.beam_prms
+                if fitset == "mf":
+                    uvf.ploter.bnom = self.beam_prms
+                else:
+                    uvf.ploter.bnom = (bnom_[0], bnom_[0], 0)
                 returned_res =\
                     uvf.ploter.draw_image(
                         uvf=uvf,
@@ -739,25 +782,25 @@ class polarization:
                         ifsingle=True,
                         set_spectrum="sf",
                         save_path=save_path_,
-                        save_name=f"{self.source}.{self.date}.img.restore",
+                        save_name=f"{self.source}.{self.date}.img.{fitset}.restore",
                         save_form="pdf"
                     )
                 if self.stoke.upper() == "Q":
-                    uvf_.fits_image_vq_res = returned_res
-                    uvf_.fits_image_rms_q_res = gamvas.utils.cal_rms(returned_res)
-                    uvf_.fits_imgcntr_q_res = gamvas.utils.make_cntr(returned_res)
+                    uvf_.fits_image_vq_res = returned_res[0]
+                    uvf_.fits_image_rms_q_res = gamvas.utils.cal_rms(returned_res[1])
+                    uvf_.fits_imgcntr_q_res = gamvas.utils.make_cntr(returned_res[0], rms=uvf_.fits_image_rms_q_res)
                     uvf_.fits_clean_vflux_q = unp.nominal_values(self.uflux)
                     uvf_.fits_clean_dflux_q = unp.std_devs(self.uflux)
                 if self.stoke.upper() == "U":
-                    uvf_.fits_image_vu_res = returned_res
-                    uvf_.fits_image_rms_u_res = gamvas.utils.cal_rms(returned_res)
-                    uvf_.fits_imgcntr_u_res = gamvas.utils.make_cntr(returned_res)
+                    uvf_.fits_image_vu_res = returned_res[0]
+                    uvf_.fits_image_rms_u_res = gamvas.utils.cal_rms(returned_res[1])
+                    uvf_.fits_imgcntr_u_res = gamvas.utils.make_cntr(returned_res[0], rms=uvf_.fits_image_rms_u_res)
                     uvf_.fits_clean_vflux_u = unp.nominal_values(self.uflux)
                     uvf_.fits_clean_dflux_u = unp.std_devs(self.uflux)
                 if self.stoke.upper() == "V":
-                    uvf_.fits_image_vv_res = returned_res
-                    uvf_.fits_image_rms_v_res = gamvas.utils.cal_rms(returned_res)
-                    uvf_.fits_imgcntr_v_res = gamvas.utils.make_cntr(returned_res)
+                    uvf_.fits_image_vv_res = returned_res[0]
+                    uvf_.fits_image_rms_v_res = gamvas.utils.cal_rms(returned_res[1])
+                    uvf_.fits_imgcntr_v_res = gamvas.utils.make_cntr(returned_res[0], rms=uvf_.fits_image_rms_v_res)
                     uvf_.fits_clean_vflux_v = unp.nominal_values(self.uflux)
                     uvf_.fits_clean_dflux_v = unp.std_devs(self.uflux)
 
@@ -767,53 +810,91 @@ class polarization:
             else:
                 save_path_p = save_path
 
-            # set image parameters
+
+            # draw nominal-beam image
+            ## set fits restoring beam size
+            uvf_.fits_bmin = uvf_.beam_prms[0]
+            uvf_.fits_bmaj = uvf_.beam_prms[1]
+            uvf_.fits_bpa = uvf_.beam_prms[2]
+
+            ## set image parameters
+            fnpix = int(np.round(self.npix / 256))
             uvf_.fits_npix = self.npix
             uvf_.fits_psize = 24 * u.mas.to(u.deg) / self.npix
             uvf_.fits_grid_ra = uvf.xgrid/u.deg.to(u.mas)
             uvf_.fits_grid_dec = uvf.ygrid/u.deg.to(u.mas)
-            uvf_.cal_polarization(snr_i=3, snr_p=3, evpalength=0.5, evpawidth=1)
+            uvf_.cal_polarization(
+                snr_i=3, snr_p=3,
+                evpalength=0.3 * fnpix, evpawidth=0.7 * fnpix
+            )
 
-            # set restoring beam parameters
-            ## restoring beam size to nominal beam
-            uvf_.fits_bmin = uvf_.beam_prms[0]
-            uvf_.fits_bmaj = uvf_.beam_prms[1]
-            uvf_.fits_bpa = uvf_.beam_prms[2]
+            ## draw image
             uvf_.ploter.draw_fits_image(
                 uvf_,
                 select="p",
+                rms=uvf_.fits_image_rms_i,
                 xlim=False,
                 ylim=False,
                 cmap_snr_i=3,
                 cmap_snr_p=3,
                 fsize=6,
                 contourw=0.5,
-                pagap=5,
+                pagap=5 * int(np.round(self.npix / 256)),
                 plotimg=False,
                 show_title=False,
                 save_path=save_path_p,
-                save_name=f"{self.source}.{self.date}.imgp.{bands[nfreq_]}",
+                save_name=f"{self.source}.{self.date}.imgp.{fitset}.nominal.{bands[nfreq_]}",
                 save_form="pdf"
             )
 
-            ## restoring beam size to minor axis
-            uvf_.fits_bmin = uvf_.beam_prms[0]
-            uvf_.fits_bmaj = uvf_.beam_prms[0]
-            uvf_.fits_bpa = 0
+            ## draw restored-beam image
+            ## set fits restoring beam size
+            if fitset == "mf":
+                uvf_.fits_bmin = self.beam_prms[0]
+                uvf_.fits_bmaj = self.beam_prms[1]
+                uvf_.fits_bpa = self.beam_prms[2]
+            else:
+                uvf_.fits_bmin = uvf_.beam_prms[0]
+                uvf_.fits_bmaj = uvf_.beam_prms[0]
+                uvf_.fits_bpa = 0
+
+            ## set restored images
+            uvf_.fits_image_vi = uvf_.fits_image_vi_res
+            uvf_.fits_image_vq = uvf_.fits_image_vq_res
+            uvf_.fits_image_vu = uvf_.fits_image_vu_res
+            uvf_.fits_image_rms_i = uvf_.fits_image_rms_i_res
+            uvf_.fits_image_rms_q = uvf_.fits_image_rms_q_res
+            uvf_.fits_image_rms_u = uvf_.fits_image_rms_u_res
+            uvf_.fits_imgcntr_i = uvf_.fits_imgcntr_i_res
+            uvf_.fits_imgcntr_q = uvf_.fits_imgcntr_q_res
+            uvf_.fits_imgcntr_u = uvf_.fits_imgcntr_u_res
+
+            ## set image parameters
+            uvf_.fits_npix = self.npix
+            uvf_.fits_psize = 24 * u.mas.to(u.deg) / self.npix
+            uvf_.fits_grid_ra = uvf.xgrid/u.deg.to(u.mas)
+            uvf_.fits_grid_dec = uvf.ygrid/u.deg.to(u.mas)
+            uvf_.cal_polarization(
+                snr_i=3, snr_p=3,
+                evpalength=0.3 * fnpix, evpawidth=0.7 * fnpix
+            )
+
+            ## draw image
             uvf_.ploter.draw_fits_image(
                 uvf_,
                 select="p",
+                rms=uvf_.fits_image_rms_i,
                 xlim=False,
                 ylim=False,
                 cmap_snr_i=3,
                 cmap_snr_p=3,
                 fsize=6,
                 contourw=0.5,
-                pagap=5,
+                pagap=5 * int(np.round(self.npix / 256)),
                 plotimg=False,
                 show_title=False,
                 save_path=save_path_p,
-                save_name=f"{self.source}.{self.date}.imgp.restore.{bands[nfreq_]}",
+                save_name=f"{self.source}.{self.date}.imgp.{fitset}.restore.{bands[nfreq_]}",
                 save_form="pdf"
             )
 
@@ -823,7 +904,7 @@ class polarization:
             fp = lp / np.ma.getdata(zblf) * 100
             pa = 0.5 * np.arctan2(pprms_u, pprms_q) * u.rad.to(u.deg)
 
-            modelprms = open(save_path_p + "model_prms.txt", mode="a")
+            modelprms = open(save_path_p + "model_result.txt", mode="a")
             for i in range(nmod):
                 # # (43.5 GHz) Model 1 : 3.342v 0.000v 0.000v 0.245v
                 outprint = f"# ({self.freq:.1f} GHz, pol) Model {i+1} : "
@@ -851,7 +932,7 @@ class polarization:
             ufreq = np.array(ufreq)
 
         if save_path and save_name:
-            modelprms = open(save_path+save_name, "w")
+            modelprms = open(save_path + save_name, "w")
             modelprms.close()
 
         for nfreq, freq in enumerate(ufreq):
@@ -862,19 +943,19 @@ class polarization:
                     smax_, a_, l_, m_ = pprms[f"{i+1}_S"], iprms[f"{i+1}_a"], iprms[f"{i+1}_l"], iprms[f"{i+1}_m"]
                 S_ = smax_
 
-                r_, p_ = np.sqrt(l_**2+m_**2), np.arctan2(l_, m_)*u.rad.to(u.deg)
+                r_, p_ = np.sqrt(l_**2 + m_**2), np.arctan2(l_, m_) * u.rad.to(u.deg)
                 outprint = f"# ({freq:.1f} GHz, Stokes {self.stoke.upper()}) Model {i+1} : {S_:.3f}v {+r_:.3f}v {p_:.3f}v {a_:.3f}v"
 
                 if printmsg:
                     print(outprint)
 
                 if save_path and save_name:
-                    modelprms = open(save_path+save_name, mode="a")
+                    modelprms = open(save_path + save_name, mode="a")
                     modelprms.write(f"{outprint}\n")
                     modelprms.close()
 
         if save_path and save_name:
-            modelprms = open(save_path+save_name, mode="a")
+            modelprms = open(save_path + save_name, mode="a")
             chi_tot = 0
             aic_tot = 0
             bic_tot = 0

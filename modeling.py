@@ -65,7 +65,6 @@ class modeling:
         npix (int): The number of pixels in resultant images
         mindr (float): The minimum dynamic range to plot a contour in resultant images
         mrng (float): The map range
-        niter (int): The number of iteration (i.e., the number of modeling incl self-calibration)
         dogscale (bool): The toggle option to run a antenna gain-scaling
         doampcal (bool): The toggle option to run visibility amplitude self-calibration
         dophscal (bool): The toggle option to run visibility phase self-calibration
@@ -78,11 +77,12 @@ class modeling:
     def __init__(self,
         uvfs=None, select="i", x=None, y=None, yerr=None, args=None,
         factor_zblf=1.0, sampler="rwalk", bound="multi",
-        runfit_set="mf", runfit_sf=False, runfit_mf=True, runfit_pol=False, ftype=None, fwght=None,
-        boundset=False, bnd_l=None, bnd_m=None, bnd_f=None,
+        runfit_set="mf", runfit_sf=False, runfit_mf=True, runfit_pol=False,
+        niter=1, ftype=None, fwght=None, re_ftype=None, re_fwght=None,
+        boundset=False, width=5, bnd_l=None, bnd_m=None, bnd_f=None,
         ufreq=None, bands=None, spectrum=None, uvw=None, shift=None,
         fixnmod=False, maxn=None, npix=None, mindr=3, mrng=None,
-        niter=1, dogscale=False, doampcal=False, dophscal=True,
+        dogscale=False, doampcal=False, dophscal=True,
         path_fig=None, source=None, date=None, cgain_truth=None, ncpu=1
     ):
         self.uvfs = uvfs
@@ -100,6 +100,8 @@ class modeling:
         self.runfit_sf = runfit_sf
         self.runfit_mf = runfit_mf
         self.runfit_pol = runfit_pol
+
+        self.niter = niter
         self.ftype = ftype
         if ftype is not None and fwght is not None:
             self.fwght = fwght
@@ -107,8 +109,11 @@ class modeling:
         else:
             self.fwght = fwght
             self.fdict = None
+        self.re_ftype = re_ftype
+        self.re_fwght = re_fwght
 
         self.boundset = boundset
+        self.width = width
         self.bnd_l = bnd_l
         self.bnd_m = bnd_m
         self.bnd_f = bnd_f
@@ -125,7 +130,6 @@ class modeling:
         self.mindr = mindr
         self.mrng = mrng
 
-        self.niter = niter
         self.dogscale = dogscale
         self.doampcal = doampcal
         self.dophscal = dophscal
@@ -292,19 +296,19 @@ class modeling:
                 if in_type == "vis":
                     nll =\
                         0.5 *\
-                        (np.nansum(in_res**2 / in_sig2 + np.log(2 * np.pi * in_sig2))) / 2
+                        (np.nansum(0.5 * (in_res**2 / in_sig2) + np.log(2 * np.pi * in_sig2)))
                 else:
                     nll =\
                         0.5 *\
-                        (np.nansum(in_res**2 / in_sig2 + np.log(2 * np.pi * in_sig2)))
+                        (np.nansum(1.0 * (in_res**2 / in_sig2) + np.log(2 * np.pi * in_sig2)))
                 return 2 * nll + penalty
 
             if "vis" in ftypes:
                 vis_obs = y[0]
                 vis_mod = model
-                vis_res = vis_mod - vis_obs
+                vis_res = np.abs(vis_mod - vis_obs)
                 nobs = len(y[0])
-                vis_sig2 = yerr_amp**2
+                vis_sig2 = yerr[0]**2
                 objective -=\
                     self.fdict["vis"] *\
                     compute_bic(vis_res, vis_sig2, "vis", nobs, nmprm)
@@ -470,7 +474,7 @@ class modeling:
         ndim = 1
         self.ufreq = np.unique(self.x[1])
         for i in range(nmod):
-            nmod_ = i+1
+            nmod_ = i + 1
             self.set_field(nmod=nmod_)
             ndim += self.dims
         self.ndim = ndim
@@ -513,8 +517,8 @@ class modeling:
         qhs = np.array([])
         for i in range(nprms):
             ql, qm, qh = dyquan(samples[:,i], qs, weights=weights)
-            ql = qm-ql
-            qh = qh-qm
+            ql = qm - ql
+            qh = qh - qm
             qls = np.append(qls, ql)
             qms = np.append(qms, qm)
             qhs = np.append(qhs, qh)
@@ -539,7 +543,7 @@ class modeling:
 
         if self.set_spectrum:
             for i in range(nmod):
-                nmod_ = int(i+1)
+                nmod_ = int(i + 1)
                 if nmod_ == 1:
                     if self.spectrum == "spl":
                         nmprms += 3
@@ -634,98 +638,108 @@ class modeling:
         """
         Run single-frequency model-fit
         """
-        uvfs = copy.deepcopy(self.uvfs)
-        uvall = gamvas.utils.set_uvf(uvfs, type="mf")
 
         if self.maxn is None:
             self.maxn = 5
         print(f"# Setting maximum number of models to {self.maxn}")
 
-        if len(uvfs) != len(self.bands):
+        if len(self.uvfs) != len(self.bands):
             raise Exception("The number of uvf files and bands are not matched.")
         else:
-            nfreq = len(uvfs)
+            nfreq = len(self.uvfs)
 
         for nband in range(nfreq):
-            band = self.bands[nband]
+            uvfs = copy.deepcopy(self.uvfs)
             uvf = gamvas.utils.set_uvf([copy.deepcopy(uvfs[nband])], type="sf")
-            zblf = self.factor_zblf * uvf.get_zblf()[0]
-            freq = uvf.freq
-            nmod = self.maxn
+            cgain1_ = np.ones(uvf.data.shape[0]) * np.exp(1j * 0)
+            cgain2_ = np.ones(uvf.data.shape[0]) * np.exp(1j * 0)
 
-            path_fig = self.path_fig+f"{freq:.1f}/"
-            gamvas.utils.mkdir(path_fig)
-
-            # uvf.ploter.draw_tplot(
-            #     uvf, plotimg=False, show_title=False,
-            #     instrument=self.instrument,
-            #     save_path=path_fig,
-            #     save_name=f"{self.source}.{self.date}.tplot",
-            #     save_form="pdf"
-            # )
-            uvf.ploter.draw_radplot(
-                uvf, plotimg=False, show_title=False,
-                save_path=path_fig,
-                save_name=f"{self.source}.{self.date}.radplot",
-                save_form="pdf"
-            )
-            uvf.ploter.draw_uvcover(
-                uvf, plotimg=False, show_title=False,
-                save_path=path_fig,
-                save_name=f"{self.source}.{self.date}.uvcover",
-                save_form="pdf"
-            )
-            uvf.ploter.draw_dirtymap(
-                uvf, plotimg=False, show_title=False,
-                npix=self.npix, uvw=self.uvw,
-                save_path=path_fig,
-                save_name=f"{self.source}.{self.date}.dirtmap",
-                save_form="pdf"
-            )
-
-            data = uvf.data
-            cgain1_ = np.ones(data.shape[0]) * np.exp(1j * 0)
-            cgain2_ = np.ones(data.shape[0]) * np.exp(1j * 0)
-
-            bnd_S, bnd_a, bnd_l, bnd_m, bnd_f, bnd_i =\
-                gamvas.utils.set_boundary(
-                    nmod=nmod, select=self.select, spectrum="single", zblf=zblf,
-                    mrng=self.mrng, bnd_l=self.bnd_l, bnd_m=self.bnd_m
-                )
-
-            bnds =\
-                gamvas.utils.sarray(
-                    (bnd_S, bnd_a, bnd_l, bnd_m),
-                    field=fields_sf,
-                    dtype=dtypes_sf
-                )
-
-            for ns in range(self.niter):
+            for niter_ in range(self.niter):
+                uvfs = copy.deepcopy(self.uvfs)
+                uvall = gamvas.utils.set_uvf(uvfs, type="mf")
 
                 # set fit weights
-                if self.fwght is None:
-                    fwght =\
-                        gamvas.utils.get_fwght(
-                            ftype,
-                            data,
-                            uvf.clamp["clamp"],
-                            uvf.clphs["clphs"]
-                        )
+                if niter_ == 0:
+                    ftype = self.ftype.copy()
+                    if self.fwght is None:
+                        fwght = gamvas.utils.get_fwght(ftype, uvf.data, uvf.clamp["clamp"], uvf.clphs["clphs"])
+                    else:
+                        fwght = self.fwght.copy()
+                    self.fdict = dict(zip(ftype, fwght))
                 else:
-                    fwght = self.fwght.copy()
+                    if self.re_ftype is None and self.re_fwght is None:
+                        ftype = self.ftype.copy()
+                        fwght = [1 for i in range(len(ftype))]
+                        self.fdict = dict(zip(ftype, fwght))
+                    elif not self.re_ftype is None and self.re_fwght is None:
+                        ftype = self.re_ftype.copy()[niter_ - 1]
+                        if self.fwght is None:
+                            fwght = gamvas.utils.get_fwght(ftype, uvf.data, uvf.clamp["clamp"], uvf.clphs["clphs"])
+                        else:
+                            fwght = self.fwght.copy()
+                        self.fdict = dict(zip(ftype, fwght))
+                    elif not self.re_ftype is None and not self.re_fwght is None:
+                        ftype = self.re_ftype.copy()[niter_ - 1]
+                        fwght = self.re_fwght.copy()[niter_ - 1]
+                        self.fdict = dict(zip(ftype, fwght))
 
-                if ns >= 1:
-                    if ns == niter - 1:
-                        if not "vis" in ftype and not "amp" in ftype:
-                            ftype += ["amp"]
-                            fwght += [1]
-                            self.fdict = dict(zip(ftype, fwght))
-                        elif "vis" in ftype:
-                            self.fdict["vis"] = 1
-                        elif "amp" in ftype:
-                            self.fdict["amp"] = 1
-                ftype = list(self.fdict.keys())
-                fwhgt = list(self.fdict.values())
+                band = self.bands[nband]
+                uvf = gamvas.utils.set_uvf([copy.deepcopy(uvfs[nband])], type="sf")
+                zblf = self.factor_zblf * uvf.get_zblf()[0]
+                freq = uvf.freq
+                nmod = self.maxn
+
+                path_fig = self.path_fig + f"{freq:.1f}/"
+                gamvas.utils.mkdir(path_fig)
+
+                if niter_ == 0:
+                    selfcal_ = "initial"
+                else:
+                    selfcal_ = "selfcal"
+                uvf.ploter.draw_tplot(
+                    uvf, plotimg=False, show_title=False,
+                    instrument=self.instrument,
+                    save_path=path_fig,
+                    save_name=f"{self.source}.{self.date}.{selfcal_}.tplot",
+                    save_form="pdf"
+                )
+
+                uvf.ploter.draw_radplot(
+                    uvf, plotimg=False, show_title=False,
+                    save_path=path_fig,
+                    save_name=f"{self.source}.{self.date}.{selfcal_}.radplot",
+                    save_form="pdf"
+                )
+
+                uvf.ploter.draw_uvcover(
+                    uvf, plotimg=False, show_title=False,
+                    save_path=path_fig,
+                    save_name=f"{self.source}.{self.date}.{selfcal_}.uvcover",
+                    save_form="pdf"
+                )
+
+                uvf.ploter.draw_dirtymap(
+                    uvf, plotimg=False, show_title=False,
+                    npix=self.npix, uvw=self.uvw,
+                    save_path=path_fig,
+                    save_name=f"{self.source}.{self.date}.{selfcal_}.dirtmap",
+                    save_form="pdf"
+                )
+
+                data = uvf.data
+
+                bnd_S, bnd_a, bnd_l, bnd_m, bnd_f, bnd_i =\
+                    gamvas.utils.set_boundary(
+                        nmod=nmod, select=self.select, spectrum="single", zblf=zblf,
+                        width=self.width, mrng=self.mrng, bnd_l=self.bnd_l, bnd_m=self.bnd_m
+                    )
+
+                bnds =\
+                    gamvas.utils.sarray(
+                        (bnd_S, bnd_a, bnd_l, bnd_m),
+                        field=fields_sf,
+                        dtype=dtypes_sf
+                    )
 
                 # set frequency information on closure quantities
                 if uvf.clamp_check:
@@ -807,7 +821,7 @@ class modeling:
 
                 # print running information
                 runtxt = f"\n# Running {uvf.freq:.1f} GHz ... "
-                runtxt += f"(Pol {uvf.select.upper()}, selfcal:{ns}, MaxN_model={nmod}, sampler='{insample}', bound='multi')"
+                runtxt += f"(Pol {uvf.select.upper()}, MaxN_model={nmod}, sampler='{insample}', bound='multi')"
                 if self.relmod:
                     runtxt += " // ! relative position"
                 print(runtxt)
@@ -840,19 +854,18 @@ class modeling:
                     theta=prms, fitset=self.runfit_set,
                     spectrum=self.spectrum, set_spectrum=self.set_spectrum
                 )
-                if self.relmod:
-                    if ns == 0:
-                        if self.doampcal and self.dophscal:
-                            uvf.selfcal(type="phs")
-                            cgain1_ *= uvf.cgain1
-                            cgain2_ *= uvf.cgain2
-                            uvf.selfcal(type="a&p")
-                            cgain1_ *= uvf.cgain1
-                            cgain2_ *= uvf.cgain2
-                        elif not self.doampcal and self.dophscal:
-                            uvf.selfcal(type="phs")
-                            cgain1_ *= uvf.cgain1
-                            cgain2_ *= uvf.cgain2
+
+                if self.doampcal and self.dophscal:
+                    uvf.selfcal(type="phs")
+                    cgain1_ *= uvf.cgain1
+                    cgain2_ *= uvf.cgain2
+                    uvf.selfcal(type="a&p")
+                    cgain1_ *= uvf.cgain1
+                    cgain2_ *= uvf.cgain2
+                elif not self.doampcal and self.dophscal:
+                    uvf.selfcal(type="phs")
+                    cgain1_ *= uvf.cgain1
+                    cgain2_ *= uvf.cgain2
 
                 # print statistical values : reduced chi-square, Akaike information criterion, Bayesian information criterion
                 uvcomb = (
@@ -860,11 +873,13 @@ class modeling:
                     uvf.clamp["sigma_clamp"], uvf.clphs["sigma_clphs"],
                     clamp_uvcomb, clphs_uvcomb
                 )
+
                 fty, chi, aic, bic = gamvas.utils.print_stats(uvf, uvcomb, self.nmprms, logz_v, logz_d, ftype)
+
                 self.print_prms(
                     ufreq=[np.round(freq,1)], fitset=self.runfit_set, spectrum=self.spectrum,
                     stats=(fty, chi, aic, bic, logz_v, logz_d), printmsg=True,
-                    save_path=path_fig, save_name="model_prms.txt"
+                    save_path=path_fig, save_name="model_result.txt"
                 )
 
                 uvf.ploter.bnom = uvf.beam_prms
@@ -880,28 +895,42 @@ class modeling:
                 # plot and save figures
                 uvf.ploter.draw_cgains(
                     uvf, cgain1_, cgain2_, truth=self.cgain_truth, plotimg=False,
-                    save_csv=True, save_path=path_fig, save_name=f"{self.source}.{self.date}.complxgain", save_form="pdf"
+                    save_csv=True, save_path=path_fig,
+                    save_name=f"{self.source}.{self.date}.complxgain",
+                    save_form="pdf"
                 )
+
                 uvf.ploter.draw_trplot(
                     result=self.results, nmod=nmod_,
                     ifsingle=self.ifsingle, set_spectrum=self.set_spectrum,
-                    fontsize=20, save_path=path_fig, save_name=f"{self.source}.{self.date}.trplot", save_form="pdf"
+                    fontsize=20, save_path=path_fig,
+                    save_name=f"{self.source}.{self.date}.trplot",
+                    save_form="pdf"
                 )
+
                 uvf.ploter.draw_cnplot(
                     result=self.results, nmod=nmod_,
                     ifsingle=self.ifsingle, set_spectrum=self.set_spectrum,
-                    fontsize=20, save_path=path_fig, save_name=f"{self.source}.{self.date}.cnplot", save_form="pdf"
+                    fontsize=20, save_path=path_fig,
+                    save_name=f"{self.source}.{self.date}.cnplot",
+                    save_form="pdf"
                 )
+
                 uvf.ploter.draw_radplot(
-                    uvf=uvf, plotimg=False, show_title=False, plot_vism=True,
-                    save_path=path_fig, save_name=f"{self.source}.{self.date}.radplot.model", save_form="pdf"
+                    uvf=uvf, plotimg=False, show_title=False, plotvism=True,
+                    save_path=path_fig,
+                    save_name=f"{self.source}.{self.date}.radplot.model",
+                    save_form="pdf"
                 )
+
                 uvf.ploter.draw_image(
                     uvf=uvf, plotimg=False,
                     npix=self.npix, mindr=self.mindr, plot_resi=True, addnoise=True,
                     freq_ref=uvf.freq, freq=uvf.freq,
                     ifsingle=self.ifsingle, set_spectrum=self.set_spectrum,
-                    save_path=path_fig, save_name=f"{self.source}.{self.date}.img", save_form="pdf"
+                    save_path=path_fig,
+                    save_name=f"{self.source}.{self.date}.img",
+                    save_form="pdf"
                 )
 
                 # set beam parameters
@@ -912,30 +941,39 @@ class modeling:
                     npix=self.npix, mindr=self.mindr, plot_resi=False, addnoise=True,
                     freq_ref=uvf.freq, freq=uvf.freq,
                     ifsingle=self.ifsingle, set_spectrum=self.set_spectrum,
-                    save_path=path_fig, save_name=f"{self.source}.{self.date}.img.restore", save_form="pdf"
+                    save_path=path_fig,
+                    save_name=f"{self.source}.{self.date}.img.restore",
+                    save_form="pdf"
                 )
 
                 if "clamp" in ftype:
                     uvf.ploter.draw_closure(
                         type="clamp", model=True, plotimg=False, save_img=True,
-                        save_path=path_fig, save_name=f"{self.source}.{self.date}.clphs", save_form="pdf"
+                        save_path=path_fig,
+                        save_name=f"{self.source}.{self.date}.clphs",
+                        save_form="pdf"
                     )
                 if "clphs" in ftype:
                     uvf.ploter.draw_closure(
                         type="clphs", model=True, plotimg=False, save_img=True,
-                        save_path=path_fig, save_name=f"{self.source}.{self.date}.clphs", save_form="pdf"
+                        save_path=path_fig,
+                        save_name=f"{self.source}.{self.date}.clphs",
+                        save_form="pdf"
                     )
 
-            uvf.drop_visibility_model()
+                uvf.drop_visibility_model()
+                self.uvfs[nband] = uvf
             if self.runfit_pol:
                 self.pol.run_pol(
-                    uvfs=[copy.deepcopy(uvfs[nband])],
+                    # uvfs=[copy.deepcopy(uvfs[nband])],
+                    uvfs=[copy.deepcopy(uvf)],
                     runmf=False,
                     uvw=self.uvw,
                     iprms=self.mprms,
                     ierrors=self.errors,
-                    ftype=self.ftype.copy(),
-                    fwght=self.fwght.copy(),
+                    # ftype=ftype.copy(),
+                    ftype=["vis"],
+                    fwght=[1 for i in range(len(ftype))],
                     bands=[self.bands[nband]],
                     sampler=self.sampler,
                     bound=self.bound,
@@ -948,90 +986,104 @@ class modeling:
                     source=self.source,
                     date=self.date
                 )
-            self.uvfs[nband] = uvfs[nband]
 
 
     def run_mf(self):
         """
         Run multi-frequency model-fit
         """
-        # set maximum number of model
-        nmod = self.maxn
-
-        niter = self.niter
         uvfs = copy.deepcopy(self.uvfs)
         uvf = gamvas.utils.set_uvf(self.uvfs, type="mf")
-        zblf = self.factor_zblf * np.max(np.abs(uvf.data["vis"]))
-        print(f"\n# Maximum baseline flux : {zblf:.3f} Jy")
-
-        # set fit weights
-        ftype = self.ftype.copy()
-        if self.fwght is None:
-            fwght = gamvas.utils.get_fwght(ftype, uvf.data, uvf.clamp["clamp"], uvf.clphs["clphs"])
-        else:
-            fwght = self.fwght.copy()
-        self.fdict = dict(zip(ftype, fwght))
-
-        # uvf.ploter.draw_tplot(
-        #     uvf, plotimg=False, show_title=False, instrument=self.instrument,
-        #     save_path=self.path_fig, save_name=f"{self.source}.{self.date}.mf.tplot", save_form="pdf"
-        # )
-
-        uvf.ploter.draw_radplot(
-            uvf, plotimg=False, show_title=False,
-            save_path=self.path_fig, save_name=f"{self.source}.{self.date}.mf.radplot", save_form="pdf"
-        )
-
-        uvf.ploter.draw_uvcover(
-            uvf, plotimg=False, show_title=False,
-            save_path=self.path_fig, save_name=f"{self.source}.{self.date}.mf.uvcover", save_form="pdf"
-        )
-
-        uvf.ploter.draw_dirtymap(
-            uvf, plotimg=False, show_title=False,
-            npix=self.npix, uvw=self.uvw,
-            save_path=self.path_fig, save_name=f"{self.source}.{self.date}.mf.dirtmap", save_form="pdf"
-        )
-
-        path_fig = self.path_fig + "mf/"
-        gamvas.utils.mkdir(path_fig)
-        self.path_fig = path_fig
-
         cgain1 = np.ones(uvf.data.shape[0]) * np.exp(1j * 0)
         cgain2 = np.ones(uvf.data.shape[0]) * np.exp(1j * 0)
 
-        if not self.bnd_f is None:
-            bnd_S, bnd_a, bnd_l, bnd_m, bnd_f, bnd_i =\
-            gamvas.utils.set_boundary(
-                    nmod=nmod, select=self.select, spectrum=self.spectrum, zblf=zblf,
-                    mrng=self.mrng, bnd_l=self.bnd_l, bnd_m=self.bnd_m, bnd_f=self.bnd_f
+        for niter_ in range(self.niter):
+            # set fit weights
+            if niter_ == 0:
+                ftype = self.ftype.copy()
+                if self.fwght is None:
+                    fwght = gamvas.utils.get_fwght(ftype, uvf.data, uvf.clamp["clamp"], uvf.clphs["clphs"])
+                else:
+                    fwght = self.fwght.copy()
+                self.fdict = dict(zip(ftype, fwght))
+            else:
+                if self.re_ftype is None and self.re_fwght is None:
+                    ftype = self.ftype.copy()
+                    fwght = [1 for i in range(len(ftype))]
+                    self.fdict = dict(zip(ftype, fwght))
+                elif not self.re_ftype is None and self.re_fwght is None:
+                    ftype = self.re_ftype.copy()[niter_ - 1]
+                    if self.fwght is None:
+                        fwght = gamvas.utils.get_fwght(ftype, uvf.data, uvf.clamp["clamp"], uvf.clphs["clphs"])
+                    else:
+                        fwght = self.fwght.copy()
+                    self.fdict = dict(zip(ftype, fwght))
+                elif not self.re_ftype is None and not self.re_fwght is None:
+                    ftype = self.re_ftype.copy()[niter_ - 1]
+                    fwght = self.re_fwght.copy()[niter_ - 1]
+                    self.fdict = dict(zip(ftype, fwght))
+
+            # set maximum number of model
+            nmod = self.maxn
+
+            uvfs = copy.deepcopy(self.uvfs)
+            uvf = gamvas.utils.set_uvf(self.uvfs, type="mf")
+            zblf = self.factor_zblf * np.max(np.abs(uvf.data["vis"]))
+            print(f"\n# Maximum baseline flux : {zblf:.3f} Jy")
+
+            if niter_ == 0:
+                selfcal_ = "initial"
+            else:
+                selfcal_ = "selfcal"
+
+            uvf.ploter.draw_tplot(
+                uvf, plotimg=False, show_title=False, instrument=self.instrument,
+                save_path=self.path_fig, save_name=f"{self.source}.{self.date}.mf.{selfcal_}.tplot", save_form="pdf"
             )
-        else:
-            bnd_S, bnd_a, bnd_l, bnd_m, bnd_f, bnd_i =\
-            gamvas.utils.set_boundary(
-                    nmod=nmod, select=self.select, spectrum=self.spectrum, zblf=zblf,
-                    mrng=self.mrng, bnd_l=self.bnd_l, bnd_m=self.bnd_m
+
+            uvf.ploter.draw_radplot(
+                uvf, plotimg=False, show_title=False,
+                save_path=self.path_fig,
+                save_name=f"{self.source}.{self.date}.mf.{selfcal_}.radplot",
+                save_form="pdf"
             )
 
-        bnds = gamvas.utils.sarray(
-                data=(bnd_S, bnd_a, bnd_l, bnd_m, bnd_f, bnd_i),
-                field=fields_mf,
-                dtype=dtypes_mf
-        )
+            uvf.ploter.draw_uvcover(
+                uvf, plotimg=False, show_title=False,
+                save_path=self.path_fig,
+                save_name=f"{self.source}.{self.date}.mf.{selfcal_}.uvcover",
+                save_form="pdf"
+            )
 
-        for ns in range(niter):
-            if ns >= 1:
-                uvf = gamvas.utils.set_uvf(uvfs)
+            uvf.ploter.draw_dirtymap(
+                uvf, plotimg=False, show_title=False,
+                npix=self.npix, uvw=self.uvw,
+                save_path=self.path_fig,
+                save_name=f"{self.source}.{self.date}.mf.{selfcal_}.dirtmap",
+                save_form="pdf"
+            )
 
-                if ns == niter-1:
-                    if not "amp" in ftype:
-                        ftype += ["amp"]
-                        fwght += [1]
-                        self.fdict = dict(zip(ftype, fwght))
-                    elif "vis" in ftype:
-                        self.fdict["vis"] = 1
-                    elif "amp" in ftype:
-                        self.fdict["amp"] = 1
+            path_fig = self.path_fig + "mf/"
+            gamvas.utils.mkdir(path_fig)
+
+            if not self.bnd_f is None:
+                bnd_S, bnd_a, bnd_l, bnd_m, bnd_f, bnd_i =\
+                gamvas.utils.set_boundary(
+                        nmod=nmod, select=self.select, spectrum=self.spectrum, zblf=zblf,
+                        width=self.width, mrng=self.mrng, bnd_l=self.bnd_l, bnd_m=self.bnd_m, bnd_f=self.bnd_f
+                )
+            else:
+                bnd_S, bnd_a, bnd_l, bnd_m, bnd_f, bnd_i =\
+                gamvas.utils.set_boundary(
+                        nmod=nmod, select=self.select, spectrum=self.spectrum, zblf=zblf,
+                        width=self.width, mrng=self.mrng, bnd_l=self.bnd_l, bnd_m=self.bnd_m
+                )
+
+            bnds = gamvas.utils.sarray(
+                    data=(bnd_S, bnd_a, bnd_l, bnd_m, bnd_f, bnd_i),
+                    field=fields_mf,
+                    dtype=dtypes_mf
+            )
 
             ftype = list(self.fdict.keys())
             fwhgt = list(self.fdict.values())
@@ -1047,7 +1099,12 @@ class modeling:
             else:
                 f_clphs = []
 
-            clamp_uvcomb, clphs_uvcomb = gamvas.utils.set_uvcombination(uvf.data, uvf.tmpl_clamp, uvf.tmpl_clphs)
+            clamp_uvcomb, clphs_uvcomb =\
+                gamvas.utils.set_uvcombination(
+                    uvf.data,
+                    uvf.tmpl_clamp,
+                    uvf.tmpl_clphs
+                )
 
             self.x =\
             (
@@ -1107,7 +1164,7 @@ class modeling:
                 insample = self.sampler
 
             # print running information
-            runtxt = f"\n# Running... (selfcal:{ns}, MaxN_model={nmod}, sampler='{insample}', bound='multi')"
+            runtxt = f"\n# Running... (Pol {uvf.select.upper()}.{self.select.upper()}, MaxN_model={nmod}, sampler='{insample}', bound='multi')"
             if self.relmod:
                 runtxt += " // ! relative position"
             print(runtxt)
@@ -1160,7 +1217,7 @@ class modeling:
             self.print_prms(
                 ufreq=uvf.ufreq, fitset=self.runfit_set, spectrum=self.spectrum,
                 stats=(fty, chi, aic, bic, logz_v, logz_d), printmsg=True,
-                save_path=path_fig, save_name="model_prms.txt"
+                save_path=path_fig, save_name="model_result.txt"
             )
 
             uvf.fit_beam(uvw=self.uvw)
@@ -1195,7 +1252,7 @@ class modeling:
             )
 
             uvf.ploter.draw_radplot(
-                uvf, plotimg=False, plot_vism=True, show_title=False,
+                uvf, plotimg=False, plotvism=True, show_title=False,
                 save_path=path_fig, save_name=f"{self.source}.{self.date}.radplot", save_form="pdf"
             )
 
@@ -1237,11 +1294,14 @@ class modeling:
                     save_path=path_fig, save_name=f"{self.source}.{self.date}.img.mf.{self.bands[i]}", save_form="pdf"
                 )
                 uvfs[i].drop_visibility_model()
-                self.uvfs[i] = uvfs[i]
-
             uvf.drop_visibility_model()
 
-        gc.collect()
+            self.uvfs = uvfs
+
+            gc.collect()
+        self.ftype = ftype
+        self.fwght = fwght
+        self.path_fig = path_fig
 
 
     def run(self):
@@ -1281,8 +1341,9 @@ class modeling:
                         runmf=True,
                         iprms=self.mprms,
                         ierrors=self.errors,
-                        ftype=self.ftype,
-                        fwght=self.fwght,
+                        # ftype=self.ftype,
+                        ftype=["vis"],
+                        fwght=[1 for i in range(len(ftype))],
                         bands=self.bands,
                         sampler=self.sampler,
                         bound=self.bound,
@@ -1309,7 +1370,7 @@ class modeling:
         ftype = list(self.fdict.keys())
         data_obs = uvfs[0].data
         zblf_obs, zbl_obs = uvfs[0].get_zblf()
-        mask_zbl = np.logical_and(data_obs["ant_name1"] == zbl_obs[0], data_obs["ant_name2"] == zbl_obs[1])
+        mask_zbl = (data_obs["ant_name1"] == zbl_obs[0]) | (data_obs["ant_name2"] == zbl_obs[1])
         zblf_mod = copy.deepcopy(uvfs[0])
         zblf_mod.append_visibility_model(
             freq_ref=uvfs[0].freq, freq=uvfs[0].freq,
