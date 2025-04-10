@@ -841,12 +841,10 @@ class open_fits:
                             if spectrum == "spl":
                                 args = (freq_ref, freq, uvdat["u"], uvdat["v"])
                                 vism =\
-                                    vism + gamvas.functions.gvis_spl(
+                                    vism + gamvas.functions.gvis_spl0(
                                         args,
                                         theta[f"{i+1}_S"],
                                         theta[f"{i+1}_a"],
-                                        theta[f"{i+1}_l"],
-                                        theta[f"{i+1}_m"],
                                         theta[f"{i+1}_alpha"]
                                     )
                             elif spectrum == "cpl":

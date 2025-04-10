@@ -605,7 +605,10 @@ def set_boundary(
         in_bnd_l = [[+0.00, +mrng / 4]]
         in_bnd_m = [[+0.00, +mrng / 4]]
         in_bnd_f = [bnd_f]
-        in_bnd_i = [[-4.00, +0.00]]
+        if spectrum in ["single", "spl"]:
+            in_bnd_i = [[-3.00, +3.00]]
+        else:
+            in_bnd_i = [[-4.00, +0.00]]
 
         if nmod >= 2:
             nmod_ = nmod - 1
@@ -616,7 +619,7 @@ def set_boundary(
                     in_bnd_l += [bnd_l]
                     in_bnd_m += [bnd_m]
                     in_bnd_f += [bnd_f]
-                    in_bnd_i += [[-4.00, +3.00]]
+                    in_bnd_i += [[-3.00, +3.00]]
                     in_bnd_a += [[+0.00, +width]]
             elif spectrum in ["cpl", "ssa"]:
                 for i in range(nmod_):

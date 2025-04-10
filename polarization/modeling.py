@@ -310,8 +310,8 @@ class polarization:
                             gamvas.functions.S_spl(
                                 freq_ref,
                                 uvf_.freq,
-                                ufloat(np.ma.getdata(iprms).tolist()[mask_s], [mask_s]),
-                                ufloat(np.ma.getdata(iprms).tolist()[mask_a], [mask_a])
+                                ufloat(np.ma.getdata(iprms).tolist()[mask_s], ierrors[mask_s]),
+                                ufloat(np.ma.getdata(iprms).tolist()[mask_a], ierrors[mask_a])
                             )
                         zblf.append(uzblf)
                 elif spectrum == "cpl":

@@ -198,7 +198,7 @@ class modeling:
                                     theta[nidx+1],
                                     theta[nidx+2]
                                 )
-                            nidx += 3
+                            nidx += 4
                             nmprm += 3
                         elif self.spectrum == "cpl":
                             model +=\
@@ -223,7 +223,7 @@ class modeling:
                             nidx += 4
                             nmprm += 4
                     else:
-                        if int(np.round(theta[nidx])) == 0:
+                        if int(np.round(theta[nidx])) == 0 or self.spectrum == "spl":
                             model +=\
                                 gamvas.functions.gvis_spl(
                                     (x[0], x[1], x[2], x[3]),
