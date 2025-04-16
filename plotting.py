@@ -1209,7 +1209,7 @@ class plotter:
 
     def draw_image(self,
         uvf, pol=False, returned=False, bnom=None, freq_ref=None, freq=None, genlevels=False, npix=128, mindr=3, minlev=0.01, maxlev=0.99, step=2, fsize=8,
-        contourw=0.3, mintick_map=0.5, majtick_map=2.5, mintick_cb=0.2, majtick_cb=1.0, ifsingle=True, set_spectrum=True,
+        contourw=0.3, mintick_map=0.5, majtick_map=2.5, mintick_cb=0.2, majtick_cb=1.0, ifsingle=True, set_spectrum=True, xlim=False, ylim=False,
         save_img=False, save_path=False, save_name=False, save_form="png",
         plotimg=True, plot_resi=False, addnoise=False, outfig=False, title=None, show_title=False
     ):

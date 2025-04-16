@@ -1401,21 +1401,37 @@ class open_fits:
             if self.nstokes == 1:
                 try:
                     vis_1_ = data["vis_rr"]
+                    vis_2_ = np.full(len(vis_1_), np.nan)
+                    vis_3_ = np.full(len(vis_1_), np.nan)
+                    vis_4_ = np.full(len(vis_1_), np.nan)
                     sig_1_ = data["sigma_rr"]
+                    sig_2_ = np.full(len(vis_1_), np.nan)
+                    sig_3_ = np.full(len(vis_1_), np.nan)
+                    sig_4_ = np.full(len(vis_1_), np.nan)
                 except:
                     vis_1_ = data["vis_ll"]
+                    vis_2_ = np.full(len(vis_1_), np.nan)
+                    vis_3_ = np.full(len(vis_1_), np.nan)
+                    vis_4_ = np.full(len(vis_1_), np.nan)
                     sig_1_ = data["sigma_ll"]
+                    sig_2_ = np.full(len(vis_1_), np.nan)
+                    sig_3_ = np.full(len(vis_1_), np.nan)
+                    sig_4_ = np.full(len(vis_1_), np.nan)
                 mask_snr1 = np.abs(vis_1_) / sig_1_ > snrflag
                 mask_snr = mask_snr1
-            if self.nstokes == 2:
+            elif self.nstokes == 2:
                 vis_1_ = data["vis_rr"]
                 vis_2_ = data["vis_ll"]
+                vis_3_ = np.full(len(vis_1_), np.nan)
+                vis_4_ = np.full(len(vis_1_), np.nan)
                 sig_1_ = data["sigma_rr"]
                 sig_2_ = data["sigma_ll"]
+                sig_3_ = np.full(len(vis_1_), np.nan)
+                sig_4_ = np.full(len(vis_1_), np.nan)
                 mask_snr1 = np.abs(vis_1_) / sig_1_ > snrflag
                 mask_snr2 = np.abs(vis_2_) / sig_2_ > snrflag
                 mask_snr = mask_snr1
-            if self.nstokes == 4:
+            elif self.nstokes == 4:
                 vis_1_ = data["vis_rr"]
                 vis_2_ = data["vis_ll"]
                 vis_3_ = data["vis_rl"]
@@ -1433,14 +1449,34 @@ class open_fits:
                 ntot = mask_snr.shape[0]
                 print(f"# Flag {nflag}/{ntot} visibilities (applied SNR={snrflag})")
 
-            vis_1 = vis_1_[mask_snr]
-            vis_2 = vis_2_[mask_snr]
-            vis_3 = vis_3_[mask_snr]
-            vis_4 = vis_4_[mask_snr]
-            sig_1 = sig_1_[mask_snr]
-            sig_2 = sig_2_[mask_snr]
-            sig_3 = sig_3_[mask_snr]
-            sig_4 = sig_4_[mask_snr]
+            if self.nstokes == 1:
+                vis_1 = vis_1_[mask_snr]
+                vis_2 = np.full(len(vis_1), np.nan)
+                vis_3 = np.full(len(vis_1), np.nan)
+                vis_4 = np.full(len(vis_1), np.nan)
+                sig_1 = sig_1_[mask_snr]
+                sig_2 = np.full(len(vis_1), np.nan)
+                sig_3 = np.full(len(vis_1), np.nan)
+                sig_4 = np.full(len(vis_1), np.nan)
+            elif self.nstokes == 2:
+                vis_1 = vis_1_[mask_snr]
+                vis_2 = vis_2_[mask_snr]
+                vis_3 = np.full(len(vis_1), np.nan)
+                vis_4 = np.full(len(vis_1), np.nan)
+                sig_1 = sig_1_[mask_snr]
+                sig_2 = sig_2_[mask_snr]
+                sig_3 = np.full(len(vis_1), np.nan)
+                sig_4 = np.full(len(vis_1), np.nan)
+            elif self.nstoeks == 4:
+                vis_1 = vis_1_[mask_snr]
+                vis_2 = vis_2_[mask_snr]
+                vis_3 = vis_3_[mask_snr]
+                vis_4 = vis_4_[mask_snr]
+                sig_1 = sig_1_[mask_snr]
+                sig_2 = sig_2_[mask_snr]
+                sig_3 = sig_3_[mask_snr]
+                sig_4 = sig_4_[mask_snr]
+
             time = time_[mask_snr]
             tint = tint_[mask_snr]
             mjd = mjd_[mask_snr]

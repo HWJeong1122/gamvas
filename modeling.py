@@ -529,7 +529,7 @@ class modeling:
 
         if save_xlsx:
             out_xlsx = pd.DataFrame(self.prms, index=["lolim", "value", "uplim"]).T
-            out_xlsx["index"] = self.index
+            out_xlsx["idx"] = self.index
             out_xlsx.to_excel(f"{save_path}{save_name}")
 
 
