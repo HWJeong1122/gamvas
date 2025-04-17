@@ -1467,7 +1467,7 @@ class open_fits:
                 sig_2 = sig_2_[mask_snr]
                 sig_3 = np.full(len(vis_1), np.nan)
                 sig_4 = np.full(len(vis_1), np.nan)
-            elif self.nstoeks == 4:
+            elif self.nstokes == 4:
                 vis_1 = vis_1_[mask_snr]
                 vis_2 = vis_2_[mask_snr]
                 vis_3 = vis_3_[mask_snr]
@@ -1526,7 +1526,7 @@ class open_fits:
 
 
     def add_error_fraction(self,
-        fraction=0.01, type="all"
+        fraction=0.01, type="all", setvis=True, setclq=True
     ):
         """
         Add the error fractionally to the visibility amplitude
@@ -1572,15 +1572,14 @@ class open_fits:
         self.sig_3 = sig_3 + fraction * np.abs(vis_3)
         self.sig_4 = sig_4 + fraction * np.abs(vis_4)
 
-        if type == "all":
+        if setvis or type=="all":
             self.set_uvvis()
+        if setclq or type == "vis":
             self.set_closure()
-        elif type == "vis":
-            self.set_uvvis()
 
 
     def add_error_factor(self,
-        factor=1, type="all"
+        factor=1, type="all", setvis=True, setclq=True
     ):
         """
         Add the error by a factor
@@ -1613,11 +1612,10 @@ class open_fits:
         self.sig_3 = factor * sig_3
         self.sig_4 = factor * sig_4
 
-        if type == "all":
+        if setvis or type=="all":
             self.set_uvvis()
+        if setclq or type == "vis":
             self.set_closure()
-        elif type == "vis":
-            self.set_uvvis()
 
 
     def set_uvvis(self):
