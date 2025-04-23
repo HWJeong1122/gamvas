@@ -82,7 +82,7 @@ class modeling:
         boundset=False, width=5, bnd_l=None, bnd_m=None, bnd_f=None,
         ufreq=None, bands=None, spectrum=None, uvw=None, shift=None,
         fixnmod=False, maxn=None, npix=None, mindr=3, mrng=None,
-        dogscale=False, doampcal=False, dophscal=True,
+        dognorm=True, dogscale=False, doampcal=False, dophscal=True,
         path_fig=None, source=None, date=None, cgain_truth=None, ncpu=1
     ):
         self.uvfs = uvfs
@@ -130,6 +130,7 @@ class modeling:
         self.mindr = mindr
         self.mrng = mrng
 
+        self.dognorm  = dognorm
         self.dogscale = dogscale
         self.doampcal = doampcal
         self.dophscal = dophscal
@@ -651,8 +652,8 @@ class modeling:
         for nband in range(nfreq):
             uvfs = copy.deepcopy(self.uvfs)
             uvf = gamvas.utils.set_uvf([copy.deepcopy(uvfs[nband])], type="sf")
-            cgain1_ = np.ones(uvf.data.shape[0]) * np.exp(1j * 0)
-            cgain2_ = np.ones(uvf.data.shape[0]) * np.exp(1j * 0)
+            cgain1 = np.ones(uvf.data.shape[0]) * np.exp(1j * 0)
+            cgain2 = np.ones(uvf.data.shape[0]) * np.exp(1j * 0)
 
             for niter_ in range(self.niter):
                 uvfs = copy.deepcopy(self.uvfs)
@@ -698,7 +699,6 @@ class modeling:
                     selfcal_ = "selfcal"
                 uvf.ploter.draw_tplot(
                     uvf, plotimg=False, show_title=False,
-                    instrument=self.instrument,
                     save_path=path_fig,
                     save_name=f"{self.source}.{self.date}.{selfcal_}.tplot",
                     save_form="pdf"
@@ -855,17 +855,38 @@ class modeling:
                     spectrum=self.spectrum, set_spectrum=self.set_spectrum
                 )
 
-                if self.doampcal and self.dophscal:
-                    uvf.selfcal(type="phs")
-                    cgain1_ *= uvf.cgain1
-                    cgain2_ *= uvf.cgain2
-                    uvf.selfcal(type="a&p")
-                    cgain1_ *= uvf.cgain1
-                    cgain2_ *= uvf.cgain2
-                elif not self.doampcal and self.dophscal:
-                    uvf.selfcal(type="phs")
-                    cgain1_ *= uvf.cgain1
-                    cgain2_ *= uvf.cgain2
+                if self.dogscale:
+                    if self.dophscal:
+                        uvf.selfcal(type="phs", gnorm=self.dognorm)
+                        cgain1 *= uvf.cgain1
+                        cgain2 *= uvf.cgain2
+                        uvf.selfcal(type="gscale", gnorm=self.dognorm)
+                        cgain1 *= uvf.cgain1
+                        cgain2 *= uvf.cgain2
+                    else:
+                        uvf.selfcal(type="gscale", gnorm=self.dognorm)
+                        cgain1 *= uvf.cgain1
+                        cgain2 *= uvf.cgain2
+                else:
+                    if self.doampcal:
+                        if self.dophscal:
+                            uvf.selfcal(type="phs", gnorm=self.dognorm)
+                            cgain1 *= uvf.cgain1
+                            cgain2 *= uvf.cgain2
+                            uvf.selfcal(type="a&p", gnorm=self.dognorm)
+                            cgain1 *= uvf.cgain1
+                            cgain2 *= uvf.cgain2
+                        else:
+                            uvf.selfcal(type="amp", gnorm=self.dognorm)
+                            cgain1 *= uvf.cgain1
+                            cgain2 *= uvf.cgain2
+                    else:
+                        if self.dophscal:
+                            uvf.selfcal(type="phs", gnorm=self.dognorm)
+                            cgain1 *= uvf.cgain1
+                            cgain2 *= uvf.cgain2
+                self.cgain1 = cgain1
+                self.cgain2 = cgain2
 
                 # print statistical values : reduced chi-square, Akaike information criterion, Bayesian information criterion
                 uvcomb = (
@@ -894,7 +915,7 @@ class modeling:
 
                 # plot and save figures
                 uvf.ploter.draw_cgains(
-                    uvf, cgain1_, cgain2_, truth=self.cgain_truth, plotimg=False,
+                    uvf, cgain1, cgain2, truth=self.cgain_truth, plotimg=False,
                     save_csv=True, save_path=path_fig,
                     save_name=f"{self.source}.{self.date}.complxgain",
                     save_form="pdf"
@@ -1037,7 +1058,7 @@ class modeling:
                 selfcal_ = "selfcal"
 
             uvf.ploter.draw_tplot(
-                uvf, plotimg=False, show_title=False, instrument=self.instrument,
+                uvf, plotimg=False, show_title=False,
                 save_path=self.path_fig, save_name=f"{self.source}.{self.date}.mf.{selfcal_}.tplot", save_form="pdf"
             )
 
@@ -1192,17 +1213,36 @@ class modeling:
                     spectrum=self.spectrum, set_spectrum=self.set_spectrum
                 )
 
-                if self.doampcal and self.dophscal:
-                    uvfs[nuvf].selfcal(type="phs")
-                    cgain1[uvf.data["freq"] == self.ufreq[nuvf]] *= uvfs[nuvf].cgain1
-                    cgain2[uvf.data["freq"] == self.ufreq[nuvf]] *= uvfs[nuvf].cgain2
-                    uvfs[nuvf].selfcal(type="a&p")
-                    cgain1[uvf.data["freq"] == self.ufreq[nuvf]] *= uvfs[nuvf].cgain1
-                    cgain2[uvf.data["freq"] == self.ufreq[nuvf]] *= uvfs[nuvf].cgain2
-                elif not self.doampcal and self.dophscal:
-                    uvfs[nuvf].selfcal(type="phs")
-                    cgain1[uvf.data["freq"] == self.ufreq[nuvf]] *= uvfs[nuvf].cgain1
-                    cgain2[uvf.data["freq"] == self.ufreq[nuvf]] *= uvfs[nuvf].cgain2
+                if self.dogscale:
+                    if self.dophscal:
+                        uvfs[nuvf].selfcal(type="phs", gnorm=self.dognorm)
+                        cgain1[uvf.data["freq"] == self.ufreq[nuvf]] *= uvfs[nuvf].cgain1
+                        cgain2[uvf.data["freq"] == self.ufreq[nuvf]] *= uvfs[nuvf].cgain2
+                        uvfs[nuvf].selfcal(type="gscale", gnorm=self.dognorm)
+                        cgain1[uvf.data["freq"] == self.ufreq[nuvf]] *= uvfs[nuvf].cgain1
+                        cgain2[uvf.data["freq"] == self.ufreq[nuvf]] *= uvfs[nuvf].cgain2
+                    else:
+                        uvfs[nuvf].selfcal(type="gscale", gnorm=self.dognorm)
+                        cgain1[uvf.data["freq"] == self.ufreq[nuvf]] *= uvfs[nuvf].cgain1
+                        cgain2[uvf.data["freq"] == self.ufreq[nuvf]] *= uvfs[nuvf].cgain2
+                else:
+                    if self.doampcal:
+                        if self.dophscal:
+                            uvfs[nuvf].selfcal(type="phs", gnorm=self.dognorm)
+                            cgain1[uvf.data["freq"] == self.ufreq[nuvf]] *= uvfs[nuvf].cgain1
+                            cgain2[uvf.data["freq"] == self.ufreq[nuvf]] *= uvfs[nuvf].cgain2
+                            uvfs[nuvf].selfcal(type="a&p", gnorm=self.dognorm)
+                            cgain1[uvf.data["freq"] == self.ufreq[nuvf]] *= uvfs[nuvf].cgain1
+                            cgain2[uvf.data["freq"] == self.ufreq[nuvf]] *= uvfs[nuvf].cgain2
+                        else:
+                            uvfs[nuvf].selfcal(type="amp", gnorm=self.dognorm)
+                            cgain1[uvf.data["freq"] == self.ufreq[nuvf]] *= uvfs[nuvf].cgain1
+                            cgain2[uvf.data["freq"] == self.ufreq[nuvf]] *= uvfs[nuvf].cgain2
+                    else:
+                        if self.dophscal:
+                            uvfs[nuvf].selfcal(type="phs", gnorm=self.dognorm)
+                            cgain1[uvf.data["freq"] == self.ufreq[nuvf]] *= uvfs[nuvf].cgain1
+                            cgain2[uvf.data["freq"] == self.ufreq[nuvf]] *= uvfs[nuvf].cgain2
 
             # re-set uvf
             uvf = gamvas.utils.set_uvf(uvfs, type="mf")

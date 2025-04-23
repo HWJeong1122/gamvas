@@ -190,22 +190,10 @@ class plotter:
 
 
     def draw_tplot(self,
-        uvf, select=None, plotimg=True, show_title=False, instrument=None,
+        uvf, select=None, plotimg=True, show_title=False,
         save_path=False, save_name=False, save_form="png"
     ):
-        if instrument.upper() == "KVN":
-            dict_ants = {
-                "KC":0, "KT":1, "KU":2, "KY":3
-            }
-        elif instrument.upper() == "VLBA":
-            dict_ants = {
-                "BR":0, "FD":1, "HN":2, "KP":3, "LA":4,
-                "MK":5, "NL":6, "OV":7, "PT":8, "SC":9
-            }
-            dict_ants = {
-                "BR":0, "EB":1, "FD":2, "HN":3, "KP":4, "LA":5,
-                "MK":6, "NL":7, "OV":8, "PT":9, "SC":10
-            }
+        dict_ants = dict(zip(uvf.tarr["name"], np.arange(len(uvf.tarr["name"]))))
 
         if save_path:
             gamvas.utils.mkdir(save_path)

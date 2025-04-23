@@ -55,7 +55,6 @@ class open_fits:
         date (str): The observation date
         data (2D-array): The uv-fits data
         units (str): The units of the data
-        instrument (str): The instrument name
         select (str): The polarization type
         select_if (str): The number(s) of IFs
         uvinfo (bool): The mask if uv-fits information is loaded
@@ -72,7 +71,7 @@ class open_fits:
     def __init__(self,
         path=None, file=None, npixel1=False, npixel2=False,
         bmin=False, bmaj=False, bpa=False, fluxmax=False, fluxmin=False, noise=False, freq=False,
-        stokes=None, date=None, data=None, units=None, model=None, instrument=None,
+        stokes=None, date=None, data=None, units=None, model=None,
         select="i", select_if="all", mrng=10*u.mas, load_uvf=False, load_fits=False
     ):
         self.path = path
@@ -93,7 +92,6 @@ class open_fits:
         self.date = date
         self.data = data
         self.units = units
-        self.instrument = instrument
 
         self.select = select
         self.select_if = select_if
@@ -942,7 +940,7 @@ class open_fits:
 
 
     def selfcal(self,
-        type="phs", gnorm=True, tint=False, scanlen=300, startmod=False, lm=(0,0)
+        type="phs", gnorm=True, tint=False, scanlen=300, startmod=False, lm=(0,0), refant=None
     ):
         """
         Do self-calibration based on model visibility
@@ -1525,6 +1523,45 @@ class open_fits:
                 self.set_closure()
 
 
+    def flag_nant(self, nant=4):
+        """
+        Flag the visibilities based on the number of antennas
+            Arguments:
+                nant (int): The number of antennas for the flagging
+        """
+        data = self.data
+        atime = data["time"]
+        utime = np.unique(atime)
+        mask = np.array([], dtype=bool)
+
+        for ntime, time in enumerate(utime):
+            mask_time = atime == time
+            data_ = data[mask_time]
+            ndata = len(data_)
+            ants = np.unique(np.append(data_["ant_name1"], data_["ant_name2"]))
+            if len(ants) < nant:
+                mask = np.append(mask, np.zeros(ndata, dtype=bool))
+            else:
+                mask = np.append(mask, np.ones(ndata, dtype=bool))
+
+        self.time = self.time[mask]
+        self.tint = self.tint[mask]
+        self.mjd = self.mjd[mask]
+        self.ant_name1 = self.ant_name1[mask]
+        self.ant_name2 = self.ant_name2[mask]
+        self.uu = self.uu[mask]
+        self.vv = self.vv[mask]
+        self.vis_1 = self.vis_1[mask]
+        self.vis_2 = self.vis_2[mask]
+        self.vis_3 = self.vis_3[mask]
+        self.vis_4 = self.vis_4[mask]
+        self.sig_1 = self.sig_1[mask]
+        self.sig_2 = self.sig_2[mask]
+        self.sig_3 = self.sig_3[mask]
+        self.sig_4 = self.sig_4[mask]
+        self.set_uvvis()
+        self.set_closure()
+
     def add_error_fraction(self,
         fraction=0.01, type="all", setvis=True, setclq=True
     ):
@@ -1532,6 +1569,10 @@ class open_fits:
         Add the error fractionally to the visibility amplitude
             Arguments:
                 fraction (float): The fraction of the error to be added
+                type (str): The type of the error to be added
+                            ("all":visibility+closure, "vis":visibility-only)
+                setvis (bool): The toggle option for setting the visibility data
+                setclq (bool): The toggle option for setting the closure data
         """
         data = self.data
 
@@ -1572,9 +1613,9 @@ class open_fits:
         self.sig_3 = sig_3 + fraction * np.abs(vis_3)
         self.sig_4 = sig_4 + fraction * np.abs(vis_4)
 
-        if setvis or type=="all":
+        if setvis or type == "all":
             self.set_uvvis()
-        if setclq or type == "vis":
+        if setclq or type == "all":
             self.set_closure()
 
 
@@ -1585,6 +1626,9 @@ class open_fits:
         Add the error by a factor
             Arguments:
                 factor (float): The factor of the error to be added
+                                ("all":visibility+closure, "vis":visibility-only)
+                setvis (bool): The toggle option for setting the visibility data
+                setclq (bool): The toggle option for setting the closure data
         """
         data = self.data
 
@@ -1612,9 +1656,9 @@ class open_fits:
         self.sig_3 = factor * sig_3
         self.sig_4 = factor * sig_4
 
-        if setvis or type=="all":
+        if setvis or type == "all":
             self.set_uvvis()
-        if setclq or type == "vis":
+        if setclq or type == "all":
             self.set_closure()
 
 
