@@ -1285,8 +1285,12 @@ class open_fits:
         self.ant_name2 = ant_name2[mask_nan]
         self.uu = uu[mask_nan]
         self.vv = vv[mask_nan]
+
         if set_uvvis:
             self.set_uvvis()
+
+        if set_clq:
+            self.set_closure()
 
 
     def flag_snr(self,
@@ -1539,7 +1543,7 @@ class open_fits:
             data_ = data[mask_time]
             ndata = len(data_)
             ants = np.unique(np.append(data_["ant_name1"], data_["ant_name2"]))
-            if len(ants) < nant:
+            if len(data_) < nant*(nant-1)/2:
                 mask = np.append(mask, np.zeros(ndata, dtype=bool))
             else:
                 mask = np.append(mask, np.ones(ndata, dtype=bool))

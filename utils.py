@@ -528,16 +528,16 @@ def set_closure(
     clphs_sig = np.array([])
 
     if Nant >= 4:
-        amp12 = np.abs(np.array(list(map(uvvis.get, clamp_uvcomb[1]))))
-        amp34 = np.abs(np.array(list(map(uvvis.get, clamp_uvcomb[2]))))
-        amp13 = np.abs(np.array(list(map(uvvis.get, clamp_uvcomb[3]))))
-        amp24 = np.abs(np.array(list(map(uvvis.get, clamp_uvcomb[4]))))
+        amp12 = np.abs(np.array(list(map(uvvis.get, clamp_uvcomb[1])), dtype="c8"))
+        amp34 = np.abs(np.array(list(map(uvvis.get, clamp_uvcomb[2])), dtype="c8"))
+        amp13 = np.abs(np.array(list(map(uvvis.get, clamp_uvcomb[3])), dtype="c8"))
+        amp24 = np.abs(np.array(list(map(uvvis.get, clamp_uvcomb[4])), dtype="c8"))
         clamp = (amp12 * amp34) / (amp13 * amp24)
 
     if Nant >= 3:
-        phs12 = np.angle(np.array(list(map(uvvis.get, clphs_uvcomb[1]))))
-        phs23 = np.angle(np.array(list(map(uvvis.get, clphs_uvcomb[2]))))
-        phs31 = np.angle(np.array(list(map(uvvis.get, clphs_uvcomb[3]))).conj())
+        phs12 = np.angle(np.array(list(map(uvvis.get, clphs_uvcomb[1])), dtype="c8"))
+        phs23 = np.angle(np.array(list(map(uvvis.get, clphs_uvcomb[2])), dtype="c8"))
+        phs31 = np.angle(np.array(list(map(uvvis.get, clphs_uvcomb[3])), dtype="c8").conj())
         clphs = phs12 + phs23 + phs31
         clphs = np.where(clphs > +np.pi, clphs - 2 * np.pi, clphs)
         clphs = np.where(clphs < -np.pi, clphs + 2 * np.pi, clphs)
