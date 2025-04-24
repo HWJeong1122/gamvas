@@ -1021,9 +1021,6 @@ class modeling:
         for niter_ in range(self.niter):
             # set fit weights
             if niter_ == 0:
-                if self.runfit_sf:
-                    mask_ftype = self.ftype == "amp"
-                    self.fwght[mask_ftype] = 0.1
                 ftype = self.ftype.copy()
                 if self.fwght is None:
                     fwght = gamvas.utils.get_fwght(ftype, uvf.data, uvf.clamp["clamp"], uvf.clphs["clphs"])
