@@ -1068,8 +1068,9 @@ class open_fits:
                             gain2 = gain2 / np.abs(gain2)
                         elif type in ["amp", "gscale"]:
                             if type == "gscale" and gnorm:
-                                gain1 = np.abs(gain1) / np.sqrt(np.prod(np.abs(gain1)))
-                                gain2 = np.abs(gain2) / np.sqrt(np.prod(np.abs(gain2)))
+                                gains = np.unique(np.append(np.abs(gain1), np.abs(gain2)))
+                                gain1 = np.abs(gain1) / np.prod(gains)**(1/len(gains))
+                                gain2 = np.abs(gain2) / np.prod(gains)**(1/len(gains))
                             gain1 = np.abs(gain1 ) * np.exp(1j * 0)
                             gain2 = np.abs(gain2 ) * np.exp(1j * 0)
                         elif type in ["a&p"]:
@@ -1566,8 +1567,104 @@ class open_fits:
         self.set_uvvis()
         self.set_closure()
 
+
+    def cal_systematics(self,
+        nq=None, bw=None, tint=None, type=None, bin=None
+    ):
+        def cal_s(s, X, sigma_th):
+            Y = X/np.sqrt(sigma_th**2 + s**2)
+            mad = np.nanmedian(np.abs(Y - np.nanmedian(Y)))
+            return np.abs(mad - 1)
+
+        check_nq = nq is None
+        check_bw = bw is None
+        check_tint = tint is None
+        check_type = type is None
+        if np.any([check_nq, check_bw, check_tint, check_type]):
+            raise ValueError("Please provide the values for quantization efficiency, bandwidth, integration time, and closure type!")
+
+        sigma_th = 1.0 / (nq * np.sqrt(2 * tint * bw * 1e6))
+
+        if type == "clamp":
+            data = self.clamp
+            X = np.log(data["clamp"])
+            pair = data["quadra"]
+            time = data["utime"]
+        elif type == "clphs":
+            data = self.clphs
+            X = data["clphs"]
+            pair = data["triangle"]
+            time = data["utime"]
+        else:
+            raise ValueError("Please provide correct type (availables: 'clamp', 'clphs')!")
+
+        db = dbs(eps=bin, min_samples=1).fit((time * 3600).reshape(-1, 1))
+        scannums = db.labels_
+        uscan = np.unique(scannums)
+        upair = np.unique(pair)
+
+        out_scannum = []
+        out_systematics = []
+        out_pair = []
+
+        for nscan, scan_ in enumerate(uscan):
+            for npair, pair_ in enumerate(upair):
+                mask = (pair == pair_) & (scannums == scan_)
+
+                fn = lambda *args : cal_s(*args)
+                soln = optimize.minimize(fn, 0.01, args=(X[mask], sigma_th), bounds=[[0, 1]], method="Powell")
+                out_scannum.append(scan_)
+                out_pair.append(pair_)
+                out_systematics.append(soln.x[0])
+        out = gamvas.utils.sarray(
+            [out_scannum, out_pair, out_systematics],
+            dtype=["i4", "O", "f8"],
+            field=["scannum", "pair", "systematics"]
+        )
+
+        if type == "clamp":
+            self.systematics_clamp = out
+        if type == "clphs":
+            self.systematics_clphs = out
+
+
+    def apply_systematics(self, type=None, bin=None):
+        if type is None:
+            raise Exception("Please provide correct type (available: 'clamp', 'clphs')!")
+
+        if bin is None:
+            raise Exception("Please provide appropriate binning time!")
+
+        if type == "clamp":
+            data = self.clamp
+            systematics = self.systematics_clamp
+            label_sigma = "sigma_clamp"
+            label_pair = "quadra"
+        elif type == "clphs":
+            systematics = self.systematics_clphs
+            data = self.clphs
+            label_sigma = "sigma_clphs"
+            label_pair = "triangle"
+
+        db = dbs(eps=bin, min_samples=1).fit((data["utime"] * 3600).reshape(-1, 1))
+        scannums = db.labels_
+        uscan = np.unique(scannums)
+
+        out = np.zeros(len(data))
+        for nscan, scan_ in enumerate(np.unique(systematics["scannum"])):
+            for npair, pair_ in enumerate(np.unique(systematics["pair"])):
+                mask1 = (scannums == scan_) & (data[label_pair] == pair_)
+                mask2 = (systematics["scannum"] == scan_) & (systematics["pair"] == pair_)
+                out[mask1] += systematics[mask2]["systematics"][0]
+
+        if type == "clamp":
+            self.clamp["sigma_clamp"] += out
+        elif type == "clphs":
+            self.clphs["sigma_clphs"] += out
+
+
     def add_error_fraction(self,
-        fraction=0.01, type="all", setvis=True, setclq=True
+        fraction=0.01, time="all", antenna="all", type="all", setvis=True, setclq=True
     ):
         """
         Add the error fractionally to the visibility amplitude
@@ -1612,10 +1709,21 @@ class open_fits:
             sig_3 = data["sigma_rl"]
             sig_4 = data["sigma_lr"]
 
-        self.sig_1 = sig_1 + fraction * np.abs(vis_1)
-        self.sig_2 = sig_2 + fraction * np.abs(vis_2)
-        self.sig_3 = sig_3 + fraction * np.abs(vis_3)
-        self.sig_4 = sig_4 + fraction * np.abs(vis_4)
+        if antenna == "all":
+            mask_ant = np.ones(len(sig_1), dtype=bool)
+        else:
+            mask_ant = (data["ant_name1"] == antenna.upper()) | (data["ant_name2"] == antenna.upper())
+
+        if time == "all":
+            mask_time = np.ones(len(sig_1), dtype=bool)
+        else:
+            mask_time = (time[0] < data["time"]) & (data["time"] < time[1])
+
+        mask = mask_ant & mask_time
+        self.sig_1[mask] = sig_1[mask] + fraction * np.abs(vis_1[mask])
+        self.sig_2[mask] = sig_2[mask] + fraction * np.abs(vis_2[mask])
+        self.sig_3[mask] = sig_3[mask] + fraction * np.abs(vis_3[mask])
+        self.sig_4[mask] = sig_4[mask] + fraction * np.abs(vis_4[mask])
 
         if setvis or type == "all":
             self.set_uvvis()
@@ -1624,7 +1732,7 @@ class open_fits:
 
 
     def add_error_factor(self,
-        factor=1, type="all", setvis=True, setclq=True
+        factor=1, time="all", antenna="all", type="all", setvis=True, setclq=True
     ):
         """
         Add the error by a factor
@@ -1655,10 +1763,21 @@ class open_fits:
             sig_3 = data["sigma_rl"]
             sig_4 = data["sigma_lr"]
 
-        self.sig_1 = factor * sig_1
-        self.sig_2 = factor * sig_2
-        self.sig_3 = factor * sig_3
-        self.sig_4 = factor * sig_4
+        if antenna == "all":
+            mask_ant = np.ones(len(sig_1), dtype=bool)
+        else:
+            mask_ant = (data["ant_name1"] == antenna.upper()) | (data["ant_name2"] == antenna.upper())
+
+        if time == "all":
+            mask_time = np.ones(len(sig_1), dtype=bool)
+        else:
+            mask_time = (time[0] < data["time"]) & (data["time"] < time[1])
+
+        mask = mask_ant & mask_time
+        self.sig_1[mask] = sig_1[mask] + fraction * np.abs(vis_1[mask])
+        self.sig_2[mask] = sig_2[mask] + fraction * np.abs(vis_2[mask])
+        self.sig_3[mask] = sig_3[mask] + fraction * np.abs(vis_3[mask])
+        self.sig_4[mask] = sig_4[mask] + fraction * np.abs(vis_4[mask])
 
         if setvis or type == "all":
             self.set_uvvis()
