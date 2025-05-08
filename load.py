@@ -1652,7 +1652,7 @@ class open_fits:
             time = data["time"]
             sigma_th = data["sigma_clphs"]
         else:
-            raise ValueError("Please provide correct type (availables: 'vis', 'clamp', 'clphs')!")
+            raise ValueError("Please provide appropriate type (availables: 'vis', 'clamp', 'clphs')!")
 
         if not np.all(np.isnan(data["time"])):
             db = dbs(eps=binning, min_samples=1).fit((time * 3600).reshape(-1, 1))
@@ -1692,7 +1692,7 @@ class open_fits:
 
     def apply_systematics(self, type=None, binning=None, d=0.0, m=0.0):
         if type is None:
-            raise Exception("Please provide correct type (available: 'clamp', 'clphs')!")
+            raise Exception("Please provide appropriate type (available: 'clamp', 'clphs')!")
 
         if binning is None:
             raise Exception("Please provide appropriate binning time!")
