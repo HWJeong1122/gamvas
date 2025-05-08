@@ -883,14 +883,14 @@ class plotter:
                             plot_ax = ax_clamp
                         plot_ax.set_rasterized(True)
                         plot_ax.errorbar(
-                            clq_obs_2["utime"], np.log(clq_obs_2["clamp"]), clq_obs_2["sigma_clamp"],
+                            clq_obs_2["time"], np.log(clq_obs_2["clamp"]), clq_obs_2["sigma_clamp"],
                             marker="o", markersize=6, c="black", ls="", mfc="black", mec="dimgray",
                             capsize=6, capthick=1, zorder=1,
                             label=f"{uquad[10*j+k]} ({ufreq[i]:.1f} GHz)"
                         )
                         if model:
                             plot_ax.plot(
-                                clq_obs_2["utime"], np.log(clq_mod_2),
+                                clq_obs_2["time"], np.log(clq_mod_2),
                                 marker="o", markersize=4, c="red", ls=":", zorder=2
                             )
                         plot_ax.xaxis.set_major_locator(MultipleLocator(2.0))
@@ -956,13 +956,13 @@ class plotter:
                             plot_ax = ax_clphs
                         plot_ax.set_rasterized(True)
                         plot_ax.errorbar(
-                            clq_obs_2["utime"], r2d * clq_obs_2["clphs"], r2d * clq_obs_2["sigma_clphs"],
+                            clq_obs_2["time"], r2d * np.angle(np.exp(1j * clq_obs_2["clphs"])), r2d * clq_obs_2["sigma_clphs"],
                             marker="o", markersize=6, c="black", ls="", mfc="black", mec="dimgray",
                             capsize=6, capthick=1, zorder=1,
                             label=f"{utria[10 * j + k]} ({ufreq[i]:.1f} GHz)")
                         if model:
                             plot_ax.plot(
-                                clq_obs_2["utime"], r2d * clq_mod_2,
+                                clq_obs_2["time"], r2d * np.angle(np.exp(1j * clq_mod_2)),
                                 marker="o", markersize=4, c="red", ls=":", zorder=2
                             )
                         plot_ax.xaxis.set_major_locator(MultipleLocator(2.0))

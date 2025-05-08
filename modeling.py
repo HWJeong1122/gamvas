@@ -78,8 +78,8 @@ class modeling:
         uvfs=None, select="i", x=None, y=None, yerr=None, args=None,
         factor_zblf=1.0, sampler="rwalk", bound="multi",
         runfit_set="mf", runfit_sf=False, runfit_mf=True, runfit_pol=False,
-        niter=1, ftype=None, fwght=None, re_ftype=None, re_fwght=None,
-        boundset=False, width=5, bnd_l=None, bnd_m=None, bnd_f=None,
+        niter=1, ftype=None, fwght=None, re_wamp_mf=None, re_ftype=None, re_fwght=None,
+        boundset=False, width=5, bnd_l=None, bnd_m=None, bnd_f=None, bnd_pa=None,
         ufreq=None, bands=None, spectrum=None, uvw=None, shift=None,
         fixnmod=False, maxn=None, npix=None, mindr=3, mrng=None,
         dognorm=True, dogscale=False, doampcal=False, dophscal=True,
@@ -109,6 +109,7 @@ class modeling:
         else:
             self.fwght = fwght
             self.fdict = None
+        self.re_wamp_mf = re_wamp_mf
         self.re_ftype = re_ftype
         self.re_fwght = re_fwght
 
@@ -117,6 +118,7 @@ class modeling:
         self.bnd_l = bnd_l
         self.bnd_m = bnd_m
         self.bnd_f = bnd_f
+        self.bnd_pa = bnd_pa
 
         self.ufreq = ufreq
         self.bands = bands
@@ -166,6 +168,7 @@ class modeling:
         nmprm = 0
 
         nmod = int(np.round(theta[0]))
+        mask_pa = False
         for i in range(nmod):
             if self.ifsingle:
                 if i == 0:
@@ -178,6 +181,10 @@ class modeling:
                     nidx += 2
                     nmprm += 2
                 else:
+                    if not self.bnd_pa is None:
+                        pa = np.angle(theta[nidx+4] + 1j * theta[nidx+3], deg=True)
+                        if self.bnd_pa[0] > pa or pa > self.bnd_pa[1]:
+                            mask_pa = True
                     model +=\
                         gamvas.functions.gvis(
                             (x[2], x[3]),
@@ -224,6 +231,10 @@ class modeling:
                             nidx += 4
                             nmprm += 4
                     else:
+                        if not self.bnd_pa is None:
+                            pa = np.angle(theta[nidx+4] + 1j * theta[nidx+3], deg=True)
+                            if self.bnd_pa[0] > pa or pa > self.bnd_pa[1]:
+                                mask_pa = True
                         if int(np.round(theta[nidx])) == 0 or self.spectrum == "spl":
                             model +=\
                                 gamvas.functions.gvis_spl(
@@ -274,6 +285,10 @@ class modeling:
                         nidx += 2
                         nmprm += 2
                     else:
+                        if not self.bnd_pa is None:
+                            pa = np.angle(theta[nidx+4] + 1j * theta[nidx+3], deg=True)
+                            if self.bnd_pa[0] > pa or pa > self.bnd_pa[1]:
+                                mask_pa = True
                         model +=\
                             gamvas.functions.gvis(
                                 (x[2], x[3]),
@@ -317,6 +332,7 @@ class modeling:
             if "amp" in ftypes:
                 nobs = len(y[0])
                 amp_obs = np.abs(y[0])
+                amp_obs = np.where(amp_obs <= yerr[0], 0, np.sqrt(amp_obs**2 - yerr[0]**2))
                 amp_mod = np.abs(model)
                 amp_sig2 = yerr[0]**2
                 amp_res = amp_mod - amp_obs
@@ -366,6 +382,8 @@ class modeling:
                     objective -=\
                         self.fdict["clphs"] *\
                         compute_bic(clphs_res, clphs_sig2, "clphs", nobs, nmprm)
+            if mask_pa:
+                objective = -np.inf
         else:
             objective = -np.inf
         return objective
@@ -654,6 +672,9 @@ class modeling:
             uvf = gamvas.utils.set_uvf([copy.deepcopy(uvfs[nband])], type="sf")
             cgain1 = np.ones(uvf.data.shape[0]) * np.exp(1j * 0)
             cgain2 = np.ones(uvf.data.shape[0]) * np.exp(1j * 0)
+
+            # if float(uvf.freq) < 86:
+            #     continue
 
             for niter_ in range(self.niter):
                 uvfs = copy.deepcopy(self.uvfs)
@@ -944,6 +965,21 @@ class modeling:
                     save_form="pdf"
                 )
 
+                if "clamp" in ftype:
+                    uvf.ploter.draw_closure(
+                        type="clamp", model=True, plotimg=False, save_img=True,
+                        save_path=path_fig,
+                        save_name=f"{self.source}.{self.date}.clamp",
+                        save_form="pdf"
+                    )
+                if "clphs" in ftype:
+                    uvf.ploter.draw_closure(
+                        type="clphs", model=True, plotimg=False, save_img=True,
+                        save_path=path_fig,
+                        save_name=f"{self.source}.{self.date}.clphs",
+                        save_form="pdf"
+                    )
+
                 uvf.ploter.draw_image(
                     uvf=uvf, plotimg=False,
                     npix=self.npix, mindr=self.mindr, plot_resi=True, addnoise=True,
@@ -966,21 +1002,6 @@ class modeling:
                     save_name=f"{self.source}.{self.date}.img.restore",
                     save_form="pdf"
                 )
-
-                if "clamp" in ftype:
-                    uvf.ploter.draw_closure(
-                        type="clamp", model=True, plotimg=False, save_img=True,
-                        save_path=path_fig,
-                        save_name=f"{self.source}.{self.date}.clamp",
-                        save_form="pdf"
-                    )
-                if "clphs" in ftype:
-                    uvf.ploter.draw_closure(
-                        type="clphs", model=True, plotimg=False, save_img=True,
-                        save_path=path_fig,
-                        save_name=f"{self.source}.{self.date}.clphs",
-                        save_form="pdf"
-                    )
 
                 uvf.drop_visibility_model()
                 self.uvfs[nband] = uvf
@@ -1021,6 +1042,9 @@ class modeling:
         for niter_ in range(self.niter):
             # set fit weights
             if niter_ == 0:
+                if self.runfit_sf and not self.re_wamp_mf is None:
+                    mask_ftype = self.ftype == "amp"
+                    self.fwght[mask_ftype] = self.re_wamp_mf
                 ftype = self.ftype.copy()
                 if self.fwght is None:
                     fwght = gamvas.utils.get_fwght(ftype, uvf.data, uvf.clamp["clamp"], uvf.clphs["clphs"])

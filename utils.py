@@ -33,7 +33,7 @@ def mkdir(path):
     Make a directory if it does not exist.
     """
     if not os.path.isdir(path):
-        os.system('mkdir %s'%(path))
+        os.system(f"mkdir {path}")
 
 
 def cal_rms(image):
@@ -539,8 +539,8 @@ def set_closure(
         phs23 = np.angle(np.array(list(map(uvvis.get, clphs_uvcomb[2])), dtype="c8"))
         phs31 = np.angle(np.array(list(map(uvvis.get, clphs_uvcomb[3])), dtype="c8").conj())
         clphs = phs12 + phs23 + phs31
-        clphs = np.where(clphs > +np.pi, clphs - 2 * np.pi, clphs)
-        clphs = np.where(clphs < -np.pi, clphs + 2 * np.pi, clphs)
+        # clphs = np.where(clphs > +np.pi, clphs - 2 * np.pi, clphs)
+        # clphs = np.where(clphs < -np.pi, clphs + 2 * np.pi, clphs)
 
     if Nant >= 3:
         return clamp, clphs
