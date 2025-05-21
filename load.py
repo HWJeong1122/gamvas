@@ -326,7 +326,7 @@ class open_fits:
 
 
     def load_uvf(self,
-        select="i", select_if="all", uvw="natural", uvave="none", scanlen=600, d=0.0, m=0.0,
+        select="i", select_if="all", uvw="natural", uvave="none", scanlen=600, d=0.0, m=0.0, dosyscal=True,
         doscatter=False, timeflag=None, snrflag=0, set_clq=True, set_pang=True, reorder=True, pinfo=True,
     ):
         """
@@ -694,11 +694,12 @@ class open_fits:
         else:
             binning = self.avgtime
 
-        self.cal_systematics(binning=binning, type="vis")
-        if len(self.tarr) >= 4:
-            self.cal_systematics(binning=binning, type="clamp")
-        if len(self.tarr) >= 3:
-            self.cal_systematics(binning=binning, type="clphs")
+        if dosyscal:
+            self.cal_systematics(binning=binning, type="vis")
+            if len(self.tarr) >= 4:
+                self.cal_systematics(binning=binning, type="clamp")
+            if len(self.tarr) >= 3:
+                self.cal_systematics(binning=binning, type="clphs")
 
         self.uvave(
             uvave=uvave,
@@ -838,7 +839,7 @@ class open_fits:
 
 
     def append_visibility_model(self,
-        freq_ref, freq, theta, pol=False, fitset="sf", spectrum="spl", set_spectrum=True, args=None
+        freq_ref, freq, theta, pol=False, model="gaussian", fitset="sf", spectrum="spl", set_spectrum=True, args=None
     ):
         """
         Append the model visibility to the data
@@ -857,105 +858,25 @@ class open_fits:
         if pol:
             theta = theta.tolist()
             nmod = len(theta)
-            for i in range(nmod):
-                vism +=\
-                    gamvas.polarization.functions.gvis(
-                        (args[0], args[1], args[2][i], args[3][i], args[4][i]),
-                        theta[i]
-                    )
+            if model == "gaussian":
+                for i in range(nmod):
+                    vism +=\
+                        gamvas.polarization.functions.gvis(
+                            (args[0], args[1], args[2][i], args[3][i], args[4][i]),
+                            theta[i]
+                        )
+            elif model == "delta":
+                for i in range(nmod):
+                    vism +=\
+                        gamvas.polarization.functions.dvis(
+                            (args[0], args[1], args[2][i], args[3][i]),
+                            theta[i]
+                        )
         else:
             nmod = int(np.round(theta["nmod"]))
-            for i in range(nmod):
-                if fitset == "sf":
-                    if i == 0:
-                        args = (uvdat["u"], uvdat["v"])
-                        vism =\
-                            vism + gamvas.functions.gvis0(
-                                args,
-                                theta[f"{i+1}_S"],
-                                theta[f"{i+1}_a"]
-                            )
-                    else:
-                        args = (uvdat["u"], uvdat["v"])
-                        vism =\
-                            vism + gamvas.functions.gvis(
-                                args,
-                                theta[f"{i+1}_S"],
-                                theta[f"{i+1}_a"],
-                                theta[f"{i+1}_l"],
-                                theta[f"{i+1}_m"]
-                            )
-
-                elif fitset == "mf":
-                    if set_spectrum:
-                        if i == 0:
-                            if spectrum == "spl":
-                                args = (freq_ref, freq, uvdat["u"], uvdat["v"])
-                                vism =\
-                                    vism + gamvas.functions.gvis_spl0(
-                                        args,
-                                        theta[f"{i+1}_S"],
-                                        theta[f"{i+1}_a"],
-                                        theta[f"{i+1}_alpha"]
-                                    )
-                            elif spectrum == "cpl":
-                                args = (freq, uvdat["u"], uvdat["v"])
-                                vism =\
-                                    vism + gamvas.functions.gvis_cpl0(
-                                        args,
-                                        theta[f"{i+1}_S"],
-                                        theta[f"{i+1}_a"],
-                                        theta[f"{i+1}_alpha"],
-                                        theta[f"{i+1}_freq"]
-                                    )
-                            elif spectrum == "ssa":
-                                args = (freq, uvdat["u"], uvdat["v"])
-                                vism =\
-                                    vism + gamvas.functions.gvis_ssa0(
-                                        args,
-                                        theta[f"{i+1}_S"],
-                                        theta[f"{i+1}_a"],
-                                        theta[f"{i+1}_alpha"],
-                                        theta[f"{i+1}_freq"]
-                                    )
-                        else:
-                            if int(np.round(theta[f"{i+1}_thick"])) == 0 or spectrum == "spl":
-                                args = (freq_ref, freq, uvdat["u"], uvdat["v"])
-                                vism =\
-                                    vism + gamvas.functions.gvis_spl(
-                                        args,
-                                        theta[f"{i+1}_S"],
-                                        theta[f"{i+1}_a"],
-                                        theta[f"{i+1}_l"],
-                                        theta[f"{i+1}_m"],
-                                        theta[f"{i+1}_alpha"]
-                                    )
-                            else:
-                                if spectrum == "cpl":
-                                    args = (freq, uvdat["u"], uvdat["v"])
-                                    vism =\
-                                        vism + gamvas.functions.gvis_cpl(
-                                            args,
-                                            theta[f"{i+1}_S"],
-                                            theta[f"{i+1}_a"],
-                                            theta[f"{i+1}_l"],
-                                            theta[f"{i+1}_m"],
-                                            theta[f"{i+1}_alpha"],
-                                            theta[f"{i+1}_freq"]
-                                        )
-                                elif spectrum == "ssa":
-                                    args = (freq, uvdat["u"], uvdat["v"])
-                                    vism =\
-                                        vism + gamvas.functions.gvis_ssa(
-                                            args,
-                                            theta[f"{i+1}_S"],
-                                            theta[f"{i+1}_a"],
-                                            theta[f"{i+1}_l"],
-                                            theta[f"{i+1}_m"],
-                                            theta[f"{i+1}_alpha"],
-                                            theta[f"{i+1}_freq"]
-                                        )
-                    else:
+            if model == "gaussian":
+                for i in range(nmod):
+                    if fitset == "sf":
                         if i == 0:
                             args = (uvdat["u"], uvdat["v"])
                             vism =\
@@ -974,6 +895,115 @@ class open_fits:
                                     theta[f"{i+1}_l"],
                                     theta[f"{i+1}_m"]
                                 )
+
+                    elif fitset == "mf":
+                        if set_spectrum:
+                            if i == 0:
+                                if spectrum == "spl":
+                                    args = (freq_ref, freq, uvdat["u"], uvdat["v"])
+                                    vism =\
+                                        vism + gamvas.functions.gvis_spl0(
+                                            args,
+                                            theta[f"{i+1}_S"],
+                                            theta[f"{i+1}_a"],
+                                            theta[f"{i+1}_alpha"]
+                                        )
+                                elif spectrum == "cpl":
+                                    args = (freq, uvdat["u"], uvdat["v"])
+                                    vism =\
+                                        vism + gamvas.functions.gvis_cpl0(
+                                            args,
+                                            theta[f"{i+1}_S"],
+                                            theta[f"{i+1}_a"],
+                                            theta[f"{i+1}_alpha"],
+                                            theta[f"{i+1}_freq"]
+                                        )
+                                elif spectrum == "ssa":
+                                    args = (freq, uvdat["u"], uvdat["v"])
+                                    vism =\
+                                        vism + gamvas.functions.gvis_ssa0(
+                                            args,
+                                            theta[f"{i+1}_S"],
+                                            theta[f"{i+1}_a"],
+                                            theta[f"{i+1}_alpha"],
+                                            theta[f"{i+1}_freq"]
+                                        )
+                            else:
+                                if int(np.round(theta[f"{i+1}_thick"])) == 0 or spectrum == "spl":
+                                    args = (freq_ref, freq, uvdat["u"], uvdat["v"])
+                                    vism =\
+                                        vism + gamvas.functions.gvis_spl(
+                                            args,
+                                            theta[f"{i+1}_S"],
+                                            theta[f"{i+1}_a"],
+                                            theta[f"{i+1}_l"],
+                                            theta[f"{i+1}_m"],
+                                            theta[f"{i+1}_alpha"]
+                                        )
+                                else:
+                                    if spectrum == "cpl":
+                                        args = (freq, uvdat["u"], uvdat["v"])
+                                        vism =\
+                                            vism + gamvas.functions.gvis_cpl(
+                                                args,
+                                                theta[f"{i+1}_S"],
+                                                theta[f"{i+1}_a"],
+                                                theta[f"{i+1}_l"],
+                                                theta[f"{i+1}_m"],
+                                                theta[f"{i+1}_alpha"],
+                                                theta[f"{i+1}_freq"]
+                                            )
+                                    elif spectrum == "ssa":
+                                        args = (freq, uvdat["u"], uvdat["v"])
+                                        vism =\
+                                            vism + gamvas.functions.gvis_ssa(
+                                                args,
+                                                theta[f"{i+1}_S"],
+                                                theta[f"{i+1}_a"],
+                                                theta[f"{i+1}_l"],
+                                                theta[f"{i+1}_m"],
+                                                theta[f"{i+1}_alpha"],
+                                                theta[f"{i+1}_freq"]
+                                            )
+                        else:
+                            if i == 0:
+                                args = (uvdat["u"], uvdat["v"])
+                                vism =\
+                                    vism + gamvas.functions.gvis0(
+                                        args,
+                                        theta[f"{i+1}_S"],
+                                        theta[f"{i+1}_a"]
+                                    )
+                            else:
+                                args = (uvdat["u"], uvdat["v"])
+                                vism =\
+                                    vism + gamvas.functions.gvis(
+                                        args,
+                                        theta[f"{i+1}_S"],
+                                        theta[f"{i+1}_a"],
+                                        theta[f"{i+1}_l"],
+                                        theta[f"{i+1}_m"]
+                                    )
+            elif model == "delta":
+                for i in range(nmod):
+                    if fitset == "sf":
+                        if i == 0:
+                            args = (uvdat["u"], uvdat["v"])
+                            vism =\
+                                vism + gamvas.functions.dvis0(
+                                    args,
+                                    theta[f"{i+1}_S"]
+                                )
+                        else:
+                            args = (uvdat["u"], uvdat["v"])
+                            vism =\
+                                vism + gamvas.functions.dvis(
+                                    args,
+                                    theta[f"{i+1}_S"],
+                                    theta[f"{i+1}_l"],
+                                    theta[f"{i+1}_m"]
+                                )
+
 
         uvdat = rfn.append_fields(uvdat, "vism", vism, usemask=False)
 

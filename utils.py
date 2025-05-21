@@ -23,9 +23,10 @@ def close_figure(fig):
     """
     Close all figures and free memory.
     """
-    plt.close(fig)
-    plt.close("all")
-    gc.collect()
+    tmp=1
+    # plt.close(fig)
+    # plt.close("all")
+    # gc.collect()
 
 
 def mkdir(path):

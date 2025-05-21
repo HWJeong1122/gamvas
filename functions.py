@@ -98,6 +98,24 @@ def S_cpl(nu, Smax, tf, alpha):
     return Smax * (nu / tf)**(alpha * unp.log10(nu / tf))
 
 
+def dvis0(args, S):
+    """
+    NOTE: This function is intended to fix model position to (0,0)
+        Arguments:
+            args (tuple): input sub-arguments
+                args[0] (1D-array): u-axis data points
+                args[1] (1D-array): v-axis data points
+            S (float): flux density of Gaussian model
+        Returns:
+            complex visibility of a delta function model
+    """
+    uu = args[0] / r2m
+    vv = args[1] / r2m
+    a = 0
+    visibility = S * np.e**(-2*np.pi**2 * a**2 * (uu**2 + vv**2))
+    return visibility.astype("c8")
+
+
 def gvis0(args, S, fwhm):
     """
     NOTE: This function is intended to fix model position to (0,0)
@@ -186,6 +204,25 @@ def gvis_ssa0(args, Smax, fwhm, alpha, nu_m):
     a = fwhm / (2 * (2 * unp.log(2))**0.5)
     S = SSA(nu, Smax, nu_m, alpha)
     visibility = S * np.e**(-2 * (np.pi * a)**2 * (uu**2 + vv**2))
+    return visibility.astype("c8")
+
+
+def dvis(args, S, l, m):
+    """
+        Arguments:
+            args (tuple): input sub-arguments
+                args[0] (1D-array): u-axis data points
+                args[1] (1D-array): v-axis data points
+            S (float): flux density of delta function model
+            l (float): right ascension position of delta function model
+            m (float): declination position of delta function model
+        Returns:
+            complex visibility of Gaussian model
+    """
+    uu = args[0] / r2m
+    vv = args[1] / r2m
+    a = 0
+    visibility = S * np.e**(2j * np.pi * (uu * l + vv * m))
     return visibility.astype("c8")
 
 

@@ -568,8 +568,8 @@ class plotter:
         cbar_dir.set_label("Amplitude (Jy/beam)", fontsize=15, fontweight="bold")
         ax_bim.set_xlabel(f"Relative R.A ({uvf.mrng.unit})", fontsize=17, fontweight="bold")
         ax_dir.set_xlabel(f"Relative R.A ({uvf.mrng.unit})", fontsize=17, fontweight="bold")
-        ax_bim.set_ylabel(f"Relative DeC ({uvf.mrng.unit})", fontsize=17, fontweight="bold")
-        ax_dir.set_ylabel(f"Relative DeC ({uvf.mrng.unit})", fontsize=17, fontweight="bold")
+        ax_bim.set_ylabel(f"Relative Dec ({uvf.mrng.unit})", fontsize=17, fontweight="bold")
+        ax_dir.set_ylabel(f"Relative Dec ({uvf.mrng.unit})", fontsize=17, fontweight="bold")
         ax_bim.set_title(bimtitle, fontsize=17, fontweight="bold")
         ax_dir.set_title(dirtitle, fontsize=17, fontweight="bold")
         ax_bim.tick_params("both", labelsize=15)
@@ -607,7 +607,7 @@ class plotter:
 
 
     def draw_trplot(self,
-        result=None, pol=False, weight=None, nmod=None, ifsingle=True, spectrum="spl", set_spectrum=True,
+        result=None, pol=False, weight=None, nmod=None, ifsingle=True, spectrum="spl", set_spectrum=True, model="gaussian",
         fontsize=15, fontweight="bold", save_path=False, save_name=False, save_form="png"
     ):
         """
@@ -634,38 +634,48 @@ class plotter:
                 field = [r"$S_{%s}$"%(n)]
                 nidx_ = 1
             else:
-                if ifsingle:
-                    if n == 1:
-                        field = [r"$S_{%s}$"%(n), r"$a_{%s}$"%(n)]
-                        nidx_ = 2
-                    else:
-                        field = [r"$S_{%s}$"%(n), r"$a_{%s}$"%(n), r"$l_{%s}$"%(n), r"$m_{%s}$"%(n)]
-                        nidx_ = 4
-
-                else:
-                    if set_spectrum:
-                        if spectrum in ["spl"]:
-                            if n == 1:
-                                field = [r"$S_{%s}$"%(n), r"$a_{%s}$"%(n), r"$\alpha_{%s}$"%(n)]
-                                nidx_ = 4
-                            else:
-                                field = [r"$S_{%s}$"%(n), r"$a_{%s}$"%(n), r"$l_{%s}$"%(n), r"$m_{%s}$"%(n), r"$\alpha_{%s}$"%(n)]
-                                nidx_ = 7
-
-                        elif spectrum in ["cpl", "ssa"]:
-                            if n == 1:
-                                field = [r"$S_{%s}$"%(n), r"$a_{%s}$"%(n), r"$\alpha_{%s}$"%(n), r"$\nu_{\rm m,%s}$"%(n)]
-                                nidx_ = 4
-                            else:
-                                field = [r"$S_{%s}$"%(n), r"$a_{%s}$"%(n), r"$l_{%s}$"%(n), r"$m_{%s}$"%(n), r"$\alpha_{%s}$"%(n), r"$\nu_{\rm m,%s}$"%(n)]
-                                nidx_ = 7
-                    else:
+                if model == "gaussian":
+                    if ifsingle:
                         if n == 1:
                             field = [r"$S_{%s}$"%(n), r"$a_{%s}$"%(n)]
                             nidx_ = 2
                         else:
                             field = [r"$S_{%s}$"%(n), r"$a_{%s}$"%(n), r"$l_{%s}$"%(n), r"$m_{%s}$"%(n)]
                             nidx_ = 4
+
+                    else:
+                        if set_spectrum:
+                            if spectrum in ["spl"]:
+                                if n == 1:
+                                    field = [r"$S_{%s}$"%(n), r"$a_{%s}$"%(n), r"$\alpha_{%s}$"%(n)]
+                                    nidx_ = 4
+                                else:
+                                    field = [r"$S_{%s}$"%(n), r"$a_{%s}$"%(n), r"$l_{%s}$"%(n), r"$m_{%s}$"%(n), r"$\alpha_{%s}$"%(n)]
+                                    nidx_ = 7
+
+                            elif spectrum in ["cpl", "ssa"]:
+                                if n == 1:
+                                    field = [r"$S_{%s}$"%(n), r"$a_{%s}$"%(n), r"$\alpha_{%s}$"%(n), r"$\nu_{\rm m,%s}$"%(n)]
+                                    nidx_ = 4
+                                else:
+                                    field = [r"$S_{%s}$"%(n), r"$a_{%s}$"%(n), r"$l_{%s}$"%(n), r"$m_{%s}$"%(n), r"$\alpha_{%s}$"%(n), r"$\nu_{\rm m,%s}$"%(n)]
+                                    nidx_ = 7
+                        else:
+                            if n == 1:
+                                field = [r"$S_{%s}$"%(n), r"$a_{%s}$"%(n)]
+                                nidx_ = 2
+                            else:
+                                field = [r"$S_{%s}$"%(n), r"$a_{%s}$"%(n), r"$l_{%s}$"%(n), r"$m_{%s}$"%(n)]
+                                nidx_ = 4
+                elif model == "delta":
+                    if ifsingle:
+                        if n == 1:
+                            field = [r"$S_{%s}$"%(n)]
+                            nidx_ = 1
+                        else:
+                            field = [r"$S_{%s}$"%(n), r"$l_{%s}$"%(n), r"$m_{%s}$"%(n)]
+                            nidx_ = 3
+
 
             if set_spectrum:
                 if i == 0:
@@ -716,7 +726,7 @@ class plotter:
 
 
     def draw_cnplot(self,
-        result=None, pol=False, nmod=None, ifsingle=True, spectrum="spl", set_spectrum=True,
+        result=None, pol=False, nmod=None, ifsingle=True, spectrum="spl", set_spectrum=True, model="gaussian",
         fontsize=15, fontweight="bold", save_path=False, save_name=False, save_form="png"
     ):
         """
@@ -745,38 +755,47 @@ class plotter:
                 field = [r"$S_{%s}$"%(n)]
                 nidx_ = 1
             else:
-                if ifsingle:
-                    if n == 1:
-                        field = [r"$S_{%s}$"%(n), r"$a_{%s}$"%(n)]
-                        nidx_ = 2
-                    else:
-                        field = [r"$S_{%s}$"%(n), r"$a_{%s}$"%(n), r"$l_{%s}$"%(n), r"$m_{%s}$"%(n)]
-                        nidx_ = 4
-
-                else:
-                    if set_spectrum:
-                        if spectrum in ["spl"]:
-                            if n == 1:
-                                field = [r"$S_{%s}$"%(n), r"$a_{%s}$"%(n), r"$\alpha_{%s}$"%(n)]
-                                nidx_ = 4
-                            else:
-                                field = [r"$S_{%s}$"%(n), r"$a_{%s}$"%(n), r"$l_{%s}$"%(n), r"$m_{%s}$"%(n), r"$\alpha_{%s}$"%(n)]
-                                nidx_ = 7
-
-                        elif spectrum in ["cpl", "ssa"]:
-                            if n == 1:
-                                field = [r"$S_{%s}$"%(n), r"$a_{%s}$"%(n), r"$\alpha_{%s}$"%(n), r"$\nu_{\rm m,%s}$"%(n)]
-                                nidx_ = 4
-                            else:
-                                field = [r"$S_{%s}$"%(n), r"$a_{%s}$"%(n), r"$l_{%s}$"%(n), r"$m_{%s}$"%(n), r"$\alpha_{%s}$"%(n), r"$\nu_{\rm m,%s}$"%(n)]
-                                nidx_ = 7
-                    else:
+                if model == "gaussian":
+                    if ifsingle:
                         if n == 1:
                             field = [r"$S_{%s}$"%(n), r"$a_{%s}$"%(n)]
                             nidx_ = 2
                         else:
                             field = [r"$S_{%s}$"%(n), r"$a_{%s}$"%(n), r"$l_{%s}$"%(n), r"$m_{%s}$"%(n)]
                             nidx_ = 4
+
+                    else:
+                        if set_spectrum:
+                            if spectrum in ["spl"]:
+                                if n == 1:
+                                    field = [r"$S_{%s}$"%(n), r"$a_{%s}$"%(n), r"$\alpha_{%s}$"%(n)]
+                                    nidx_ = 4
+                                else:
+                                    field = [r"$S_{%s}$"%(n), r"$a_{%s}$"%(n), r"$l_{%s}$"%(n), r"$m_{%s}$"%(n), r"$\alpha_{%s}$"%(n)]
+                                    nidx_ = 7
+
+                            elif spectrum in ["cpl", "ssa"]:
+                                if n == 1:
+                                    field = [r"$S_{%s}$"%(n), r"$a_{%s}$"%(n), r"$\alpha_{%s}$"%(n), r"$\nu_{\rm m,%s}$"%(n)]
+                                    nidx_ = 4
+                                else:
+                                    field = [r"$S_{%s}$"%(n), r"$a_{%s}$"%(n), r"$l_{%s}$"%(n), r"$m_{%s}$"%(n), r"$\alpha_{%s}$"%(n), r"$\nu_{\rm m,%s}$"%(n)]
+                                    nidx_ = 7
+                        else:
+                            if n == 1:
+                                field = [r"$S_{%s}$"%(n), r"$a_{%s}$"%(n)]
+                                nidx_ = 2
+                            else:
+                                field = [r"$S_{%s}$"%(n), r"$a_{%s}$"%(n), r"$l_{%s}$"%(n), r"$m_{%s}$"%(n)]
+                                nidx_ = 4
+                elif model == "delta":
+                    if ifsingle:
+                        if n == 1:
+                            field = [r"$S_{%s}$"%(n)]
+                            nidx_ = 1
+                        else:
+                            field = [r"$S_{%s}$"%(n), r"$l_{%s}$"%(n), r"$m_{%s}$"%(n)]
+                            nidx_ = 3
 
             if set_spectrum:
                 if i == 0:
@@ -1059,7 +1078,7 @@ class plotter:
 
 
     def generate_image(self,
-        uvf, pol=False, freq_ref=False, freq=False, prms=False, pprms=False, ifsingle=True, set_spectrum=False, spectrum="spl"
+        uvf, pol=False, freq_ref=False, freq=False, prms=False, pprms=False, model="gaussian", ifsingle=True, set_spectrum=False, spectrum="spl"
     ):
         """
         generate intensity image (Jy/beam)
@@ -1085,64 +1104,98 @@ class plotter:
         mrng = np.max(xgrid)
         psize = mrng / xgrid.shape[0] * 2
 
-        for i in range(nmod):
-            if pol:
-                S = pprms[f"{i + 1}_S"]
-                prm_a_ = prms[f"{i + 1}_a"]
-                if i == 0:
-                    prm_l_ = 0
-                    prm_m_ = 0
-                else:
-                    prm_l_ = prms[f"{i + 1}_l"]
-                    prm_m_ = prms[f"{i + 1}_m"]
-            else:
-                prm_S_ = prms[f"{i + 1}_S"]
-                prm_a_ = prms[f"{i + 1}_a"]
-                if ifsingle:
+        if model == "gaussian":
+            for i in range(nmod):
+                if pol:
+                    S = pprms[f"{i + 1}_S"]
+                    prm_a_ = prms[f"{i + 1}_a"]
                     if i == 0:
                         prm_l_ = 0
                         prm_m_ = 0
                     else:
                         prm_l_ = prms[f"{i + 1}_l"]
                         prm_m_ = prms[f"{i + 1}_m"]
-                    S = prm_S_
                 else:
-                    if set_spectrum:
-                        prm_i_ = prms[f"{i + 1}_alpha"]
-                        if spectrum in ["spl"]:
-                            if i == 0:
-                                prm_l_ = 0
-                                prm_m_ = 0
-                            else:
-                                prm_l_ = prms[f"{i + 1}_l"]
-                                prm_m_ = prms[f"{i + 1}_m"]
-                            S = gamvas.functions.S_spl(freq_ref, freq, prm_S_, prm_i_)
-                        elif spectrum in ["cpl", "ssa"]:
-                            prm_f_ = prms[f"{i + 1}_freq"]
-                            if i == 0:
-                                prm_l_ = 0
-                                prm_m_ = 0
-                            else:
-                                mask_sindex = int(np.round(prms[f"{i + 1}_thick"])) == 0
-                                prm_l_ = prms[f"{i + 1}_l"]
-                                prm_m_ = prms[f"{i + 1}_m"]
-                            if spectrum in ["cpl"]:
-                                if i == 0:
-                                    S = gamvas.functions.S_cpl(freq, prm_S_, prm_f_, prm_i_)
-                                else:
-                                    if mask_sindex:
-                                        S = gamvas.functions.S_spl(freq_ref, freq, prm_S_, prm_i_)
-                                    else:
-                                        S = gamvas.functions.S_cpl(freq, prm_S_, prm_f_, prm_i_)
-                            elif spectrum in ["ssa"]:
-                                if i == 0:
-                                    S = gamvas.functions.SSA(freq, prm_S_, prm_f_, prm_i_)
-                                else:
-                                    if mask_sindex:
-                                        S = gamvas.functions.S_spl(freq_ref, freq, prm_S_, prm_i_)
-                                    else:
-                                        S = gamvas.functions.SSA(freq, prm_S_, prm_f_, prm_i_)
+                    prm_S_ = prms[f"{i + 1}_S"]
+                    prm_a_ = prms[f"{i + 1}_a"]
+                    if ifsingle:
+                        if i == 0:
+                            prm_l_ = 0
+                            prm_m_ = 0
+                        else:
+                            prm_l_ = prms[f"{i + 1}_l"]
+                            prm_m_ = prms[f"{i + 1}_m"]
+                        S = prm_S_
                     else:
+                        if set_spectrum:
+                            prm_i_ = prms[f"{i + 1}_alpha"]
+                            if spectrum in ["spl"]:
+                                if i == 0:
+                                    prm_l_ = 0
+                                    prm_m_ = 0
+                                else:
+                                    prm_l_ = prms[f"{i + 1}_l"]
+                                    prm_m_ = prms[f"{i + 1}_m"]
+                                S = gamvas.functions.S_spl(freq_ref, freq, prm_S_, prm_i_)
+                            elif spectrum in ["cpl", "ssa"]:
+                                prm_f_ = prms[f"{i + 1}_freq"]
+                                if i == 0:
+                                    prm_l_ = 0
+                                    prm_m_ = 0
+                                else:
+                                    mask_sindex = int(np.round(prms[f"{i + 1}_thick"])) == 0
+                                    prm_l_ = prms[f"{i + 1}_l"]
+                                    prm_m_ = prms[f"{i + 1}_m"]
+                                if spectrum in ["cpl"]:
+                                    if i == 0:
+                                        S = gamvas.functions.S_cpl(freq, prm_S_, prm_f_, prm_i_)
+                                    else:
+                                        if mask_sindex:
+                                            S = gamvas.functions.S_spl(freq_ref, freq, prm_S_, prm_i_)
+                                        else:
+                                            S = gamvas.functions.S_cpl(freq, prm_S_, prm_f_, prm_i_)
+                                elif spectrum in ["ssa"]:
+                                    if i == 0:
+                                        S = gamvas.functions.SSA(freq, prm_S_, prm_f_, prm_i_)
+                                    else:
+                                        if mask_sindex:
+                                            S = gamvas.functions.S_spl(freq_ref, freq, prm_S_, prm_i_)
+                                        else:
+                                            S = gamvas.functions.SSA(freq, prm_S_, prm_f_, prm_i_)
+                        else:
+                            if i == 0:
+                                prm_l_ = 0
+                                prm_m_ = 0
+                            else:
+                                prm_l_ = prms[f"{i + 1}_l"]
+                                prm_m_ = prms[f"{i + 1}_m"]
+                            S = prm_S_
+
+                ax = prm_a_ / np.sqrt(8 * np.log(2))
+                ay = prm_a_ / np.sqrt(8 * np.log(2))
+                if ax > psize:
+                    I = S / (2 * np.pi * ax * ay)
+                    gaussian_model = Gaussian2D(amplitude=I, x_mean=prm_l_, y_mean=prm_m_, x_stddev=ax, y_stddev=ay, theta=0)
+                    addimg = gaussian_model(xgrid, ygrid)
+                elif ax <= psize:
+                    I = S/psize**2
+                    loc = [int(np.round((-prm_l_ + mrng) / psize)), int(np.round((-prm_m_ + mrng) / psize))]
+                    addimg = np.zeros(xgrid.shape)
+                    addimg[loc[0], loc[1]] = I
+                image += addimg
+        elif model == "delta":
+            for i in range(nmod):
+                if pol:
+                    S = pprms[f"{i + 1}_S"]
+                    if i == 0:
+                        prm_l_ = 0
+                        prm_m_ = 0
+                    else:
+                        prm_l_ = prms[f"{i + 1}_l"]
+                        prm_m_ = prms[f"{i + 1}_m"]
+                else:
+                    prm_S_ = prms[f"{i + 1}_S"]
+                    if ifsingle:
                         if i == 0:
                             prm_l_ = 0
                             prm_m_ = 0
@@ -1151,18 +1204,12 @@ class plotter:
                             prm_m_ = prms[f"{i + 1}_m"]
                         S = prm_S_
 
-            ax = prm_a_ / np.sqrt(8 * np.log(2))
-            ay = prm_a_ / np.sqrt(8 * np.log(2))
-            if ax > psize:
-                I = S / (2 * np.pi * ax * ay)
-                gaussian_model = Gaussian2D(amplitude=I, x_mean=prm_l_, y_mean=prm_m_, x_stddev=ax, y_stddev=ay, theta=0)
-                addimg = gaussian_model(xgrid, ygrid)
-            elif ax <= psize:
-                I = S/psize**2
+                I = S / psize**2
                 loc = [int(np.round((-prm_l_ + mrng) / psize)), int(np.round((-prm_m_ + mrng) / psize))]
                 addimg = np.zeros(xgrid.shape)
                 addimg[loc[0], loc[1]] = I
-            image += addimg
+                image += addimg
+
         self.image = image
 
 
@@ -1197,7 +1244,7 @@ class plotter:
 
     def draw_image(self,
         uvf, pol=False, returned=False, bnom=None, freq_ref=None, freq=None, genlevels=False, npix=128, mindr=3, minlev=0.01, maxlev=0.99, step=2, fsize=8,
-        contourw=0.3, mintick_map=0.5, majtick_map=2.5, mintick_cb=0.2, majtick_cb=1.0, ifsingle=True, set_spectrum=True, xlim=False, ylim=False,
+        contourw=0.3, mintick_map=0.5, majtick_map=2.5, mintick_cb=0.2, majtick_cb=1.0, model="gaussian", ifsingle=True, set_spectrum=True, xlim=False, ylim=False,
         save_img=False, save_path=False, save_name=False, save_form="png",
         plotimg=True, plot_resi=False, addnoise=False, outfig=False, title=None, show_title=False
     ):
@@ -1279,7 +1326,7 @@ class plotter:
 
         # reconstruct model+residual map
         self.draw_dirtymap(uvf=uvf, mrng=mrng, npix=npix, uvw=uvf.uvw, plot_resi=addnoise, plotimg=False)
-        self.generate_image(uvf=uvf, pol=pol, freq_ref=freq_ref, freq=freq, prms=prms, pprms=pprms, ifsingle=ifsingle, set_spectrum=set_spectrum, spectrum=self.spectrum)
+        self.generate_image(uvf=uvf, pol=pol, freq_ref=freq_ref, freq=freq, prms=prms, pprms=pprms, model=model, ifsingle=ifsingle, set_spectrum=set_spectrum, spectrum=self.spectrum)
         image = self.image.copy()
         image = self.convolve_image(uvf=uvf, npix=npix, image=image, bnom=bnom)
         if addnoise:
@@ -1360,18 +1407,25 @@ class plotter:
                                 bmin, bmaj, angle=-bpa, fc='grey', ec='yellow', lw=1.0)
         ax_map.add_patch(beam)
 
+        psize = np.abs(xgrid[0,0] - xgrid[0,1])
         for i in range(nmod):
             if i == 0:
                 ra, dec = 0, 0
             else:
                 ra, dec = prms[f"{i + 1}_l"], prms[f"{i + 1}_m"]
-            a = prms[f"{i + 1}_a"]
-            Gmodel = patches.Ellipse((ra, dec), a, a, angle=0, fc="none", ec="cyan", lw=1.0)
-            stick1 = patches.ConnectionPatch(xyA=(ra -a / 2, dec), xyB=(ra +a / 2, dec), coordsA="data", color="cyan", lw=1.0)
-            stick2 = patches.ConnectionPatch(xyA=(ra, dec -a / 2), xyB=(ra, dec +a / 2), coordsA="data", color="cyan", lw=1.0)
-            ax_map.add_patch(Gmodel)
-            ax_map.add_patch(stick1)
-            ax_map.add_patch(stick2)
+            if model == "gaussian":
+                a = prms[f"{i + 1}_a"]
+                if a >= psize:
+                    Gmodel = patches.Ellipse((ra, dec), a, a, angle=0, fc="none", ec="cyan", lw=1.0)
+                    stick1 = patches.ConnectionPatch(xyA=(ra -a / 2, dec), xyB=(ra +a / 2, dec), coordsA="data", color="cyan", lw=1.0)
+                    stick2 = patches.ConnectionPatch(xyA=(ra, dec -a / 2), xyB=(ra, dec +a / 2), coordsA="data", color="cyan", lw=1.0)
+                    ax_map.add_patch(Gmodel)
+                    ax_map.add_patch(stick1)
+                    ax_map.add_patch(stick2)
+                else:
+                    ax_map.scatter(ra, dec, color="cyan", marker="+", s=50)
+            elif model == "delta":
+                ax_map.scatter(ra, dec, color="cyan", marker="+", s=50)
 
         if save_path and save_name:
             fig_map.savefig(f"{save_path}" + f"{save_name}.{save_form}", format=save_form, dpi=300)

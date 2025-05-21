@@ -8,6 +8,7 @@ import pandas as pd
 import numpy as np
 import numpy.lib.recfunctions as rfn
 import matplotlib.pyplot as plt
+from tqdm import tqdm
 from astropy import units as u
 from astropy import constants as C
 from astropy.time import Time as ati
@@ -117,33 +118,32 @@ class create_array:
 
         obs_times = np.array(obs_times)[mask_elevation]
 
-        lst1 = ati(obs_times).sidereal_time('apparent', "greenwich")
-        lst2 = ati(obs_times).sidereal_time('apparent', "greenwich")
+        lst1 = ati(obs_times).sidereal_time("apparent", "greenwich")
+        lst2 = ati(obs_times).sidereal_time("apparent", "greenwich")
         hangle = (lst1 - ra).to(u.deg)
 
-        Xw = (loc2.x-loc1.x)/obsw
-        Yw = (loc2.y-loc1.y)/obsw
-        Zw = (loc2.z-loc1.z)/obsw
+        Xw = (loc2.x - loc1.x) / obsw
+        Yw = (loc2.y - loc1.y) / obsw
+        Zw = (loc2.z - loc1.z) / obsw
 
         obs_uv_u = +Xw*np.sin(hangle)             + Yw*np.cos(hangle)             + Zw*0
         obs_uv_v = -Xw*np.sin(dec)*np.cos(hangle) + Yw*np.sin(dec)*np.sin(hangle) + Zw*np.cos(dec)
         obs_uv_w = +Xw*np.cos(dec)*np.cos(hangle) - Yw*np.cos(dec)*np.sin(hangle) + Zw*np.sin(dec)
 
-
-        mjd      = ati(obs_times, format="iso").mjd
-        times    = (mjd - int(np.min(mjd))) * 24
-        tint     = np.ones(times.shape[0]) * self.tint
-        obs_ant_num1  = np.array(obs_ant_num1 )[mask_elevation]
-        obs_ant_num2  = np.array(obs_ant_num2 )[mask_elevation]
+        mjd = ati(obs_times, format="iso").mjd
+        times = (mjd - int(np.min(mjd))) * 24
+        tint = np.ones(times.shape[0]) * self.tint
+        obs_ant_num1 = np.array(obs_ant_num1)[mask_elevation]
+        obs_ant_num2 = np.array(obs_ant_num2)[mask_elevation]
         obs_ant_name1 = np.array(obs_ant_name1)[mask_elevation]
         obs_ant_name2 = np.array(obs_ant_name2)[mask_elevation]
-        phi1     = np.zeros(times.shape[0])
-        phi2     = np.zeros(times.shape[0])
+        phi1 = np.zeros(times.shape[0])
+        phi2 = np.zeros(times.shape[0])
 
         uvcov = sarray(
-            data=[times, tint, mjd, obs_ant_num1, obs_ant_num2, obs_ant_name1, obs_ant_name2, obs_uv_u, obs_uv_v, phi1, phi2],
-            field=["time", "tint", "mjd", "ant_num1", "ant_num2", "ant_name1", "ant_name2", "u" , "v" , "phi1", "phi2"],
-            dtype=["f8"  , "f8"  , "f8" , "i", "i", "U32" , "U32" , "f8", "f8", "f8"  , "f8"  ])
+            data=[times, tint, mjd, obs_ant_num1, obs_ant_num2, obs_ant_name1, obs_ant_name2, obs_uv_u, obs_uv_v, phi1, phi2, scd1.alt.value, scd2.alt.value],
+            field=["time", "tint", "mjd", "ant_num1", "ant_num2", "ant_name1", "ant_name2", "u" , "v" , "phi1", "phi2", "elevation1", "elevation2"],
+            dtype=["f8", "f8", "f8", "i", "i", "U32", "U32", "f8", "f8", "f8", "f8", "f8", "f8"])
         self.uvcov = uvcov
 
 
