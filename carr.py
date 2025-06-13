@@ -82,21 +82,21 @@ class create_array:
         # set baselines
         baselines = list(itertools.combinations(tarr["name"], 2))
         obs_times = []
-        obs_ant_num1   = []
-        obs_ant_num2   = []
-        obs_ant_name1  = []
-        obs_ant_name2  = []
+        obs_ant_num1 = []
+        obs_ant_num2 = []
+        obs_ant_name1 = []
+        obs_ant_name2 = []
 
         for ntime, time in enumerate(times):
             for baseline in baselines:
                 obs_times.append(time)
-                obs_ant_num1 .append(self.ant_dict_name2num[baseline[0]])
-                obs_ant_num2 .append(self.ant_dict_name2num[baseline[1]])
+                obs_ant_num1.append(self.ant_dict_name2num[baseline[0]])
+                obs_ant_num2.append(self.ant_dict_name2num[baseline[1]])
                 obs_ant_name1.append(baseline[0])
                 obs_ant_name2.append(baseline[1])
 
-        dict_lat = dict(zip(tarr["name"], tarr["lat"   ]))
-        dict_lon = dict(zip(tarr["name"], tarr["lon"   ]))
+        dict_lat = dict(zip(tarr["name"], tarr["lat"]))
+        dict_lon = dict(zip(tarr["name"], tarr["lon"]))
         dict_hgt = dict(zip(tarr["name"], tarr["height"]))
         arr_lat1 = np.array(list(map(dict_lat.get, obs_ant_name1)))
         arr_lon1 = np.array(list(map(dict_lon.get, obs_ant_name1)))

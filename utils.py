@@ -37,7 +37,7 @@ def mkdir(path):
         os.system(f"mkdir {path}")
 
 
-def cal_rms(image):
+def cal_rms(image, roi=False):
     """
     Compute the root-mean-square (RMS) value of the input image
     Arguments:
@@ -45,19 +45,33 @@ def cal_rms(image):
     Returns:
         float: statistical RMS value of the input image
     """
-    # cent = image.size
-    # unit = int(cent / 10)
-    # roi_1 = image[0:unit, 0:unit].reshape(-1)
-    # roi_2 = image[0:unit, cent - int(unit / 2):cent + int(unit / 2)].reshape(-1)
-    # roi_3 = image[0:unit, -unit:-1].reshape(-1)
-    # roi_4 = image[-unit:-1, 0:unit].reshape(-1)
-    # roi_5 = image[-unit:-1, cent - int(unit / 2):cent + int(unit / 2)].reshape(-1)
-    # roi_6 = image[-unit:-1, -unit:-1].reshape(-1)
-    # rois = np.concatenate((roi_1, roi_2, roi_3, roi_4, roi_5, roi_6))
-    # rms = np.nanstd(rois)
-    rms1 = np.abs(np.percentile(image, 16) - np.percentile(image, 50))
-    rms2 = np.abs(np.percentile(image, 84) - np.percentile(image, 50))
-    rms = (rms1 + rms2) / 2
+
+    if roi:
+        cent = image.size
+        unit = int(cent / 10)
+        roi_1 = image[0:unit, 0:unit].reshape(-1)
+        roi_2 = image[0:unit, cent - int(unit / 2):cent + int(unit / 2)].reshape(-1)
+        roi_3 = image[0:unit, -unit:-1].reshape(-1)
+        roi_4 = image[-unit:-1, 0:unit].reshape(-1)
+        roi_5 = image[-unit:-1, cent - int(unit / 2):cent + int(unit / 2)].reshape(-1)
+        roi_6 = image[-unit:-1, -unit:-1].reshape(-1)
+        rois = np.concatenate((roi_1, roi_2, roi_3, roi_4, roi_5, roi_6))
+        rms = np.nanstd(rois)
+    else:
+        rms1 = np.abs(np.percentile(image, 16) - np.percentile(image, 50))
+        rms2 = np.abs(np.percentile(image, 84) - np.percentile(image, 50))
+        rms = (rms1 + rms2) / 2
+        if np.isnan(rms):
+            cent = image.size
+            unit = int(cent / 10)
+            roi_1 = image[0:unit, 0:unit].reshape(-1)
+            roi_2 = image[0:unit, cent - int(unit / 2):cent + int(unit / 2)].reshape(-1)
+            roi_3 = image[0:unit, -unit:-1].reshape(-1)
+            roi_4 = image[-unit:-1, 0:unit].reshape(-1)
+            roi_5 = image[-unit:-1, cent - int(unit / 2):cent + int(unit / 2)].reshape(-1)
+            roi_6 = image[-unit:-1, -unit:-1].reshape(-1)
+            rois = np.concatenate((roi_1, roi_2, roi_3, roi_4, roi_5, roi_6))
+            rms = np.nanstd(rois)
     return rms
 
 

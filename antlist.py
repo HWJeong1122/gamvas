@@ -227,7 +227,6 @@ def get_station(name):
     "JCMT"
     if name.upper() == "JC":
         ant = EarthLocation(lat=lat_JC, lon=lon_JC, height=hgt_JC)
-
     return ant
 
 def get_vlbi(name):
@@ -259,6 +258,16 @@ def get_vlbi(name):
             VLBIarr = ["KC", "KT", "KU", "KY", "VM", "VR", "VO", "VS", "UR"]
         elif name.upper() == "EAVN43":
             VLBIarr = ["KC", "KT", "KU", "KY", "VM", "VR", "VO", "VS", "T6", "NY"]
+        elif name.upper() == "EKVN+LBA":
+            VLBIarr = [
+            "KC", "KT", "KU", "KY",                                                 # KVN
+            "AT", "CD", "HO", "MP", "TD",                                           # LBA
+            ]
+        elif name.upper() == "EKVN+EVN":
+            VLBIarr = [
+            "JB", "EF", "MC", "NT", "O6", "T6", "UR", "TR", "MH", "YS", "HH", "SR", # EVN
+            "KC", "KT", "KU", "KY",                                                 # KVN
+            ]
         elif name.upper() == "GVA22":
             VLBIarr = [
             "JB", "EF", "MC", "NT", "O6", "T6", "UR", "TR", "MH", "YS", "HH", "SR", # EVN
@@ -271,6 +280,7 @@ def get_vlbi(name):
                 "EF", "NT", "O6", "T6", "YS", # EVN
                 "BR", "FD", "HN", "KP", "LA", "MK", "NL", "OV", "PT", "SC",             # VLBA
                 "KC", "KT", "KU", "KY",                                                 # KVN
+                "MP"
             ]
         elif name.upper() == "EVN":
             VLBIarr = ["JB", "EF", "MC", "NT", "O6", "T6", "UR", "TR", "MH", "YS", "HH", "SR"]

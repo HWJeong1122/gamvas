@@ -750,9 +750,6 @@ class modeling:
             cgain1 = np.ones(uvf.data.shape[0]) * np.exp(1j * 0)
             cgain2 = np.ones(uvf.data.shape[0]) * np.exp(1j * 0)
 
-            # if float(uvf.freq) < 86:
-            #     continue
-
             for niter_ in range(self.niter):
                 uvfs = copy.deepcopy(self.uvfs)
                 uvall = gamvas.utils.set_uvf(uvfs, type="mf")
@@ -1084,13 +1081,11 @@ class modeling:
                 self.uvfs[nband] = uvf
             if self.runfit_pol:
                 self.pol.run_pol(
-                    # uvfs=[copy.deepcopy(uvfs[nband])],
                     uvfs=[copy.deepcopy(uvf)],
                     runmf=False,
                     uvw=self.uvw,
                     iprms=self.mprms,
                     ierrors=self.errors,
-                    # ftype=ftype.copy(),
                     ftype=["vis"],
                     fwght=[1 for i in range(len(ftype))],
                     bands=[self.bands[nband]],
@@ -1482,7 +1477,6 @@ class modeling:
                         runmf=True,
                         iprms=self.mprms,
                         ierrors=self.errors,
-                        # ftype=self.ftype,
                         ftype=["vis"],
                         fwght=[1 for i in range(len(ftype))],
                         bands=self.bands,

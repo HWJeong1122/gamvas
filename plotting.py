@@ -520,7 +520,7 @@ class plotter:
         for i in range(npix):
             xset = xgrid[i, :].reshape(-1, 1)
             yset = ygrid[i, :].reshape(-1, 1)
-            expo = np.exp(-2j*np.pi * ((xset*uut + yset*vvt)))
+            expo = np.exp(-2j * np.pi * ((xset * uut + yset * vvt)))
             uvdir[i, :] = np.mean(fn * (vis.real*expo.real - vis.imag*expo.imag), axis=1)
 
         if abs(np.max(uvdir)) < abs(np.min(uvdir)):
@@ -683,7 +683,6 @@ class plotter:
                 else:
                     add = 1
                     sidx.append(nidx)
-                # mask_spectrum = int(np.round(np.median(result.samples[:,nidx]))) == 0
                 ql, qm, qh = dyquan(result.samples[:,nidx], (0.025, 0.500, 0.975), weights=result.importance_weights())
                 mask_spectrum = int(np.round(qm)) == 0
                 if mask_spectrum:
@@ -803,7 +802,6 @@ class plotter:
                 else:
                     add = 1
                     sidx.append(nidx)
-                    # mask_spectrum = int(np.round(np.median(result.samples[:,nidx]))) == 0
                     ql, qm, qh = dyquan(result.samples[:,nidx], (0.025, 0.500, 0.975), weights=result.importance_weights())
                     mask_spectrum = int(np.round(qm)) == 0
                     if mask_spectrum:
@@ -1407,7 +1405,7 @@ class plotter:
                                 bmin, bmaj, angle=-bpa, fc='grey', ec='yellow', lw=1.0)
         ax_map.add_patch(beam)
 
-        psize = np.abs(xgrid[0,0] - xgrid[0,1])
+        psize = np.abs(xgrid[0,0] - xgrid[1,1])
         for i in range(nmod):
             if i == 0:
                 ra, dec = 0, 0
@@ -1524,8 +1522,8 @@ class plotter:
             vmin = cmap_snr_i*rms
             vmax = np.nanmax(image)
 
-        ra = uvf.fits_grid_ra*u.deg.to(u.mas)
-        dec = uvf.fits_grid_dec*u.deg.to(u.mas)
+        ra  = u.deg.to(u.mas) * uvf.fits_grid_ra
+        dec = u.deg.to(u.mas) * uvf.fits_grid_dec
         norm_i = mpl.colors.Normalize(vmin=np.abs(vmin), vmax=np.abs(vmax))
         colormapping_i = cm.ScalarMappable(norm=norm_i, cmap=cmap)
         if select.lower() != "p":
@@ -1572,8 +1570,6 @@ class plotter:
             cbar_i = fig_fits.colorbar(colormapping_i, ax=ax_imap, orientation="vertical")
             cbar_i.set_label(r"$I_{I}~{\rm (Jy/beam)}$", fontsize=15, fontweight="bold")
             ax_imap.set_xlabel("Relative R.A (mas)", fontsize=20, fontweight="bold")
-            # rect_patch = patches.Rectangle((-4, -4), 8, 8, linewidth=2, edgecolor='cyan', facecolor="none", ls="--")
-            # ax_imap.add_patch(rect_patch)
 
         if select.lower() != "p":
             ec = "yellow"
@@ -1594,14 +1590,15 @@ class plotter:
 
         beam =\
             patches.Ellipse(
-                (+0.9 * xlim[1] - uvf.fits_bmaj / 2, 0.9 * ylim[0] + uvf.fits_bmaj / 2),
-                uvf.fits_bmin,
-                uvf.fits_bmaj,
+                (+0.9 * xlim[1] - uvf.fits_bmaj * d2m / 2, 0.9 * ylim[0] + uvf.fits_bmaj * d2m / 2),
+                uvf.fits_bmin * d2m,
+                uvf.fits_bmaj * d2m,
                 angle=-uvf.fits_bpa,
                 fc='grey',
                 ec=ec,
                 lw=1.0
             )
+
         if select.lower() != "p":
             ax_imap.set_xlim(xlim[0], xlim[1])
             ax_imap.set_ylim(ylim[0], ylim[1])

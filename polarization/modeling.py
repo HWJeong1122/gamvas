@@ -254,7 +254,7 @@ class polarization:
         dtypes = ["f8" for i in range(len(fields))]
         self.pprms = gamvas.utils.sarray(self.prms[1], field=fields, dtype=dtypes)
         self.errors = (self.prms[0] + self.prms[2]) / 2
-        self.uflux = np.mean(unp.uarray(self.pprms.tolist(), self.errors.tolist()))
+        self.uflux = np.sum(unp.uarray(self.pprms.tolist(), self.errors.tolist()))
 
         if self.stoke.upper() == "Q":
             self.pprms_q = np.array(self.pprms.tolist())
@@ -906,7 +906,6 @@ class polarization:
 
             modelprms = open(save_path_p + "model_result.txt", mode="a")
             for i in range(nmod):
-                # # (43.5 GHz) Model 1 : 3.342v 0.000v 0.000v 0.245v
                 outprint = f"# ({self.freq:.1f} GHz, pol) Model {i+1} : "
                 outprint += f"{np.round(lp[i] * 1e3, 2)} [mJy], "
                 outprint += f"{np.round(fp[i], 2)} [%], "
