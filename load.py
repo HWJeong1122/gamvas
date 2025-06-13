@@ -336,7 +336,7 @@ class open_fits:
                 uvw (str): The uv-weighting // u:uniform, n:natural
                 uvave (int): The averaging time [sec]
                 scanlen (int): The scan length [sec]
-                doscatter (bool): The toggle option if to compute sigma from standard
+                doscatter (bool): The toggle option if to compute sigma from standard deviation
                 snrflag (float): The signal-to-noise ratio for the flagging
                 set_clq (bool): The toggle option if to set closure quantities
                 set_pang (bool): The toggle option if to set parallactic angle
