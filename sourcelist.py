@@ -118,8 +118,8 @@ source_positions = {
 "3C371"     : SkyCoord((18*u.hour+ 6*u.min+50.681*u.s).to(u.hour).value*15*u.deg, (+(69*u.deg+49*u.arcmin+28.109*u.arcsec)).to(u.deg)),
 "1807+698"  : SkyCoord((18*u.hour+ 6*u.min+50.681*u.s).to(u.hour).value*15*u.deg, (+(69*u.deg+49*u.arcmin+28.109*u.arcsec)).to(u.deg)),
 
-"1828+487"  : SkyCoord((18*u.hour+29*u.min+31.781*u.s).to(u.hour).value*15*u.deg, (+(48*u.deg+44*u.arcmin+46.161*u.arcsec)).to(u.deg)),
 "3C380"     : SkyCoord((18*u.hour+29*u.min+31.781*u.s).to(u.hour).value*15*u.deg, (+(48*u.deg+44*u.arcmin+46.161*u.arcsec)).to(u.deg)),
+"1828+487"  : SkyCoord((18*u.hour+29*u.min+31.781*u.s).to(u.hour).value*15*u.deg, (+(48*u.deg+44*u.arcmin+46.161*u.arcsec)).to(u.deg)),
 
 "1845+797"  : SkyCoord((18*u.hour+42*u.min+ 8.990*u.s).to(u.hour).value*15*u.deg, (+(79*u.deg+46*u.arcmin+17.128*u.arcsec)).to(u.deg)),
 "3C390.3"   : SkyCoord((18*u.hour+42*u.min+ 8.990*u.s).to(u.hour).value*15*u.deg, (+(79*u.deg+46*u.arcmin+17.128*u.arcsec)).to(u.deg)),

@@ -144,6 +144,10 @@ class create_array:
             data=[times, tint, mjd, obs_ant_num1, obs_ant_num2, obs_ant_name1, obs_ant_name2, obs_uv_u, obs_uv_v, phi1, phi2, scd1.alt.value, scd2.alt.value],
             field=["time", "tint", "mjd", "ant_num1", "ant_num2", "ant_name1", "ant_name2", "u" , "v" , "phi1", "phi2", "elevation1", "elevation2"],
             dtype=["f8", "f8", "f8", "i", "i", "U32", "U32", "f8", "f8", "f8", "f8", "f8", "f8"])
+        mask_u0 = uvcov["u"] == 0
+        mask_v0 = uvcov["v"] == 0
+        mask_uv0 = (mask_u0) & (mask_v0)
+        uvcov = uvcov[~mask_uv0]
         self.uvcov = uvcov
 
 

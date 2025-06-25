@@ -4,6 +4,7 @@ import sys
 import gc
 import copy
 import pandas as pd
+from numba import njit
 import numpy as np
 import numpy.lib.recfunctions as rfn
 import itertools as it
@@ -82,7 +83,7 @@ class modeling:
         boundset=False, width=5, bnd_l=None, bnd_m=None, bnd_f=None, bnd_pa=None,
         ufreq=None, bands=None, spectrum=None, model="gaussian", uvw=None, shift=None,
         fixnmod=False, maxn=None, npix=None, mindr=3, mrng=None,
-        gacalerr=0, dognorm=True, dogscale=False, doampcal=False, dophscal=True,
+        dognorm=True, dogscale=False, doampcal=False, dophscal=True,
         path_fig=None, source=None, date=None, cgain_truth=None, ncpu=1
     ):
         self.uvfs = uvfs
@@ -133,7 +134,6 @@ class modeling:
         self.mindr = mindr
         self.mrng = mrng
 
-        self.gacalerr = gacalerr
         self.dognorm  = dognorm
         self.dogscale = dogscale
         self.doampcal = doampcal
@@ -147,10 +147,9 @@ class modeling:
 
         self.pol = gamvas.polarization.modeling.polarization(ncpu=self.ncpu)
 
-
-    def objective_function(self,
-        theta, x, y, yerr, args
-    ):
+    @staticmethod
+    @njit
+    def objective_function(self, theta, x, y, yerr, args):
         """
         Compute objective function (Bayesian Information Criterion)
             Arguments:
@@ -162,41 +161,48 @@ class modeling:
             Returns:
                 Bayesian Information Criterion value (float)
         """
+        set_spectrum = args[4]
+        modeltype = args[5]
+        ifsingle = args[6]
+        bnd_pa = args[7]
+        spectrum = args[8]
+        fdict = args[9]
+
         N = len(x[1])
         model = np.zeros(N, dtype="c8")
         ufreq = np.unique(x[1])
 
-        nidx = 1 if self.set_spectrum else 0
+        nidx = 1 if set_spectrum else 0
         nmprm = 0
 
         nmod = int(np.round(theta[0]))
         mask_pa = False
-        if self.model == "gaussian":
+        if modeltype == "gaussian":
             for i in range(nmod):
-                if self.ifsingle:
+                if ifsingle:
                     if i == 0:
                         model +=\
                             gamvas.functions.gvis0(
-                                (x[2], x[3]),
+                                [x[2], x[3]],
                                 theta[nidx+1],
                                 theta[nidx+2]
                             )
                         nidx += 2
                         nmprm += 2
                     else:
-                        if not self.bnd_pa is None:
+                        if not bnd_pa is None:
                             pa = np.angle(theta[nidx+4] + 1j * theta[nidx+3], deg=True)
                             if pa < 0 :
                                 pa += 360
-                            if self.bnd_pa[0] < 0:
-                                self.bnd_pa[0] += 360
-                            if self.bnd_pa[1] < 0:
-                                self.bnd_pa[1] += 360
-                            if self.bnd_pa[0] > pa or pa > self.bnd_pa[1]:
+                            if bnd_pa[0] < 0:
+                                bnd_pa[0] += 360
+                            if bnd_pa[1] < 0:
+                                bnd_pa[1] += 360
+                            if bnd_pa[0] > pa or pa > bnd_pa[1]:
                                 mask_pa = True
                         model +=\
                             gamvas.functions.gvis(
-                                (x[2], x[3]),
+                                [x[2], x[3]],
                                 theta[nidx+1],
                                 theta[nidx+2],
                                 theta[nidx+3],
@@ -205,22 +211,22 @@ class modeling:
                         nidx += 4
                         nmprm += 4
                 else:
-                    if self.set_spectrum:
+                    if set_spectrum:
                         if i == 0:
-                            if self.spectrum == "spl":
+                            if spectrum == "spl":
                                 model +=\
                                     gamvas.functions.gvis_spl0(
-                                        (x[0], x[1], x[2], x[3]),
+                                        [x[0], x[1], x[2], x[3]],
                                         theta[nidx+0],
                                         theta[nidx+1],
                                         theta[nidx+2]
                                     )
                                 nidx += 4
                                 nmprm += 3
-                            elif self.spectrum == "cpl":
+                            elif spectrum == "cpl":
                                 model +=\
                                     gamvas.functions.gvis_cpl0(
-                                        (x[1], x[2], x[3]),
+                                        [x[1], x[2], x[3]],
                                         theta[nidx+0],
                                         theta[nidx+1],
                                         theta[nidx+2],
@@ -228,10 +234,10 @@ class modeling:
                                     )
                                 nidx += 4
                                 nmprm += 4
-                            elif self.spectrum == "ssa":
+                            elif spectrum == "ssa":
                                 model +=\
                                     gamvas.functions.gvis_ssa0(
-                                        (x[1], x[2], x[3]),
+                                        [x[1], x[2], x[3]],
                                         theta[nidx+0],
                                         theta[nidx+1],
                                         theta[nidx+2],
@@ -240,20 +246,14 @@ class modeling:
                                 nidx += 4
                                 nmprm += 4
                         else:
-                            if not self.bnd_pa is None:
+                            if not bnd_pa is None:
                                 pa = np.angle(theta[nidx+4] + 1j * theta[nidx+3], deg=True)
-                                if pa < 0 :
-                                    pa += 360
-                                if self.bnd_pa[0] < 0:
-                                    self.bnd_pa[0] += 360
-                                if self.bnd_pa[1] < 0:
-                                    self.bnd_pa[1] += 360
-                                if self.bnd_pa[0] > pa or pa > self.bnd_pa[1]:
+                                if bnd_pa[0] > pa or pa > bnd_pa[1]:
                                     mask_pa = True
-                            if int(np.round(theta[nidx])) == 0 or self.spectrum == "spl":
+                            if int(np.round(theta[nidx])) == 0 or spectrum == "spl":
                                 model +=\
                                     gamvas.functions.gvis_spl(
-                                        (x[0], x[1], x[2], x[3]),
+                                        [x[0], x[1], x[2], x[3]],
                                         theta[nidx+1],
                                         theta[nidx+2],
                                         theta[nidx+3],
@@ -263,10 +263,10 @@ class modeling:
                                 nidx += 7
                                 nmprm += 5
                             else:
-                                if self.spectrum == "cpl":
+                                if spectrum == "cpl":
                                     model +=\
                                         gamvas.functions.gvis_cpl(
-                                            (x[1], x[2], x[3]),
+                                            [x[1], x[2], x[3]],
                                             theta[nidx+1],
                                             theta[nidx+2],
                                             theta[nidx+3],
@@ -276,10 +276,10 @@ class modeling:
                                         )
                                     nidx += 7
                                     nmprm += 6
-                                elif self.spectrum == "ssa":
+                                elif spectrum == "ssa":
                                     model +=\
                                         gamvas.functions.gvis_ssa(
-                                            (x[1], x[2], x[3]),
+                                            [x[1], x[2], x[3]],
                                             theta[nidx+1],
                                             theta[nidx+2],
                                             theta[nidx+3],
@@ -293,26 +293,20 @@ class modeling:
                         if i == 0:
                             model +=\
                                 gamvas.functions.gvis0(
-                                    (x[2], x[3]),
+                                    [x[2], x[3]],
                                     theta[nidx+1],
                                     theta[nidx+2]
                                 )
                             nidx += 2
                             nmprm += 2
                         else:
-                            if not self.bnd_pa is None:
+                            if not bnd_pa is None:
                                 pa = np.angle(theta[nidx+4] + 1j * theta[nidx+3], deg=True)
-                                if pa < 0 :
-                                    pa += 360
-                                if self.bnd_pa[0] < 0:
-                                    self.bnd_pa[0] += 360
-                                if self.bnd_pa[1] < 0:
-                                    self.bnd_pa[1] += 360
-                                if self.bnd_pa[0] > pa or pa > self.bnd_pa[1]:
+                                if bnd_pa[0] > pa or pa > bnd_pa[1]:
                                     mask_pa = True
                             model +=\
                                 gamvas.functions.gvis(
-                                    (x[2], x[3]),
+                                    [x[2], x[3]],
                                     theta[nidx+1],
                                     theta[nidx+2],
                                     theta[nidx+3],
@@ -320,31 +314,25 @@ class modeling:
                                 )
                             nidx += 4
                             nmprm += 4
-        elif self.model == "delta":
+        elif modeltype == "delta":
             for i in range(nmod):
-                if self.ifsingle:
+                if ifsingle:
                     if i == 0:
                         model +=\
                             gamvas.functions.dvis0(
-                                (x[2]),
+                                [x[2]],
                                 theta[nidx+1]
                             )
                         nidx += 1
                         nmprm += 12
                     else:
-                        if not self.bnd_pa is None:
-                            pa = np.angle(theta[nidx+4] + 1j * theta[nidx+3], deg=True)
-                            if pa < 0 :
-                                pa += 360
-                            if self.bnd_pa[0] < 0:
-                                self.bnd_pa[0] += 360
-                            if self.bnd_pa[1] < 0:
-                                self.bnd_pa[1] += 360
-                            if self.bnd_pa[0] > pa or pa > self.bnd_pa[1]:
+                        if not bnd_pa is None:
+                            pa = np.angle(theta[nidx+3] + 1j * theta[nidx+2], deg=True)
+                            if bnd_pa[0] > pa or pa > bnd_pa[1]:
                                 mask_pa = True
                         model +=\
                             gamvas.functions.dvis(
-                                (x[2], x[3]),
+                                [x[2], x[3]],
                                 theta[nidx+1],
                                 theta[nidx+2],
                                 theta[nidx+3]
@@ -353,7 +341,7 @@ class modeling:
                         nmprm += 3
 
         nasum = np.nansum(np.abs(model))
-        ftypes = list(self.fdict.keys())
+        ftypes = list(fdict.keys())
 
         # compute objective functions
         if not np.isnan(nasum) and not nasum == 0:
@@ -378,7 +366,7 @@ class modeling:
                 nobs = len(y[0])
                 vis_sig2 = yerr[0]**2
                 objective -=\
-                    self.fdict["vis"] *\
+                    fdict["vis"] *\
                     compute_bic(vis_res, vis_sig2, "vis", nobs, nmprm)
 
             if "amp" in ftypes:
@@ -389,7 +377,7 @@ class modeling:
                 amp_sig2 = yerr[0]**2
                 amp_res = amp_mod - amp_obs
                 objective -=\
-                    self.fdict["amp"] *\
+                    fdict["amp"] *\
                     compute_bic(amp_res, amp_sig2, "amp", nobs, nmprm)
 
             if "phs" in ftypes:
@@ -399,7 +387,7 @@ class modeling:
                 phs_sig2 = (yerr[0] / np.abs(y[0]))**2
                 phs_res = np.abs(np.exp(1j * phs_mod) - np.exp(1j * phs_obs))
                 objective -=\
-                    self.fdict["phs"] *\
+                    fdict["phs"] *\
                     compute_bic(phs_res, phs_sig2, "phs", nobs, nmprm)
 
             if "clamp" in ftypes or "clphs" in ftypes:
@@ -422,7 +410,7 @@ class modeling:
                     clamp_sig2 = yerr[1]**2
                     clamp_res = np.abs( np.log(clamp_mod) - np.log(clamp_obs) )
                     objective -=\
-                        self.fdict["clamp"] *\
+                        fdict["clamp"] *\
                         compute_bic(clamp_res, clamp_sig2, "clamp", nobs, nmprm)
 
                 if "clphs" in ftypes:
@@ -432,7 +420,7 @@ class modeling:
                     clphs_sig2 = yerr[2]**2
                     clphs_res = np.abs( np.exp(1j * clphs_mod) - np.exp(1j * clphs_obs) )
                     objective -=\
-                        self.fdict["clphs"] *\
+                        fdict["clphs"] *\
                         compute_bic(clphs_res, clphs_sig2, "clphs", nobs, nmprm)
             if mask_pa:
                 objective = -np.inf
@@ -628,19 +616,8 @@ class modeling:
         self.prms = np.array([qls, qms, qhs])
 
         if save_xlsx:
-            nmod = int(np.round(qms[0]))
-            idxn = np.array(list(map(lambda x: x.split("_")[0], self.index[1:])), dtype=int)
-            mask_nmod = idxn <= nmod
-            mask_nmod = np.append(np.array([True]), mask_nmod)
-
-            qls_ = qls[mask_nmod]
-            qms_ = qms[mask_nmod]
-            qhs_ = qhs[mask_nmod]
-            idx_ = np.array(self.index)[mask_nmod]
-            prms_ = np.array([qls_, qms_, qhs_])
-
-            out_xlsx = pd.DataFrame(prms_, index=["lolim", "value", "uplim"]).T
-            out_xlsx["idx"] = idx_
+            out_xlsx = pd.DataFrame(self.prms, index=["lolim", "value", "uplim"]).T
+            out_xlsx["idx"] = self.index
             out_xlsx.to_excel(f"{save_path}{save_name}")
 
 
@@ -858,10 +835,10 @@ class modeling:
                 )
 
                 data = uvf.data
-                if freq <= 40:
+                if freq <= np.mean([self.uvfs[nf_].freq for nf_ in range(len(self.uvfs))]):
                     width_ = self.width
                 else:
-                    width_ = 3
+                    width_ = self.width * 0.5
                 bnd_S, bnd_a, bnd_l, bnd_m, bnd_f, bnd_i =\
                     gamvas.utils.set_boundary(
                         nmod=nmod, select=self.select, spectrum="single", zblf=zblf,
@@ -895,39 +872,40 @@ class modeling:
 
                 # set x parameters
                 self.x =\
-                (
+                [
                     uvf.freq,
                     np.ma.getdata(uvf.data["freq"]),
                     np.ma.getdata(uvf.data["u"]),
                     np.ma.getdata(uvf.data["v"])
-                )
+                ]
 
                 # set y parameters
                 self.y =\
-                (
+                [
                     np.ma.getdata(uvf.data["vis"]),
                     np.ma.getdata(uvf.clamp["clamp"]),
                     np.ma.getdata(uvf.clphs["clphs"]),
                     clamp_uvcomb,
                     clphs_uvcomb
-                )
+                ]
 
                 # set yerr parameters
                 self.yerr =\
-                (
+                [
                     np.ma.getdata(uvf.data["sigma"]),
                     np.ma.getdata(uvf.clamp["sigma_clamp"]),
                     np.ma.getdata(uvf.clphs["sigma_clphs"])
-                )
+                ]
 
                 self.args =\
-                (
+                [
                     self.x, self.y, self.yerr,
-                    (
+                    [
                         np.ma.getdata(uvf.data["ant_name1"]),
                         np.ma.getdata(uvf.data["ant_name2"])
-                    )
-                )
+                    ],
+                    [False, self.model, True, self.bnd_pa, self.spectrum, self.fdict]
+                ]
 
                 self.boundset = bnds
 
@@ -1118,7 +1096,6 @@ class modeling:
 
                 uvf.drop_visibility_model()
                 self.uvfs[nband] = uvf
-
             if self.runfit_pol:
                 self.pol.run_pol(
                     uvfs=[copy.deepcopy(uvf)],
@@ -1264,37 +1241,38 @@ class modeling:
                 )
 
             self.x =\
-            (
+            [
                 uvfs[0].freq,
                 np.ma.getdata(uvf.data["freq"]),
                 np.ma.getdata(uvf.data["u"]),
                 np.ma.getdata(uvf.data["v"])
-            )
+            ]
 
             self.y =\
-            (
+            [
                 np.ma.getdata(uvf.data["vis"]),
                 np.ma.getdata(uvf.clamp["clamp"]),
                 np.ma.getdata(uvf.clphs["clphs"]),
                 clamp_uvcomb,
                 clphs_uvcomb
-            )
+            ]
 
             self.yerr =\
-            (
+            [
                 np.ma.getdata(uvf.data["sigma"]),
                 np.ma.getdata(uvf.clamp["sigma_clamp"]),
                 np.ma.getdata(uvf.clphs["sigma_clphs"])
-            )
+            ]
 
             self.args =\
-            (
+            [
                 self.x, self.y, self.yerr,
-                (
+                [
                     np.ma.getdata(uvf.data["ant_name1"]),
                     np.ma.getdata(uvf.data["ant_name2"])
-                )
-            )
+                ],
+                [True, self.model, False, self.bnd_pa, self.spectrum, self.fdict]
+            ]
 
             self.boundset = bnds
 
@@ -1506,8 +1484,6 @@ class modeling:
                 self.set_spectrum = False
                 self.run_sf()
             if runfit_mf:
-                for i in range(len(self.uvfs)):
-                    self.uvfs[i].add_error_fraction(self.gacalerr, set_vis=True, set_clq=False)
                 self.ifsingle = False
                 self.set_spectrum = True
                 self.run_mf()

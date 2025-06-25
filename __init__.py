@@ -31,5 +31,3 @@ mpl.rcParams["ytick.major.size" ] = 5.0*1.0
 mpl.rcParams["ytick.major.width"] = 2.0*1.0
 mpl.rcParams["ytick.minor.size" ] = 2.5*1.0
 mpl.rcParams["ytick.minor.width"] = 1.0*1.0
-
-mpl.rc("font", weight="bold")

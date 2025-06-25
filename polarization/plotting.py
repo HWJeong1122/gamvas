@@ -153,8 +153,8 @@ class plotter:
                         ax_cgamp.tick_params(labelbottom=False)
                         ax_cgphs.tick_params(labelbottom=False)
                     if k == 0:
-                        ax_cgamp.set_title("Gain Amplitude", fontsize=13, fontweight="bold")
-                        ax_cgphs.set_title("Gain Phase (deg)", fontsize=13, fontweight="bold")
+                        ax_cgamp.set_title("Gain Amplitude", fontsize=13)
+                        ax_cgphs.set_title("Gain Phase (deg)", fontsize=13)
                     ant = uant[k+10*i]
                     mask1 = newdat["ant_name1"] == ant
                     mask2 = newdat["ant_name2"] == ant
@@ -169,8 +169,8 @@ class plotter:
                         ax_cgamp.axhline(y=truth[nfreq][ant], c="red", ls="--")
                     ax_cgamp.set_ylim(amplim)
                     ax_cgamp.legend()
-                fig_cgain.supxlabel(r"$\rm Time~(hour)$", fontsize=15, fontweight="bold")
-                fig_cgain.supylabel(r"$G_{\rm ant}$", fontsize=15, fontweight="bold")
+                fig_cgain.supxlabel(r"$\rm Time~(hour)$", fontsize=15)
+                fig_cgain.supylabel(r"$G_{\rm ant}$", fontsize=15)
                 fig_cgain.tight_layout()
                 if save_name:
                     save_path_ = save_path + "plot_cgain/"
@@ -236,8 +236,8 @@ class plotter:
                 ytick_valid.append(addidx)
             ax_tplot.scatter(data["time"], np.zeros(len(data)) + addidx + 1, c="white")
 
-            ax_tplot.set_xlabel("Time (hour)", fontsize=20, fontweight="bold")
-            ax_tplot.set_ylabel("Antenna", fontsize=20, fontweight="bold")
+            ax_tplot.set_xlabel("Time (hour)", fontsize=20)
+            ax_tplot.set_ylabel("Antenna", fontsize=20)
             ax_tplot.xaxis.set_major_locator(MultipleLocator(2.0))
             ax_tplot.xaxis.set_minor_locator(MultipleLocator(1.0))
             ax_tplot.tick_params("both", labelsize=15)
@@ -255,7 +255,7 @@ class plotter:
                     title = f"{uvf.source} ({uvf.date}, Select={uvf.select.upper()})"
                 else:
                     title = f"{uvf.source} ({uvf.date}, Select={uvf.select.upper()}, {uvf.freq:.2f} GHz)"
-                fig_tplot.suptitle(title, fontsize=20, fontweight="bold")
+                fig_tplot.suptitle(title, fontsize=20)
             fig_tplot.tight_layout()
 
             if save_name:
@@ -387,20 +387,20 @@ class plotter:
             ax_radplot_s.tick_params("both", labelsize=13)
         ax_radplot_p.set_ylim(-maxphs, +maxphs)
 
-        ax_radplot_a.set_ylabel(r"$\rm Amplitude~(Jy)$", fontsize=17, fontweight="bold")
-        ax_radplot_p.set_ylabel(r"$\rm Phase~(deg)$", fontsize=17, fontweight="bold")
-        ax_radplot_e.set_ylabel(r"$\rm Sigma$", fontsize=17, fontweight="bold")
+        ax_radplot_a.set_ylabel(r"$\rm Amplitude~(Jy)$", fontsize=17)
+        ax_radplot_p.set_ylabel(r"$\rm Phase~(deg)$", fontsize=17)
+        ax_radplot_e.set_ylabel(r"$\rm Sigma$", fontsize=17)
 
         if plotsnr:
-            ax_radplot_s.set_ylabel(r"$\rm log_{10}\,(SNR)$", fontsize=17, fontweight="bold")
-        fig_tplot.supxlabel(r"$\rm UV~radius~(10^{6}~\lambda)$", fontsize=20, fontweight="bold")
+            ax_radplot_s.set_ylabel(r"$\rm log_{10}\,(SNR)$", fontsize=17)
+        fig_tplot.supxlabel(r"$\rm UV~radius~(10^{6}~\lambda)$", fontsize=20)
 
         if show_title:
             if uvf.select == "mf":
                 title = f"{uvf.source} ({date}, Select={uvf.select.upper()})"
             else:
                 title = f"{uvf.source} ({date}, Select={uvf.select.upper()}, {uvf.freq:.2f} GHz)"
-            fig_tplot.suptitle(title, fontsize=20, fontweight="bold")
+            fig_tplot.suptitle(title, fontsize=20)
         fig_tplot.tight_layout()
 
         if save_name:
@@ -452,8 +452,8 @@ class plotter:
         cmap2 = ax_phs.scatter(-uu, -vv, c=-phs2, s=30, ec="black", cmap="bwr", vmin=-rng_p, vmax=+rng_p, zorder=2)
         cbar1 = fig_uvc.colorbar(cmap1, ax=ax_amp, orientation="horizontal")
         cbar2 = fig_uvc.colorbar(cmap2, ax=ax_phs, orientation="horizontal")
-        cbar1.set_label("Amplitude (Jy)", fontsize=15, fontweight="bold")
-        cbar2.set_label("Phase (deg)", fontsize=15, fontweight="bold")
+        cbar1.set_label("Amplitude (Jy)", fontsize=15)
+        cbar2.set_label("Phase (deg)", fontsize=15)
         ax_amp.set_xlim(+limv, -limv)
         ax_amp.set_ylim(-limv, +limv)
         ax_phs.set_xlim(+limv, -limv)
@@ -462,16 +462,16 @@ class plotter:
         ax_phs.tick_params("both", labelsize=15)
         ax_amp.grid(True)
         ax_phs.grid(True)
-        ax_amp.set_ylabel(r"$\rm V~(10^{6}~\lambda)$", fontsize=20, fontweight="bold")
-        ax_amp.set_xlabel(r"$\rm U~(10^{6}~\lambda)$", fontsize=20, fontweight="bold")
-        ax_phs.set_xlabel(r"$\rm U~(10^{6}~\lambda)$", fontsize=20, fontweight="bold")
+        ax_amp.set_ylabel(r"$\rm V~(10^{6}~\lambda)$", fontsize=20)
+        ax_amp.set_xlabel(r"$\rm U~(10^{6}~\lambda)$", fontsize=20)
+        ax_phs.set_xlabel(r"$\rm U~(10^{6}~\lambda)$", fontsize=20)
 
         if show_title:
             if uvf.select == "mf":
                 title = f"{uvf.source} ({date}, Select={uvf.select.upper()})"
             else:
                 title = f"{uvf.source} ({date}, Select={uvf.select.upper()}, {uvf.freq:.2f} GHz)"
-            fig_uvc.suptitle (title, fontsize=20, fontweight="bold")
+            fig_uvc.suptitle (title, fontsize=20)
         fig_uvc.tight_layout()
 
         if save_name:
@@ -568,14 +568,14 @@ class plotter:
         cmap_dir = ax_dir.contourf(xgrid, ygrid, uvdir, cmap="gist_heat", levels=101, vmin=np.min(uvdir), vmax=np.max(uvdir))
         cbar_bim = fig_dirmap.colorbar(cmap_bim, ax=ax_bim, orientation="horizontal")
         cbar_dir = fig_dirmap.colorbar(cmap_dir, ax=ax_dir, orientation="horizontal")
-        cbar_bim.set_label("Beam Response", fontsize=15, fontweight="bold")
-        cbar_dir.set_label("Amplitude (Jy/beam)", fontsize=15, fontweight="bold")
-        ax_bim.set_xlabel(f"Relative R.A ({uvf.mrng.unit})", fontsize=17, fontweight="bold")
-        ax_dir.set_xlabel(f"Relative R.A ({uvf.mrng.unit})", fontsize=17, fontweight="bold")
-        ax_bim.set_ylabel(f"Relative DeC ({uvf.mrng.unit})", fontsize=17, fontweight="bold")
-        ax_dir.set_ylabel(f"Relative DeC ({uvf.mrng.unit})", fontsize=17, fontweight="bold")
-        ax_bim.set_title(bimtitle, fontsize=17, fontweight="bold")
-        ax_dir.set_title(dirtitle, fontsize=17, fontweight="bold")
+        cbar_bim.set_label("Beam Response", fontsize=15)
+        cbar_dir.set_label("Amplitude (Jy/beam)", fontsize=15)
+        ax_bim.set_xlabel(f"Relative R.A ({uvf.mrng.unit})", fontsize=17)
+        ax_dir.set_xlabel(f"Relative R.A ({uvf.mrng.unit})", fontsize=17)
+        ax_bim.set_ylabel(f"Relative DeC ({uvf.mrng.unit})", fontsize=17)
+        ax_dir.set_ylabel(f"Relative DeC ({uvf.mrng.unit})", fontsize=17)
+        ax_bim.set_title(bimtitle, fontsize=17)
+        ax_dir.set_title(dirtitle, fontsize=17)
         ax_bim.tick_params("both", labelsize=15)
         ax_dir.tick_params("both", labelsize=15)
         ax_dir.invert_xaxis()
@@ -590,7 +590,7 @@ class plotter:
                 title = f"{uvf.source} ({uvf.date}, Select={uvf.select.upper()})"
             else:
                 title = f"{uvf.source} ({uvf.date}, Select={uvf.select.upper()}, {uvf.freq:.2f} GHz)"
-            fig_dirmap.suptitle(title, fontsize=20, fontweight="bold")
+            fig_dirmap.suptitle(title, fontsize=20)
         fig_dirmap.tight_layout()
 
         if save_name:
@@ -604,7 +604,7 @@ class plotter:
 
     def draw_trplot(self,
         result=None, weight=None, nmod=None, ifsingle=True, spectrum="spl", set_spectrum=True,
-        fontsize=15, fontweight="bold", save_path=False, save_name=False, save_form="png"
+        fontsize=15, save_path=False, save_name=False, save_form="png"
     ):
         """
         draw trace plot
@@ -673,9 +673,9 @@ class plotter:
 
             # draw trace-plot
             fig_tr, axes_tr = dyplot.traceplot(
-                result, truth_color='black', show_titles=True, trace_cmap='viridis',
+                result, truth_color="black", show_titles=True, trace_cmap="viridis",
                 dims=list(range(nidx+add, nidx+add+len(field))),
-                labels=field, label_kwargs={"fontsize":fontsize, "fontweight":fontweight}
+                labels=field, label_kwargs={"fontsize":fontsize}
             )
 
             for nax1 in np.arange(axes_tr.shape[0]):
@@ -690,9 +690,9 @@ class plotter:
         # draw trace-plot of the number of model and spectrum
         slabel = ["nmod"] + [f"{i+2}_spectrum" for i in range(len(sidx)-1)]
         fig_tr, axes_tr = dyplot.traceplot(
-            result, truth_color='black', show_titles=True, trace_cmap='viridis',
+            result, truth_color="black", show_titles=True, trace_cmap="viridis",
             dims=sidx,
-            labels=slabel, label_kwargs={"fontsize":fontsize, "fontweight":fontweight}
+            labels=slabel, label_kwargs={"fontsize":fontsize}
         )
 
         for nax1 in np.arange(axes_tr.shape[0]):
@@ -706,7 +706,7 @@ class plotter:
 
     def draw_cnplot(self,
         result=None, nmod=None, ifsingle=True, spectrum="spl", set_spectrum=True,
-        fontsize=15, fontweight="bold", save_path=False, save_name=False, save_form="png"
+        fontsize=15, save_path=False, save_name=False, save_form="png"
     ):
         """
         draw corner plot
@@ -777,8 +777,8 @@ class plotter:
 
             # draw corner-plot
             fig_cn, axes_cn = dyplot.cornerplot(
-                result, truth_color='black', show_titles=True,
-                dims=list(range(nidx+add,nidx+add+len(field))), labels=field, label_kwargs={"fontsize":fontsize, "fontweight":fontweight}
+                result, truth_color="black", show_titles=True,
+                dims=list(range(nidx+add,nidx+add+len(field))), labels=field, label_kwargs={"fontsize":fontsize}
             )
             for nax1 in np.arange(axes_cn.shape[0]):
                 for nax2 in np.arange(axes_cn.shape[1]):
@@ -791,8 +791,8 @@ class plotter:
         # draw corner-plot of the number of model and spectrum
         slabel = ["nmod"] + [f"{i+2}_spectrum" for i in range(len(sidx)-1)]
         fig_cn, axes_cn = dyplot.cornerplot(
-            result, truth_color='black', show_titles=True,
-            dims=sidx, labels=slabel, label_kwargs={"fontsize":fontsize, "fontweight":fontweight}
+            result, truth_color="black", show_titles=True,
+            dims=sidx, labels=slabel, label_kwargs={"fontsize":fontsize}
         )
         for nax1 in np.arange(axes_cn.shape[0]):
             for nax2 in np.arange(axes_cn.shape[1]):
@@ -868,8 +868,8 @@ class plotter:
                             plot_ax.tick_params("both", labelsize=10, labelbottom=False)
                         else:
                             plot_ax.tick_params("both", labelsize=10)
-                    fig_clamp.supylabel(r"${\rm ln}(A_{\rm C})$", fontsize=12, fontweight="bold")
-                    fig_clamp.supxlabel("Time (hour)", fontsize=12, fontweight="bold")
+                    fig_clamp.supylabel(r"${\rm ln}(A_{\rm C})$", fontsize=12)
+                    fig_clamp.supxlabel("Time (hour)", fontsize=12)
                     fig_clamp.tight_layout()
                     if save_img:
                         if save_path is not None and save_name is not None:
@@ -936,8 +936,8 @@ class plotter:
                             plot_ax.tick_params("both", labelsize=10, labelbottom=False)
                         else:
                             plot_ax.tick_params("both", labelsize=10)
-                    fig_clphs.supylabel(r"$\phi_{\rm C}~{\rm (deg)}$", fontsize=12, fontweight="bold")
-                    fig_clphs.supxlabel("Time (hour)", fontsize=12, fontweight="bold")
+                    fig_clphs.supylabel(r"$\phi_{\rm C}~{\rm (deg)}$", fontsize=12)
+                    fig_clphs.supxlabel("Time (hour)", fontsize=12)
                     fig_clphs.tight_layout()
                     if save_img:
                         if save_path is not None and save_name is not None:
@@ -1098,8 +1098,8 @@ class plotter:
             ax_pmap.pcolor (ra, dec, np.abs(image_p), norm=norm_p, cmap=cmap_p)
             ax_pmap.tick_params(labelsize=15, right=True, top=True)
             cbar_p = fig_fits.colorbar(colormapping_p, ax=ax_pmap, orientation="vertical")
-            cbar_p.set_label(r"$I_{\rm p}~{\rm (mJy/beam)}$", fontsize=15, fontweight="bold")
-            ax_pmap.set_xlabel("Relative R.A (mas)", fontsize=20, fontweight="bold")
+            cbar_p.set_label(r"$I_{\rm p}~{\rm (mJy/beam)}$", fontsize=15)
+            ax_pmap.set_xlabel("Relative R.A (mas)", fontsize=20)
             ax_pmap.quiver(
                 ra[::pagap, ::pagap], dec [::pagap, ::pagap],
                 pa_x[::pagap, ::pagap], pa_y[::pagap, ::pagap], **pa_set, zorder=2)
@@ -1109,8 +1109,8 @@ class plotter:
             ax_fmap.pcolor (ra, dec, np.abs(image_f), norm=norm_f, cmap=cmap_f)
             ax_fmap.tick_params(labelsize=15, right=True, top=True)
             cbar_f = fig_fits.colorbar(colormapping_f, ax=ax_fmap, orientation="vertical")
-            cbar_f.set_label(r"$m_{\rm p}~{(\%)}$", fontsize=15, fontweight="bold")
-            ax_fmap.set_xlabel("Relative R.A (mas)", fontsize=20, fontweight="bold")
+            cbar_f.set_label(r"$m_{\rm p}~{(\%)}$", fontsize=15)
+            ax_fmap.set_xlabel("Relative R.A (mas)", fontsize=20)
             ax_fmap.quiver(
                 ra[::pagap, ::pagap], dec [::pagap, ::pagap],
                 pa_x[::pagap, ::pagap], pa_y[::pagap, ::pagap], **pa_set, zorder=2)
@@ -1120,10 +1120,8 @@ class plotter:
             ax_imap.pcolor (ra, dec, np.abs(image), norm=norm_i, cmap=cmap)
             ax_imap.tick_params(labelsize=15, right=True, top=True)
             cbar_i = fig_fits.colorbar(colormapping_i, ax=ax_imap, orientation="vertical")
-            cbar_i.set_label(r"$I_{I}~{\rm (Jy/beam)}$", fontsize=15, fontweight="bold")
-            ax_imap.set_xlabel("Relative R.A (mas)", fontsize=20, fontweight="bold")
-            # rect_patch = patches.Rectangle((-4, -4), 8, 8, linewidth=2, edgecolor='cyan', facecolor="none", ls="--")
-            # ax_imap.add_patch(rect_patch)
+            cbar_i.set_label(r"$I_{I}~{\rm (Jy/beam)}$", fontsize=15)
+            ax_imap.set_xlabel("Relative R.A (mas)", fontsize=20)
 
         if select.lower() != "p":
             ec = "yellow"
@@ -1133,7 +1131,7 @@ class plotter:
         if show_title:
             fig_fits.suptitle(
                 f"{uvf.fits_source}  |  Intsru. : {uvf.fits_intrum}\nDate : {uvf.fits_date}  |  {uvf.fits_freq:.3f} GHz",
-                fontsize=15, fontweight="bold"
+                fontsize=15
             )
 
         if type(xlim) in [type([]), type(())]:
@@ -1188,7 +1186,7 @@ class plotter:
                 uvf.fits_bmin*d2m, uvf.fits_bmaj*d2m,
                 angle=-uvf.fits_bpa, fc="grey", ec=ec, lw=1.0
             )
-        fig_fits.supylabel("Relative Dec (mas)", fontsize=20, fontweight="bold")
+        fig_fits.supylabel("Relative Dec (mas)", fontsize=20)
 
         if select.lower() != "p":
             ax_imap.invert_xaxis()
@@ -1467,18 +1465,18 @@ class plotter:
         ax_map.set_rasterized(True)
         ax_cba.set_rasterized(True)
         ax_map.set_aspect("equal")
-        ax_map.set_xlabel("Relative R.A (mas)", fontsize=15, fontweight="bold")
-        ax_map.set_ylabel("Relative Dec (mas)", fontsize=15, fontweight="bold")
+        ax_map.set_xlabel("Relative R.A (mas)", fontsize=15)
+        ax_map.set_ylabel("Relative Dec (mas)", fontsize=15)
         ax_map.set_xlim(-mrng, +mrng)
         ax_map.set_ylim(-mrng, +mrng)
 
         if show_title and not title is None:
-            fig_map.suptitle(title, fontweight="bold")
+            fig_map.suptitle(title)
 
         ax_map.contour (xgrid, ygrid, image, levels=levels, colors="lightgrey", linewidths=contourw)
-        cb_map = ax_map.contourf(xgrid, ygrid, image, levels=101, vmin=0, vmax=np.max(image), cmap='gist_heat')
+        cb_map = ax_map.contourf(xgrid, ygrid, image, levels=101, vmin=0, vmax=np.max(image), cmap="gist_heat")
         cb = fig_map.colorbar(cb_map, cax=ax_cba, orientation="horizontal")
-        cb.set_label("Intensity (Jy/beam)", fontsize=15, fontweight="bold")
+        cb.set_label("Intensity (Jy/beam)", fontsize=15)
         ax_map.tick_params("both", labelsize=12)
         ax_cba.tick_params("x", labelsize=12)
         if mrng >= 6:
@@ -1504,7 +1502,7 @@ class plotter:
             ax_cba.xaxis.set_minor_locator(MultipleLocator(0.05))
         ax_map.invert_xaxis()
         beam = patches.Ellipse((+0.9*mrng-bmaj/2, -0.9*mrng+bmaj/2),
-                                bmin, bmaj, angle=-bpa, fc='grey', ec='yellow', lw=1.0)
+                                bmin, bmaj, angle=-bpa, fc="grey", ec="yellow", lw=1.0)
         ax_map.add_patch(beam)
 
         for i in range(nmod):
@@ -1534,8 +1532,8 @@ def close_figure(fig):
     close figure
     """
     plt.close(fig)
-    plt.close('all')
-    gc.collect()
+    # plt.close("all")
+    # gc.collect()
 
 colors = [
     cls.hsv_to_rgb((240/360,0.05,1.00)),    # whiteblue

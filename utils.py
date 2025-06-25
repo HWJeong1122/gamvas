@@ -123,8 +123,8 @@ def sarray(data, field, dtype):
     """
     data = np.array(data)
     sarray_ = np.zeros(data.shape[1:], dtype=list(zip(field, dtype)))
-    for nf,field in enumerate(field):
-        sarray_[field] = data[nf]
+    for nf, field_ in enumerate(field):
+        sarray_[field_] = data[nf]
     return sarray_
 
 
@@ -198,10 +198,10 @@ def cc2d(image1, image2, shift, psize, mrng,
     ax_2dcc.contourf(ra, dec, ceff, levels=101)
     ax_2dcc.axvline(x=peakra, c="red", ls="--")
     ax_2dcc.axhline(y=peakdec, c="red", ls="--")
-    ax_2dcc.set_xlabel(r"$\rm \Delta R.A~(mas)$", fontsize=15, fontweight="bold")
-    ax_2dcc.set_ylabel(r"$\rm \Delta Dec~(mas)$", fontsize=15, fontweight="bold")
+    ax_2dcc.set_xlabel(r"$\rm \Delta R.A~(mas)$", fontsize=15)
+    ax_2dcc.set_ylabel(r"$\rm \Delta Dec~(mas)$", fontsize=15)
     ax_2dcc.tick_params("both", labelsize=13)
-    ax_2dcc.set_title(f"RA={-peakra:+.3f} | Dec={-peakdec:+.3f} (@{f1:.3f} GHz)", fontsize=15, fontweight="bold")
+    ax_2dcc.set_title(f"RA={-peakra:+.3f} | Dec={-peakdec:+.3f} (@{f1:.3f} GHz)", fontsize=15)
     if save_path and save_name:
         fig_2dcc.savefig(f"{save_path}" + f"{save_name}.{save_form}", format=save_form, dpi=300)
     if plotimg:
@@ -554,8 +554,6 @@ def set_closure(
         phs23 = np.angle(np.array(list(map(uvvis.get, clphs_uvcomb[2])), dtype="c8"))
         phs31 = np.angle(np.array(list(map(uvvis.get, clphs_uvcomb[3])), dtype="c8").conj())
         clphs = phs12 + phs23 + phs31
-        # clphs = np.where(clphs > +np.pi, clphs - 2 * np.pi, clphs)
-        # clphs = np.where(clphs < -np.pi, clphs + 2 * np.pi, clphs)
 
     if Nant >= 3:
         return clamp, clphs
