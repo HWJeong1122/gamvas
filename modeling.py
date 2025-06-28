@@ -858,10 +858,14 @@ class modeling:
                 )
 
                 data = uvf.data
-                if freq <= 40:
-                    width_ = self.width
+                if len(uvfs) >= 3:
+                    if freq <= np.mean(self.ufreq):
+                        width_ = self.width
+                    else:
+                        width_ = self.width / 2
                 else:
-                    width_ = 3
+                    width_ = self.width
+
                 bnd_S, bnd_a, bnd_l, bnd_m, bnd_f, bnd_i =\
                     gamvas.utils.set_boundary(
                         nmod=nmod, select=self.select, spectrum="single", zblf=zblf,

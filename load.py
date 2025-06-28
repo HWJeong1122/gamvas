@@ -2101,6 +2101,11 @@ class open_fits:
         if binning is None:
             raise Exception("Please provide appropriate binning time!")
 
+        if binning in ["none", "scan"]:
+            binning = self.scanlen
+        else:
+            binning = self.avgtime
+
         for systype in types:
             if systype in ["vis", "amp"]:
                 data = self.data
