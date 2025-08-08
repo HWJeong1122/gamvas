@@ -2,10 +2,10 @@
 # Gaussian Multi-frequency VLBI Analyses (GaMVAs) for AGN jets
 
 from gamvas import load
+from gamvas import functions
 from gamvas import modeling
 from gamvas import utils
 from gamvas import plotting
-from gamvas import functions
 from gamvas import carr
 from gamvas import antlist
 from gamvas import sourcelist

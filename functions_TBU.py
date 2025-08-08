@@ -98,6 +98,24 @@ def S_cpl(nu, Smax, tf, alpha):
     return Smax * (nu / tf)**(alpha * unp.log10(nu / tf))
 
 
+def dvis0(args, S):
+    """
+    NOTE: This function is intended to fix model position to (0,0)
+        Arguments:
+            args (tuple): input sub-arguments
+                args[0] (1D-array): u-axis data points
+                args[1] (1D-array): v-axis data points
+            S (float): flux density of Gaussian model
+        Returns:
+            complex visibility of a delta function model
+    """
+    uu = args[0] / r2m
+    vv = args[1] / r2m
+    a = 0
+    visibility = S * np.e**(-2*np.pi**2 * a**2 * (uu**2 + vv**2))
+    return visibility.astype("c8")
+
+
 def gvis0(args, S, fwhm):
     """
     NOTE: This function is intended to fix model position to (0,0)
@@ -113,7 +131,7 @@ def gvis0(args, S, fwhm):
     uu = args[0] / r2m
     vv = args[1] / r2m
     a = fwhm / (2 * (2 * unp.log(2))**0.5)
-    visibility = S * np.e**(-2 * np.pi**2 * a**2 * (uu**2 + vv**2))
+    visibility = S * np.e**(-2*np.pi**2 * a**2 * (uu**2 + vv**2))
     return visibility.astype("c8")
 
 
@@ -189,12 +207,22 @@ def gvis_ssa0(args, Smax, fwhm, alpha, nu_m):
     return visibility.astype("c8")
 
 
-def ring(args, S, r, w):
+def dvis(args, S, l, m):
+    """
+        Arguments:
+            args (tuple): input sub-arguments
+                args[0] (1D-array): u-axis data points
+                args[1] (1D-array): v-axis data points
+            S (float): flux density of delta function model
+            l (float): right ascension position of delta function model
+            m (float): declination position of delta function model
+        Returns:
+            complex visibility of Gaussian model
+    """
     uu = args[0] / r2m
     vv = args[1] / r2m
-    q = np.sqrt(uu**2 + vv**2)
-    thickness = 1 - w * 2 / r
-    visibility = S * (1 - np.pi**2 * r**2 * (uu**2 + vv**2) / 10 * ((1 - thickness**5) / (1 - thickness**3)))
+    a = 0
+    visibility = S * np.e**(2j * np.pi * (uu * l + vv * m))
     return visibility.astype("c8")
 
 
@@ -291,113 +319,4 @@ def gvis_ssa(args, Smax, fwhm, l, m, alpha, nu_m):
     a = fwhm / (2 * (2 * unp.log(2))**0.5)
     S = SSA(nu, Smax, nu_m, alpha)
     visibility = S * np.e**(-2 * (np.pi * a)**2 * (uu**2 + vv**2) + 2j * np.pi * (uu * l + vv * m))
-    return visibility.astype("c8")
-
-
-def dvis0(args, S):
-    """
-    NOTE: This function is intended to fix model position to (0,0)
-        Arguments:
-            args (tuple): input sub-arguments
-                args[0] (1D-array): u-axis data points
-                args[1] (1D-array): v-axis data points
-            S (float): flux density of Gaussian model
-        Returns:
-            complex visibility of a delta function model
-    """
-    uu = args[0] / r2m
-    vv = args[1] / r2m
-    a = 0
-    visibility = S * np.e**(-2 * np.pi**2 * a**2 * (uu**2 + vv**2))
-    return visibility.astype("c8")
-
-
-def dvis_spl0(args, Smax, alpha):
-    """
-    NOTE: This function is intended to fix model position to (0,0)
-        Arguments:
-            args (tuple): input sub-arguments
-                args[0] (float): reference frequency; recommended to set at the lowest one
-                args[1] (array or float): input frequency
-                args[2] (1D-array): u-axis data points
-                args[3] (1D-array): v-axis data points
-            Smax (float): flux density of Gaussian model at 'args[0]'
-            fwhm (float): full-width at half maximum of Gaussian model
-            alpha (float): optically thin spectral index of Gaussian model
-        Returns:
-            complex visibility of Gaussian model (based on a simple power-law spectrum)
-    """
-    nu_ref = args[0]
-    nu = args[1]
-    uu = args[2] / r2m
-    vv = args[3] / r2m
-    a = fwhm / (2 * (2 * unp.log(2))**0.5)
-    S = S_spl(nu_ref, nu, Smax, alpha)
-    visibility = S * np.e**(-2 * (np.pi * a)**2 * (uu**2 + vv**2))
-    return visibility.astype("c8")
-
-
-def dvis_cpl0(args, Smax, fwhm, alpha, nu_m):
-    """
-    NOTE: This function is intended to fix model position to (0,0)
-        Arguments:
-            args (tuple): input sub-arguments
-                args[0] (array or float): input frequency
-                args[1] (1D-array): u-axis data points
-                args[2] (1D-array): v-axis data points
-            Smax (float): flux density of Gaussian model at 'nu_m'
-            fwhm (float): full-width at half maximum of Gaussian model
-            alpha (float): optically thin spectral index of Gaussian model
-        Returns:
-            complex visibility of Gaussian model (based on curved power-law spectrum)
-    """
-    nu = args[0]
-    uu = args[1] / r2m
-    vv = args[2] / r2m
-    a = fwhm / (2 * (2 * unp.log(2))**0.5)
-    S = S_cpl(nu, Smax, nu_m, alpha)
-    visibility = S * np.e**(-2 * (np.pi * a)**2 * (uu**2 + vv**2))
-    return visibility.astype("c8")
-
-
-def dvis_ssa0(args, Smax, fwhm, alpha, nu_m):
-    """
-    NOTE: This function is intended to fix model position to (0,0)
-        Arguments:
-            args (tuple): input sub-arguments
-                args[0] (array or float): input frequency
-                args[1] (1D-array): u-axis data points
-                args[2] (1D-array): v-axis data points
-            Smax (float): flux density of Gaussian model at 'nu_m'
-            fwhm (float): full-width at half maximum of Gaussian model
-            alpha (float): optically thin spectral index of Gaussian model
-            nu_m (float): turnover frequency
-        Returns:
-            complex visibility of Gaussian model (based on SSA spectrum; Turler+1999, A&A, 349, 45T)
-    """
-    nu = args[0]
-    uu = args[1] / r2m
-    vv = args[2] / r2m
-    a = fwhm / (2 * (2 * unp.log(2))**0.5)
-    S = SSA(nu, Smax, nu_m, alpha)
-    visibility = S * np.e**(-2 * (np.pi * a)**2 * (uu**2 + vv**2))
-    return visibility.astype("c8")
-
-
-def dvis(args, S, l, m):
-    """
-        Arguments:
-            args (tuple): input sub-arguments
-                args[0] (1D-array): u-axis data points
-                args[1] (1D-array): v-axis data points
-            S (float): flux density of delta function model
-            l (float): right ascension position of delta function model
-            m (float): declination position of delta function model
-        Returns:
-            complex visibility of Gaussian model
-    """
-    uu = args[0] / r2m
-    vv = args[1] / r2m
-    a = 0
-    visibility = S * np.e**(2j * np.pi * (uu * l + vv * m))
     return visibility.astype("c8")

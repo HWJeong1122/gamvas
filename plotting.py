@@ -29,7 +29,7 @@ m2r = u.mas.to(u.rad)
 class plotter:
     def __init__(self,
         mrng=False, npix=128, nmod=False, prms=False, freq_ref=False, freq=False,
-        bmin=False, bmaj=False, bpa=False, bnom=False, source=False, date=False
+        bmin=False, bmaj=False, bpa=False, bprms=False, source=False, date=False
     ):
 
         self.mrng = mrng
@@ -44,7 +44,7 @@ class plotter:
         self.bpa = bpa
         self.psize = self.mrng / self.npix
 
-        self.bnom = bnom
+        self.bprms = bprms
 
         axis_range = np.linspace(-mrng, +mrng, npix)
         xgrid, ygrid = np.meshgrid(-axis_range, +axis_range)
@@ -76,8 +76,8 @@ class plotter:
         self.bmin = bmin
         self.bmaj = bmaj
         self.bpa = bpa
-        self.bnom = (bmin, bmaj, bpa)
-        return self.bnom
+        self.bprms = (bmin, bmaj, bpa)
+        return self.bprms
 
 
     def draw_cgains(self,
@@ -622,6 +622,8 @@ class plotter:
             spectrum = self.spectrum
 
         save_path = save_path + "plot_tr/"
+        if os.path.isdir(save_path):
+            os.system(f"rm -rf {save_path}")
         gamvas.utils.mkdir(save_path)
         if pol:
             nidx = 0
@@ -648,10 +650,10 @@ class plotter:
                             if spectrum in ["spl"]:
                                 if n == 1:
                                     field = [r"$S_{%s}$"%(n), r"$a_{%s}$"%(n), r"$\alpha_{%s}$"%(n)]
-                                    nidx_ = 4
+                                    nidx_ = 3
                                 else:
                                     field = [r"$S_{%s}$"%(n), r"$a_{%s}$"%(n), r"$l_{%s}$"%(n), r"$m_{%s}$"%(n), r"$\alpha_{%s}$"%(n)]
-                                    nidx_ = 7
+                                    nidx_ = 5
 
                             elif spectrum in ["cpl", "ssa"]:
                                 if n == 1:
@@ -677,16 +679,16 @@ class plotter:
                             nidx_ = 3
 
 
-            if set_spectrum:
+            if set_spectrum and spectrum in ["cpl", "ssa"]:
                 if i == 0:
                     add = 0
                 else:
                     add = 1
                     sidx.append(nidx)
-                ql, qm, qh = dyquan(result.samples[:,nidx], (0.025, 0.500, 0.975), weights=result.importance_weights())
-                mask_spectrum = int(np.round(qm)) == 0
-                if mask_spectrum:
-                    field = field[:-1]
+                    ql, qm, qh = dyquan(result.samples[:,nidx], (0.025, 0.500, 0.975), weights=result.importance_weights())
+                    mask_spectrum = int(np.round(qm)) == 0
+                    if mask_spectrum:
+                        field = field[:-1]
             else:
                 add= 0
 
@@ -742,6 +744,8 @@ class plotter:
             spectrum = self.spectrum
 
         save_path = save_path + "plot_cn/"
+        if os.path.isdir(save_path):
+            os.system(f"rm -rf {save_path}")
         gamvas.utils.mkdir(save_path)
         if pol:
             nidx = 0
@@ -768,10 +772,10 @@ class plotter:
                             if spectrum in ["spl"]:
                                 if n == 1:
                                     field = [r"$S_{%s}$"%(n), r"$a_{%s}$"%(n), r"$\alpha_{%s}$"%(n)]
-                                    nidx_ = 4
+                                    nidx_ = 3
                                 else:
                                     field = [r"$S_{%s}$"%(n), r"$a_{%s}$"%(n), r"$l_{%s}$"%(n), r"$m_{%s}$"%(n), r"$\alpha_{%s}$"%(n)]
-                                    nidx_ = 7
+                                    nidx_ = 5
 
                             elif spectrum in ["cpl", "ssa"]:
                                 if n == 1:
@@ -796,7 +800,7 @@ class plotter:
                             field = [r"$S_{%s}$"%(n), r"$l_{%s}$"%(n), r"$m_{%s}$"%(n)]
                             nidx_ = 3
 
-            if set_spectrum:
+            if set_spectrum and spectrum in ["cpl", "ssa"]:
                 if i == 0:
                     add = 0
                 else:
@@ -1212,7 +1216,7 @@ class plotter:
 
 
     def convolve_image(self,
-        uvf, npix, image=False, bnom=False
+        uvf, npix, image=False, bprms=False
     ):
         """
         convolve the generated intensity image with restoring beam (Jy/beam)
@@ -1220,13 +1224,13 @@ class plotter:
             uvf (python class): opened-fits file in uvf-class
             npix (int): the number of pixels in the map
             image (2D-array): generated image
-            bnom (tuple): beam parameters (beam minor, beam major, beam position angle)
+            bprms (tuple): beam parameters (beam minor, beam major, beam position angle)
         Returns:
             conv_image (2D-array): convolved image (n by n)
         """
-        if isinstance(bnom, bool) and not bnom:
-            bnom = self.bnom
-        bmin, bmaj, bpa = bnom
+        if isinstance(bprms, bool) and not bprms:
+            bprms = self.bprms
+        bmin, bmaj, bpa = bprms
         bsize = np.pi*bmin*bmaj/4/np.log(2)
 
         mrng, npix, psize = self.set_imgprms(uvf=uvf, npix=npix, mrng=uvf.mrng.value)
@@ -1241,7 +1245,7 @@ class plotter:
 
 
     def draw_image(self,
-        uvf, pol=False, returned=False, bnom=None, freq_ref=None, freq=None, genlevels=False, npix=128, mindr=3, minlev=0.01, maxlev=0.99, step=2, fsize=8,
+        uvf, pol=False, returned=False, bprms=None, freq_ref=None, freq=None, genlevels=False, npix=128, mindr=3, minlev=0.01, maxlev=0.99, step=2, fsize=8,
         contourw=0.3, mintick_map=0.5, majtick_map=2.5, mintick_cb=0.2, majtick_cb=1.0, model="gaussian", ifsingle=True, set_spectrum=True, xlim=False, ylim=False,
         save_img=False, save_path=False, save_name=False, save_form="png",
         plotimg=True, plot_resi=False, addnoise=False, outfig=False, title=None, show_title=False
@@ -1250,7 +1254,7 @@ class plotter:
         draw final image
         Arguments:
             uvf (python class): opened-fits file in uvf-class
-            bnom (tuple): beam parameters (beam minor, beam major, beam position angle)
+            bprms (tuple): beam parameters (beam minor, beam major, beam position angle)
             freq_ref (float): reference frequency
             freq (float): frequency to plot by considering estimated spectrum
             levels (list): contour levels to draw
@@ -1275,10 +1279,10 @@ class plotter:
             freq_ref = self.freq_ref
         if freq is None:
             freq = self.freq
-        if bnom is None:
-            bnom = self.bnom
+        if bprms is None:
+            bprms = self.bprms
 
-        bmin, bmaj, bpa = bnom
+        bmin, bmaj, bpa = bprms
 
         mrng = uvf.mrng.value
         npix = npix
@@ -1326,7 +1330,7 @@ class plotter:
         self.draw_dirtymap(uvf=uvf, mrng=mrng, npix=npix, uvw=uvf.uvw, plot_resi=addnoise, plotimg=False)
         self.generate_image(uvf=uvf, pol=pol, freq_ref=freq_ref, freq=freq, prms=prms, pprms=pprms, model=model, ifsingle=ifsingle, set_spectrum=set_spectrum, spectrum=self.spectrum)
         image = self.image.copy()
-        image = self.convolve_image(uvf=uvf, npix=npix, image=image, bnom=bnom)
+        image = self.convolve_image(uvf=uvf, npix=npix, image=image, bprms=bprms)
         if addnoise:
             resim = uvf.resid
             image += resim
@@ -1382,11 +1386,19 @@ class plotter:
         if mrng >= 6:
             ax_map.xaxis.set_major_locator(MultipleLocator(5.0))
             ax_map.yaxis.set_major_locator(MultipleLocator(5.0))
+            ax_map.xaxis.set_minor_locator(MultipleLocator(1.0))
+            ax_map.yaxis.set_minor_locator(MultipleLocator(1.0))
+        elif 1 <= mrng < 6:
+            ax_map.xaxis.set_major_locator(MultipleLocator(1.0))
+            ax_map.yaxis.set_major_locator(MultipleLocator(1.0))
+            ax_map.xaxis.set_minor_locator(MultipleLocator(0.2))
+            ax_map.yaxis.set_minor_locator(MultipleLocator(0.2))
         else:
-            ax_map.xaxis.set_major_locator(MultipleLocator(2.0))
-            ax_map.yaxis.set_major_locator(MultipleLocator(2.0))
-        ax_map.xaxis.set_minor_locator(MultipleLocator(1.0))
-        ax_map.yaxis.set_minor_locator(MultipleLocator(1.0))
+            ax_map.xaxis.set_major_locator(MultipleLocator(0.10))
+            ax_map.yaxis.set_major_locator(MultipleLocator(0.10))
+            ax_map.xaxis.set_minor_locator(MultipleLocator(0.02))
+            ax_map.yaxis.set_minor_locator(MultipleLocator(0.02))
+
 
         if np.max(np.abs(image)) > 10:
             ax_cba.xaxis.set_major_locator(MultipleLocator(5.0))

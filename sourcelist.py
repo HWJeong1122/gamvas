@@ -10,6 +10,9 @@ source_positions = {
 "0235+16"   : SkyCoord(( 2*u.hour+38*u.min+38.930*u.s).to(u.hour).value*15*u.deg, (+(16*u.deg+36*u.arcmin+59.275*u.arcsec)).to(u.deg)),
 "0235+164"  : SkyCoord(( 2*u.hour+38*u.min+38.930*u.s).to(u.hour).value*15*u.deg, (+(16*u.deg+36*u.arcmin+59.275*u.arcsec)).to(u.deg)),
 
+"0238-084"  : SkyCoord(( 2*u.hour+41*u.min+ 4.799*u.s).to(u.hour).value*15*u.deg, (-( 8*u.deg+15*u.arcmin+20.752*u.arcsec)).to(u.deg)),
+"NGC1052"   : SkyCoord(( 2*u.hour+41*u.min+ 4.799*u.s).to(u.hour).value*15*u.deg, (-( 8*u.deg+15*u.arcmin+20.752*u.arcsec)).to(u.deg)),
+
 "3C84"      : SkyCoord(( 3*u.hour+19*u.min+48.160*u.s).to(u.hour).value*15*u.deg, (+(41*u.deg+30*u.arcmin+42.106*u.arcsec)).to(u.deg)),
 "0316+413"  : SkyCoord(( 3*u.hour+19*u.min+48.160*u.s).to(u.hour).value*15*u.deg, (+(41*u.deg+30*u.arcmin+42.106*u.arcsec)).to(u.deg)),
 

@@ -6,9 +6,10 @@ import copy
 import pandas as pd
 import numpy as np
 import numpy.lib.recfunctions as rfn
+from numba import njit, jit
 import itertools as it
 from astropy import units as u
-from scipy.optimize import minimize
+from scipy import optimize
 import matplotlib.pyplot as plt
 import dynesty
 from dynesty import NestedSampler
@@ -31,59 +32,71 @@ dtypes_mf = ["f8", "f8", "f8", "f8", "f8", "f8"]
 
 class modeling:
     """
-    NOTE: This modeling is based on 'dynesty' which is implementing Bayesian nested sampling
+    NOTE: This modeling is based on 'dynesty'
+          which is implementing Bayesian nested sampling
     (Web site: https://dynesty.readthedocs.io/en/stable/api.html#api)
     (NASA/ADS: https://ui.adsabs.harvard.edu/abs/2020MNRAS.493.3132S/abstract)
 
     Attributes:
-        uvfs (list): A list of uvf objects
-        select (str): The Stokes parameters (I, Q, U, and V) or parallel/cross-hand polarization (RR, LL, RL, LR)
-        x (tuple): A tuple of x-arguments
-        y (tuple): A tuple of y-arguments
-        yerr (tuple): A tuple of y-error-arguments
-        args (tuple): Arguments set
-        factor_zblf (float): A factor zero-baseline flux density
-        sampler (str): The sampling method in 'dynesty' (availables: 'rwalk', 'rslice', 'slice')
-        bound (str): The bounding condition in 'dynesty'
-        runfit_set (str): The modeling frequency setting (availables: 'sf' for single-frequency; 'mf' for multi-frequency)
-        runfit_sf (bool): The toggle option if to run single-frequency modeling
-        runfit_mf (bool): The toggle option if to run multi-frequency modeling
-        runfit_pol (bool): The toggle option if to run polarization modeling
-        ftype (list, str): The fitting data terms (availables: 'vis', 'amp' 'phs', 'clamp', 'clphs')
-        fwght (list, float): The fitting weights for the given data terms
-        boundset (2D-list): The list of boundary conditions for priors
-        bnd_l (list): The priori boundary condition in Right Ascension (RA)
-        bnd_m (list): The priori boundary condition in Declination (DEC)
-        bnd_f (list): The priori boundary condition of turnover frequency (when 'spectrum' == 'cpl' | 'ssa')
-        ufreq (list, float): The unique frequency of 'uvfs'
-        bands (list, str): The frquency-band names to save the results
-        spectrum (str): The modeling spectrum (availables: 'single', 'spl', 'cpl', 'ssa')
-        uvw (str): The uv-weighting option ('n' for natural-weighting; 'u' for uniform-weighting)
-        shift ((float, float)): The amount of shift of the uvf data in (RA, DEC)-direction
-        fixnmod (bool): The toggle option if to fix the number of models to the 'maxn'
-        maxn (int): The maximum number of models to be allowed
-        npix (int): The number of pixels in resultant images
-        mindr (float): The minimum dynamic range to plot a contour in resultant images
-        mrng (float): The map range
-        dogscale (bool): The toggle option to run a antenna gain-scaling
-        doampcal (bool): The toggle option to run visibility amplitude self-calibration
-        dophscal (bool): The toggle option to run visibility phase self-calibration
-        path_fig (str): The path to save the resultant figures
-        source (str): The source name
-        date (str): The observation date
-        cgain_truth (DataFrame): The truth complex antenna gain values (this option is for simulation)
-        ncpu (int): The number of CPU to run the modeling
+        uvfs (list): list of uvf objects
+        select (str): Stokes parameters (I, Q, U, and V)
+                      or parallel/cross-hand polarization (RR, LL, RL, LR)
+        x (tuple): tuple of x-arguments
+        y (tuple): tuple of y-arguments
+        yerr (tuple): tuple of y-error-arguments
+        args (tuple): arguments set
+        factor_sblf (float): factor on shortest-baseline flux density
+        sampler (str): sampling method in 'dynesty'
+                       (availables: 'rwalk', 'rslice', 'slice')
+        bound (str): bounding condition in 'dynesty'
+        runfit_set (str): modeling frequency setting
+                          - 'sf' single-frequency
+                          - 'mf' multi-frequency
+        runfit_sf (bool): if True, run single-frequency modeling
+        runfit_mf (bool): if True, run multi-frequency modeling
+        runfit_pol (bool): if True, run polarization modeling
+        ftype (list, str): fitting data terms
+                           (availables: 'vis', 'amp' 'phs', 'clamp', 'clphs')
+        fwght (list, float): fitting weights for the given data terms
+        boundset (2D-list): list of boundary conditions for priors
+        bnd_l (list): priori boundary condition in Right Ascension (RA)
+        bnd_m (list): priori boundary condition in Declination (DEC)
+        bnd_f (list): priori boundary condition of turnover frequency
+                      (when 'spectrum' == 'cpl' | 'ssa')
+        ufreq (list, float): unique frequency of 'uvfs'
+        bands (list, str): frquency-band names to save the results
+        spectrum (str): modeling spectrum
+                        (availables: 'single', 'spl', 'cpl', 'ssa')
+        uvw (str): uv-weighting option
+                   - 'n': natural-weighting
+                   - 'u': uniform-weighting
+        shift ((float, float)): amount of shift in (RA, DEC)-direction
+        fixnmod (bool): if True, fix the number of models to the 'maxn'
+        maxn (int): maximum number of models to be allowed
+        npix (int): number of pixels (on the image)
+        mindr (float): minimum dynamic range to plot a contour in images
+        mrng (float): map range
+        dogscale (bool): if True, run a antenna gain-scaling
+        doampcal (bool): if True, run visibility amplitude self-calibration
+        dophscal (bool): if True, run visibility phase self-calibration
+        path_fig (str): path to save the resultant figures
+        source (str): source name
+        date (str): observation date
+        cgain_truth (DataFrame): truth complex antenna gain values
+                                 (this option is for simulation)
+        ncpu (int): number of CPU to run the modeling
     """
     def __init__(self,
         uvfs=None, select="i", x=None, y=None, yerr=None, args=None,
-        factor_zblf=1.0, sampler="rwalk", bound="multi",
-        runfit_set="mf", runfit_sf=False, runfit_mf=True, runfit_pol=False,
-        niter=1, ftype=None, fwght=None, re_wamp_mf=None, re_ftype=None, re_fwght=None,
-        boundset=False, width=5, bnd_l=None, bnd_m=None, bnd_f=None, bnd_pa=None,
-        ufreq=None, bands=None, spectrum=None, model="gaussian", uvw=None, shift=None,
-        fixnmod=False, maxn=None, npix=None, mindr=3, mrng=None,
-        gacalerr=0, dognorm=True, dogscale=False, doampcal=False, dophscal=True,
-        path_fig=None, source=None, date=None, cgain_truth=None, ncpu=1
+        factor_sblf=1.0, sampler="rwalk", bound="multi", runfit_set="mf",
+        runfit_sf=True, runfit_mf=True, runfit_pol=False, niter=1, ftype=None,
+        fwght=None, re_wamp_mf=None, re_ftype=None, re_fwght=None,
+        boundset=False, width=5, bnds=None, bnd_l=None, bnd_m=None, bnd_f=None,
+        bnd_pa=None, nflux=False, ufreq=None, bands=None, spectrum=None,
+        model="gaussian", uvw=None, shift=None, fixnmod=False, maxn=None,
+        npix=None, mindr=3, mrng=None, gacalerr=0, dognorm=True,
+        dogscale=False, doampcal=True, dophscal=True, path_fig=None,
+        source=None, date=None, cgain_truth=None, ncpu=1
     ):
         self.uvfs = uvfs
         self.select = select
@@ -92,7 +105,7 @@ class modeling:
         self.yerr = yerr
         self.args = args
 
-        self.factor_zblf = factor_zblf
+        self.factor_sblf = factor_sblf
         self.sampler = sampler
         self.bound = bound
 
@@ -115,10 +128,12 @@ class modeling:
 
         self.boundset = boundset
         self.width = width
+        self.bnds = bnds
         self.bnd_l = bnd_l
         self.bnd_m = bnd_m
         self.bnd_f = bnd_f
         self.bnd_pa = bnd_pa
+        self.nflux = nflux
 
         self.ufreq = ufreq
         self.bands = bands
@@ -146,299 +161,6 @@ class modeling:
         self.ncpu = ncpu
 
         self.pol = gamvas.polarization.modeling.polarization(ncpu=self.ncpu)
-
-
-    def objective_function(self,
-        theta, x, y, yerr, args
-    ):
-        """
-        Compute objective function (Bayesian Information Criterion)
-            Arguments:
-                theta (list): A list of parameters
-                x (tuple): A tuple of x-arguments
-                y (tuple): A tuple of y-arguments
-                yerr (tuple): A tuple of y-error-arguments
-                args (tuple): Arguments set
-            Returns:
-                Bayesian Information Criterion value (float)
-        """
-        N = len(x[1])
-        model = np.zeros(N, dtype="c8")
-        ufreq = np.unique(x[1])
-
-        nidx = 1 if self.set_spectrum else 0
-        nmprm = 0
-
-        nmod = int(np.round(theta[0]))
-        mask_pa = False
-        if self.model == "gaussian":
-            for i in range(nmod):
-                if self.ifsingle:
-                    if i == 0:
-                        model +=\
-                            gamvas.functions.gvis0(
-                                (x[2], x[3]),
-                                theta[nidx+1],
-                                theta[nidx+2]
-                            )
-                        nidx += 2
-                        nmprm += 2
-                    else:
-                        if not self.bnd_pa is None:
-                            pa = np.angle(theta[nidx+4] + 1j * theta[nidx+3], deg=True)
-                            if pa < 0 :
-                                pa += 360
-                            if self.bnd_pa[0] < 0:
-                                self.bnd_pa[0] += 360
-                            if self.bnd_pa[1] < 0:
-                                self.bnd_pa[1] += 360
-                            if self.bnd_pa[0] > pa or pa > self.bnd_pa[1]:
-                                mask_pa = True
-                        model +=\
-                            gamvas.functions.gvis(
-                                (x[2], x[3]),
-                                theta[nidx+1],
-                                theta[nidx+2],
-                                theta[nidx+3],
-                                theta[nidx+4]
-                            )
-                        nidx += 4
-                        nmprm += 4
-                else:
-                    if self.set_spectrum:
-                        if i == 0:
-                            if self.spectrum == "spl":
-                                model +=\
-                                    gamvas.functions.gvis_spl0(
-                                        (x[0], x[1], x[2], x[3]),
-                                        theta[nidx+0],
-                                        theta[nidx+1],
-                                        theta[nidx+2]
-                                    )
-                                nidx += 4
-                                nmprm += 3
-                            elif self.spectrum == "cpl":
-                                model +=\
-                                    gamvas.functions.gvis_cpl0(
-                                        (x[1], x[2], x[3]),
-                                        theta[nidx+0],
-                                        theta[nidx+1],
-                                        theta[nidx+2],
-                                        theta[nidx+3]
-                                    )
-                                nidx += 4
-                                nmprm += 4
-                            elif self.spectrum == "ssa":
-                                model +=\
-                                    gamvas.functions.gvis_ssa0(
-                                        (x[1], x[2], x[3]),
-                                        theta[nidx+0],
-                                        theta[nidx+1],
-                                        theta[nidx+2],
-                                        theta[nidx+3]
-                                    )
-                                nidx += 4
-                                nmprm += 4
-                        else:
-                            if not self.bnd_pa is None:
-                                pa = np.angle(theta[nidx+4] + 1j * theta[nidx+3], deg=True)
-                                if pa < 0 :
-                                    pa += 360
-                                if self.bnd_pa[0] < 0:
-                                    self.bnd_pa[0] += 360
-                                if self.bnd_pa[1] < 0:
-                                    self.bnd_pa[1] += 360
-                                if self.bnd_pa[0] > pa or pa > self.bnd_pa[1]:
-                                    mask_pa = True
-                            if int(np.round(theta[nidx])) == 0 or self.spectrum == "spl":
-                                model +=\
-                                    gamvas.functions.gvis_spl(
-                                        (x[0], x[1], x[2], x[3]),
-                                        theta[nidx+1],
-                                        theta[nidx+2],
-                                        theta[nidx+3],
-                                        theta[nidx+4],
-                                        theta[nidx+5]
-                                    )
-                                nidx += 7
-                                nmprm += 5
-                            else:
-                                if self.spectrum == "cpl":
-                                    model +=\
-                                        gamvas.functions.gvis_cpl(
-                                            (x[1], x[2], x[3]),
-                                            theta[nidx+1],
-                                            theta[nidx+2],
-                                            theta[nidx+3],
-                                            theta[nidx+4],
-                                            theta[nidx+5],
-                                            theta[nidx+6]
-                                        )
-                                    nidx += 7
-                                    nmprm += 6
-                                elif self.spectrum == "ssa":
-                                    model +=\
-                                        gamvas.functions.gvis_ssa(
-                                            (x[1], x[2], x[3]),
-                                            theta[nidx+1],
-                                            theta[nidx+2],
-                                            theta[nidx+3],
-                                            theta[nidx+4],
-                                            theta[nidx+5],
-                                            theta[nidx+6]
-                                        )
-                                    nidx += 7
-                                    nmprm += 6
-                    else:
-                        if i == 0:
-                            model +=\
-                                gamvas.functions.gvis0(
-                                    (x[2], x[3]),
-                                    theta[nidx+1],
-                                    theta[nidx+2]
-                                )
-                            nidx += 2
-                            nmprm += 2
-                        else:
-                            if not self.bnd_pa is None:
-                                pa = np.angle(theta[nidx+4] + 1j * theta[nidx+3], deg=True)
-                                if pa < 0 :
-                                    pa += 360
-                                if self.bnd_pa[0] < 0:
-                                    self.bnd_pa[0] += 360
-                                if self.bnd_pa[1] < 0:
-                                    self.bnd_pa[1] += 360
-                                if self.bnd_pa[0] > pa or pa > self.bnd_pa[1]:
-                                    mask_pa = True
-                            model +=\
-                                gamvas.functions.gvis(
-                                    (x[2], x[3]),
-                                    theta[nidx+1],
-                                    theta[nidx+2],
-                                    theta[nidx+3],
-                                    theta[nidx+4]
-                                )
-                            nidx += 4
-                            nmprm += 4
-        elif self.model == "delta":
-            for i in range(nmod):
-                if self.ifsingle:
-                    if i == 0:
-                        model +=\
-                            gamvas.functions.dvis0(
-                                (x[2]),
-                                theta[nidx+1]
-                            )
-                        nidx += 1
-                        nmprm += 12
-                    else:
-                        if not self.bnd_pa is None:
-                            pa = np.angle(theta[nidx+4] + 1j * theta[nidx+3], deg=True)
-                            if pa < 0 :
-                                pa += 360
-                            if self.bnd_pa[0] < 0:
-                                self.bnd_pa[0] += 360
-                            if self.bnd_pa[1] < 0:
-                                self.bnd_pa[1] += 360
-                            if self.bnd_pa[0] > pa or pa > self.bnd_pa[1]:
-                                mask_pa = True
-                        model +=\
-                            gamvas.functions.dvis(
-                                (x[2], x[3]),
-                                theta[nidx+1],
-                                theta[nidx+2],
-                                theta[nidx+3]
-                            )
-                        nidx += 3
-                        nmprm += 3
-
-        nasum = np.nansum(np.abs(model))
-        ftypes = list(self.fdict.keys())
-
-        # compute objective functions
-        if not np.isnan(nasum) and not nasum == 0:
-            objective = 0
-
-            def compute_bic(in_res, in_sig2, in_type, in_nobs, in_nmprm):
-                penalty = in_nmprm * np.log(in_nobs)
-                if in_type == "vis":
-                    nll =\
-                        0.5 *\
-                        (np.nansum(0.5 * (in_res**2 / in_sig2) + np.log(2 * np.pi * in_sig2)))
-                else:
-                    nll =\
-                        0.5 *\
-                        (np.nansum(1.0 * (in_res**2 / in_sig2) + np.log(2 * np.pi * in_sig2)))
-                return 2 * nll + penalty
-
-            if "vis" in ftypes:
-                vis_obs = y[0]
-                vis_mod = model
-                vis_res = np.abs(vis_mod - vis_obs)
-                nobs = len(y[0])
-                vis_sig2 = yerr[0]**2
-                objective -=\
-                    self.fdict["vis"] *\
-                    compute_bic(vis_res, vis_sig2, "vis", nobs, nmprm)
-
-            if "amp" in ftypes:
-                nobs = len(y[0])
-                amp_obs = np.abs(y[0])
-                amp_obs = np.where(amp_obs <= yerr[0], 0, np.sqrt(amp_obs**2 - yerr[0]**2))
-                amp_mod = np.abs(model)
-                amp_sig2 = yerr[0]**2
-                amp_res = amp_mod - amp_obs
-                objective -=\
-                    self.fdict["amp"] *\
-                    compute_bic(amp_res, amp_sig2, "amp", nobs, nmprm)
-
-            if "phs" in ftypes:
-                nobs = len(y[0])
-                phs_obs = np.angle(y[0])
-                phs_mod = np.angle(model)
-                phs_sig2 = (yerr[0] / np.abs(y[0]))**2
-                phs_res = np.abs(np.exp(1j * phs_mod) - np.exp(1j * phs_obs))
-                objective -=\
-                    self.fdict["phs"] *\
-                    compute_bic(phs_res, phs_sig2, "phs", nobs, nmprm)
-
-            if "clamp" in ftypes or "clphs" in ftypes:
-                clqm =\
-                    gamvas.utils.set_closure(
-                        x[2],
-                        x[3],
-                        model,
-                        np.zeros(model.shape[0]),
-                        args[0],
-                        args[1],
-                        y[3],
-                        y[4]
-                    )
-
-                if "clamp" in ftypes:
-                    nobs = len(y[2])
-                    clamp_obs = y[1]
-                    clamp_mod = clqm[0]
-                    clamp_sig2 = yerr[1]**2
-                    clamp_res = np.abs( np.log(clamp_mod) - np.log(clamp_obs) )
-                    objective -=\
-                        self.fdict["clamp"] *\
-                        compute_bic(clamp_res, clamp_sig2, "clamp", nobs, nmprm)
-
-                if "clphs" in ftypes:
-                    nobs = len(y[2])
-                    clphs_obs = y[2]
-                    clphs_mod = clqm[1]
-                    clphs_sig2 = yerr[2]**2
-                    clphs_res = np.abs( np.exp(1j * clphs_mod) - np.exp(1j * clphs_obs) )
-                    objective -=\
-                        self.fdict["clphs"] *\
-                        compute_bic(clphs_res, clphs_sig2, "clphs", nobs, nmprm)
-            if mask_pa:
-                objective = -np.inf
-        else:
-            objective = -np.inf
-        return objective
 
 
     def prior_transform(self,
@@ -473,15 +195,25 @@ class modeling:
         else:
             if self.set_spectrum:
                 for i in range(self.nmod):
-                    if i != 0:
-                        results.append(+1.98 * theta[ndim] - 0.49)
-                    self.set_field(nmod=i+1)
-                    for nfield, field in enumerate(self.fields):
-                        results.append(
-                            (bounds[field][i][1] - bounds[field][i][0]) *\
-                            theta[1 + ndim + nfield] +\
-                            bounds[field][i][0]
-                        )
+
+                    if self.spectrum in ["cpl", "ssa"] and i != 0:
+                        results.append(+1.98 * theta[1 + ndim] - 0.49)
+                        self.set_field(nmod=i+1)
+                        for nfield, field in enumerate(self.fields):
+                            results.append(
+                                (bounds[field][i][1] - bounds[field][i][0]) *\
+                                theta[2 + ndim + nfield] +\
+                                bounds[field][i][0]
+                            )
+                    else:
+                        self.set_field(nmod=i+1)
+                        for nfield, field in enumerate(self.fields):
+                            results.append(
+                                (bounds[field][i][1] - bounds[field][i][0]) *\
+                                theta[1 + ndim + nfield] +\
+                                bounds[field][i][0]
+                            )
+
                     ndim += self.dims
             else:
                 for i in range(self.nmod):
@@ -526,14 +258,24 @@ class modeling:
         else:
             if self.set_spectrum:
                 if self.model == "gaussian":
-                    if nmod == 1:
-                        self.dims = 4
-                        self.fields =\
-                            ["S", "a", "alpha", "freq"]
-                    else:
-                        self.dims = 7
-                        self.fields =\
-                            ["S", "a", "l", "m", "alpha", "freq"]
+                    if self.spectrum in ["spl"]:
+                        if nmod == 1:
+                            self.dims = 3
+                            self.fields =\
+                                ["S", "a", "alpha"]
+                        else:
+                            self.dims = 5
+                            self.fields =\
+                                ["S", "a", "l", "m", "alpha"]
+                    elif self.spectrum in ["cpl", "ssa"]:
+                        if nmod == 1:
+                            self.dims = 4
+                            self.fields =\
+                                ["S", "a", "alpha", "freq"]
+                        else:
+                            self.dims = 7
+                            self.fields =\
+                                ["S", "a", "l", "m", "alpha", "freq"]
                 elif self.model == "delta":
                     if nmod == 1:
                         self.dims = 3
@@ -587,7 +329,9 @@ class modeling:
         """
         index_ = ["nmod"]
         for i in range(self.nmod):
-            if i != 0 and self.set_spectrum:
+            if i != 0 and \
+            self.set_spectrum and \
+            self.spectrum in ["cpl", "ssa"]:
                 index_ = index_ + [f"{i + 1}_thick"]
 
             self.set_field(nmod=i+1)
@@ -599,15 +343,15 @@ class modeling:
 
 
     def get_results(self,
-        qs=(0.025, 0.500, 0.975), save_path=False, save_name=False, save_xlsx=False
-    ):
+        qs=(0.025, 0.500, 0.975), save_path=False, save_name=False,
+        save_xlsx=False):
         """
-        Get the modeling results (parameters)
+        Get modeling results (parameters)
             Arguments:
-                qs (tuple, flaot): The quantile values
-                save_path (str): The path to save the results
-                save_name (str): The name of the file to save the results
-                save_xlsx (bool): The toggle option if to save the results in xlsx format
+                qs (tuple, flaot): quantile values
+                save_path (str): path to save the results
+                save_name (str): name of the file to save the results
+                save_xlsx (bool): if True, save the results in xlsx format
         """
         samples = self.samples
         weights = self.weights
@@ -629,7 +373,13 @@ class modeling:
 
         if save_xlsx:
             nmod = int(np.round(qms[0]))
-            idxn = np.array(list(map(lambda x: x.split("_")[0], self.index[1:])), dtype=int)
+
+            idxn = np.array(list(
+                map(
+                    lambda x: x.split("_")[0],
+                    self.index[1:])
+            ), dtype=int)
+
             mask_nmod = idxn <= nmod
             mask_nmod = np.append(np.array([True]), mask_nmod)
 
@@ -662,10 +412,13 @@ class modeling:
                         else:
                             nmprms += 4
                     else:
-                        nmprms_ = 6
-                        spectrum = bool(np.round(mprms[f"{nmod_}_thick"]))
-                        if not spectrum:
-                            nmprms_ -= 1
+                        if self.spectrum in ["spl"]:
+                            nmprms_ = 5
+                        else:
+                            nmprms_ = 6
+                            spectrum = bool(np.round(mprms[f"{nmod_}_thick"]))
+                            if not spectrum:
+                                nmprms_ -= 1
                         nmprms += nmprms_
             else:
                 if nmod == 1:
@@ -703,18 +456,28 @@ class modeling:
         """
         Run 'dynesty' utilies
             Arguments:
-                sample (str): The sampling method in 'dynesty' (availables: 'rwalk', 'rslice', 'slice')
-                bound (str): The bounding condition in 'dynesty'
-                boundset (2D-list): The list of boundary conditions for priors
-                run_type (str): The modeling frequency setting (availables: 'sf' for single-frequency; 'mf' for multi-frequency)
-                save_path (str): The path to save the results
-                save_name (str): The name of the file to save the results
-                save_xlsx (bool): The toggle option if to save the results in xlsx format
+                sample (str): sampling method in 'dynesty'
+                              (availables: 'rwalk', 'rslice', 'slice')
+                bound (str): bounding condition in 'dynesty'
+                boundset (2D-list): list of boundary conditions for priors
+                run_type (str): modeling frequency setting
+                                - 'sf': single-frequency
+                                - 'mf': multi-frequency
+                save_path (str): path to save the results
+                save_name (str): name of the file to save the results
+                save_xlsx (bool): if True, save the results in xlsx format
 
         """
         self.set_index()
         args = self.args
         ndim = self.ndim
+
+        if self.ndim != len(self.index):
+            out_txt =\
+                f"Number of dimensions ({self.ndim})" \
+                f"is not matched" \
+                f"with the number of index ({len(self.index)})."
+            raise Exception(out_txt)
 
         if not self.boundset is None:
             boundset=self.boundset
@@ -723,10 +486,11 @@ class modeling:
 
         self.sampler = sample
         self.bound = bound
+
         # run dynesty
         with Pool(
             self.ncpu,
-            loglike=self.objective_function,
+            loglike=objective_function,
             prior_transform=self.prior_transform,
             logl_args=args) as pool:
                 sampler =\
@@ -776,7 +540,8 @@ class modeling:
         print(f"# Setting maximum number of models to {self.maxn}")
 
         if len(self.uvfs) != len(self.bands):
-            raise Exception("The number of uvf files and bands are not matched.")
+            out_txt = "The number of uvf files and bands are not matched."
+            raise Exception(out_txt)
         else:
             nfreq = len(self.uvfs)
 
@@ -794,7 +559,13 @@ class modeling:
                 if niter_ == 0:
                     ftype = self.ftype.copy()
                     if self.fwght is None:
-                        fwght = gamvas.utils.get_fwght(ftype, uvf.data, uvf.clamp["clamp"], uvf.clphs["clphs"])
+                        fwght =\
+                            gamvas.utils.get_fwght(
+                                ftype,
+                                uvf.data,
+                                uvf.clamp["clamp"],
+                                uvf.clphs["clphs"]
+                            )
                     else:
                         fwght = self.fwght.copy()
                     self.fdict = dict(zip(ftype, fwght))
@@ -803,21 +574,32 @@ class modeling:
                         ftype = self.ftype.copy()
                         fwght = [1 for i in range(len(ftype))]
                         self.fdict = dict(zip(ftype, fwght))
-                    elif not self.re_ftype is None and self.re_fwght is None:
+                    elif self.re_ftype is not None and self.re_fwght is None:
                         ftype = self.re_ftype.copy()[niter_ - 1]
                         if self.fwght is None:
-                            fwght = gamvas.utils.get_fwght(ftype, uvf.data, uvf.clamp["clamp"], uvf.clphs["clphs"])
+                            fwght =\
+                                gamvas.utils.get_fwght(
+                                    ftype,
+                                    uvf.data,
+                                    uvf.clamp["clamp"],
+                                    uvf.clphs["clphs"]
+                                )
                         else:
                             fwght = self.fwght.copy()
                         self.fdict = dict(zip(ftype, fwght))
-                    elif not self.re_ftype is None and not self.re_fwght is None:
+                    elif not self.re_ftype is None and self.re_fwght is not None:
                         ftype = self.re_ftype.copy()[niter_ - 1]
                         fwght = self.re_fwght.copy()[niter_ - 1]
                         self.fdict = dict(zip(ftype, fwght))
 
                 band = self.bands[nband]
-                uvf = gamvas.utils.set_uvf([copy.deepcopy(uvfs[nband])], type="sf")
-                zblf = self.factor_zblf * uvf.get_zblf()[0]
+                uvf =\
+                    gamvas.utils.set_uvf(
+                        [copy.deepcopy(uvfs[nband])],
+                        type="sf"
+                    )
+                sblf = self.factor_sblf * uvf.get_sblf()[0]
+
                 freq = uvf.freq
                 nmod = self.maxn
 
@@ -858,23 +640,24 @@ class modeling:
                 )
 
                 data = uvf.data
-                if len(uvfs) >= 3:
-                    if freq <= np.mean(self.ufreq):
-                        width_ = self.width
-                    else:
-                        width_ = self.width / 2
+
+                if self.bnds is None:
+                    bnd_S, bnd_a, bnd_l, bnd_m, bnd_f, bnd_i =\
+                        gamvas.utils.set_boundary(
+                            nmod=nmod, select=self.select, spectrum="single",
+                            sblf=sblf, width=self.width, mrng=self.mrng,
+                            bnd_l=self.bnd_l, bnd_m=self.bnd_m, nflux=self.nflux
+                        )
+
+                    bnds =\
+                        gamvas.utils.sarray(
+                            (bnd_S, bnd_a, bnd_l, bnd_m),
+                            field=fields_sf,
+                            dtype=dtypes_sf
+                        )
                 else:
-                    width_ = self.width
-
-                bnd_S, bnd_a, bnd_l, bnd_m, bnd_f, bnd_i =\
-                    gamvas.utils.set_boundary(
-                        nmod=nmod, select=self.select, spectrum="single", zblf=zblf,
-                        width=width_, mrng=self.mrng, bnd_l=self.bnd_l, bnd_m=self.bnd_m
-                    )
-
-                bnds =\
-                    gamvas.utils.sarray(
-                        (bnd_S, bnd_a, bnd_l, bnd_m),
+                    bnds = gamvas.utils.sarray(
+                        data=self.bnds,
                         field=fields_sf,
                         dtype=dtypes_sf
                     )
@@ -896,6 +679,8 @@ class modeling:
                         uvf.tmpl_clamp,
                         uvf.tmpl_clphs
                     )
+                self.clamp_uvcomb = clamp_uvcomb
+                self.clphs_uvcomb = clphs_uvcomb
 
                 # set x parameters
                 self.x =\
@@ -909,7 +694,7 @@ class modeling:
                 # set y parameters
                 self.y =\
                 (
-                    np.ma.getdata(uvf.data["vis"]),
+                    np.ma.getdata(uvf.data["vis"]).astype(np.complex64),
                     np.ma.getdata(uvf.clamp["clamp"]),
                     np.ma.getdata(uvf.clphs["clphs"]),
                     clamp_uvcomb,
@@ -924,12 +709,122 @@ class modeling:
                     np.ma.getdata(uvf.clphs["sigma_clphs"])
                 )
 
+                Nant =\
+                    len(np.unique(np.append(
+                        np.ma.getdata(uvf.data["ant_name1"]),
+                        np.ma.getdata(uvf.data["ant_name2"]))
+                    ))
+                uv_coord = np.column_stack((self.x[2], self.x[3]))
+                uv_coord = uv_coord.reshape(len(uv_coord), -1)
+                if Nant >= 4:
+                    mask_amp12 = self.clamp_uvcomb[1].reshape(len(self.clamp_uvcomb[1]), -1)
+                    mask_amp34 = self.clamp_uvcomb[2].reshape(len(self.clamp_uvcomb[2]), -1)
+                    mask_amp13 = self.clamp_uvcomb[3].reshape(len(self.clamp_uvcomb[3]), -1)
+                    mask_amp24 = self.clamp_uvcomb[4].reshape(len(self.clamp_uvcomb[4]), -1)
+                    mask_amp12 =\
+                        np.array(np.argmax(
+                            (mask_amp12[:, None, :] \
+                                == uv_coord[None, :, :]).all(axis=2), axis=1),
+                        dtype=np.int64
+                        )
+                    mask_amp34 =\
+                        np.array(np.argmax(
+                            (mask_amp34[:, None, :] \
+                                == uv_coord[None, :, :]).all(axis=2), axis=1),
+                        dtype=np.int64
+                        )
+                    mask_amp13 =\
+                        np.array(np.argmax(
+                            (mask_amp13[:, None, :] \
+                                == uv_coord[None, :, :]).all(axis=2), axis=1),
+                        dtype=np.int64
+                        )
+                    mask_amp24 =\
+                        np.array(np.argmax(
+                            (mask_amp24[:, None, :] \
+                                == uv_coord[None, :, :]).all(axis=2), axis=1),
+                        dtype=np.int64
+                        )
+                if Nant >= 3:
+                    mask_phs12 = self.clphs_uvcomb[1].reshape(len(self.clphs_uvcomb[1]), -1)
+                    mask_phs23 = self.clphs_uvcomb[2].reshape(len(self.clphs_uvcomb[2]), -1)
+                    mask_phs31 = self.clphs_uvcomb[3].reshape(len(self.clphs_uvcomb[3]), -1)
+                    mask_phs12 = np.array(np.argmax((mask_phs12[:, None, :] == uv_coord[None, :, :]).all(axis=2), axis=1), dtype=np.int64)
+                    mask_phs23 = np.array(np.argmax((mask_phs23[:, None, :] == uv_coord[None, :, :]).all(axis=2), axis=1), dtype=np.int64)
+                    mask_phs31 = np.array(np.argmax((mask_phs31[:, None, :] == uv_coord[None, :, :]).all(axis=2), axis=1), dtype=np.int64)
+                if Nant == 3:
+                    mask_amp12 = np.array([0], dtype=np.int64)
+                    mask_amp34 = np.array([0], dtype=np.int64)
+                    mask_amp13 = np.array([0], dtype=np.int64)
+                    mask_amp24 = np.array([0], dtype=np.int64)
+
+                if self.set_spectrum:
+                    set_spectrum = 1
+                else:
+                    set_spectrum = 0
+
+                if self.spectrum == "single":
+                    spectrum = 0
+                elif self.spectrum == "spl":
+                    spectrum = 1
+                elif self.spectrum == "cpl":
+                    spectrum = 2
+                elif self.spectrum == "ssa":
+                    spectrum = 3
+                else:
+                    out_txt =\
+                        f"Unexpected spectrum type is given: " \
+                        f"{self.spectrum}." \
+                        f"Choose 'single', 'spl', 'cpl', or 'ssa'."
+                    raise Exception(out_txt)
+
+                if self.model == "delta":
+                   modeltype = 0
+                elif self.model == "gaussian":
+                    modeltype = 1
+                else:
+                    modeltype = 1
+                    print(f"Unexpected model type is given: {self.model}. Assume 'gaussian'.")
+
+                if self.ifsingle:
+                    ifsingle = 1
+                else:
+                    ifsingle = 0
+
+                ftype_ = []
+                fwght_ = [0, 0, 0, 0, 0]
+                filoc_ = []
+                if "vis"   in list(self.fdict.keys()):
+                    ftype_.append(0)
+                    fwght_[0] = np.array(list(self.fdict.values()))[np.isin(list(self.fdict.keys()), "vis")][0]
+                if "amp"   in list(self.fdict.keys()):
+                    ftype_.append(1)
+                    fwght_[1] = np.array(list(self.fdict.values()))[np.isin(list(self.fdict.keys()), "amp")][0]
+                if "phs"   in list(self.fdict.keys()):
+                    ftype_.append(2)
+                    fwght_[2] = np.array(list(self.fdict.values()))[np.isin(list(self.fdict.keys()), "phs")][0]
+                if "clamp" in list(self.fdict.keys()):
+                    if Nant >= 4:
+                        ftype_.append(3)
+                        fwght_[3] = np.array(list(self.fdict.values()))[np.isin(list(self.fdict.keys()), "clamp")][0]
+                if "clphs" in list(self.fdict.keys()):
+                    ftype_.append(4)
+                    fwght_[4] = np.array(list(self.fdict.values()))[np.isin(list(self.fdict.keys()), "clphs")][0]
+
+                ftype_ = np.array(ftype_, dtype=np.int64)
+                fwght_ = np.array(fwght_, dtype=np.float64)
                 self.args =\
                 (
                     self.x, self.y, self.yerr,
                     (
                         np.ma.getdata(uvf.data["ant_name1"]),
-                        np.ma.getdata(uvf.data["ant_name2"])
+                        np.ma.getdata(uvf.data["ant_name2"]),
+                        set_spectrum, spectrum, modeltype, ifsingle,
+                        np.array([self.bnd_pa[0]], dtype=np.float64),
+                        np.array([self.bnd_pa[1]], dtype=np.float64),
+                        ftype_, fwght_,
+                        mask_amp12, mask_amp34, mask_amp13, mask_amp24,
+                        mask_phs12, mask_phs23, mask_phs31
                     )
                 )
 
@@ -1008,40 +903,47 @@ class modeling:
                 else:
                     if self.doampcal:
                         if self.dophscal:
-                            uvf.selfcal(type="phs", gnorm=self.dognorm)
+                            uvf.selfcal(type="phs")
                             cgain1 *= uvf.cgain1
                             cgain2 *= uvf.cgain2
-                            uvf.selfcal(type="a&p", gnorm=self.dognorm)
+                            uvf.selfcal(type="a&p")
                             cgain1 *= uvf.cgain1
                             cgain2 *= uvf.cgain2
                         else:
-                            uvf.selfcal(type="amp", gnorm=self.dognorm)
+                            uvf.selfcal(type="amp")
                             cgain1 *= uvf.cgain1
                             cgain2 *= uvf.cgain2
                     else:
                         if self.dophscal:
-                            uvf.selfcal(type="phs", gnorm=self.dognorm)
+                            uvf.selfcal(type="phs")
                             cgain1 *= uvf.cgain1
                             cgain2 *= uvf.cgain2
                 self.cgain1 = cgain1
                 self.cgain2 = cgain2
 
-                # print statistical values : reduced chi-square, Akaike information criterion, Bayesian information criterion
+                # print statistical values
+                #   - reduced chi-square
+                #   - Akaike information criterion
+                #   - Bayesian information criterion
                 uvcomb = (
                     uvf.clamp["clamp"], uvf.clphs["clphs"],
                     uvf.clamp["sigma_clamp"], uvf.clphs["sigma_clphs"],
                     clamp_uvcomb, clphs_uvcomb
                 )
 
-                fty, chi, aic, bic = gamvas.utils.print_stats(uvf, uvcomb, self.nmprms, logz_v, logz_d, ftype)
+                fty, chi, aic, bic =\
+                    gamvas.utils.print_stats(
+                        uvf, uvcomb, self.nmprms, logz_v, logz_d, ftype
+                    )
 
                 self.print_prms(
-                    ufreq=[np.round(freq,1)], fitset=self.runfit_set, spectrum=self.spectrum, model=self.model,
+                    ufreq=[np.round(freq,1)], fitset=self.runfit_set,
+                    spectrum=self.spectrum, model=self.model,
                     stats=(fty, chi, aic, bic, logz_v, logz_d), printmsg=True,
                     save_path=path_fig, save_name="model_result.txt"
                 )
 
-                uvf.ploter.bnom = uvf.beam_prms
+                uvf.ploter.bprms = uvf.bprms
                 uvf.ploter.prms = prms
 
                 uvf.ploter.clq_obs = (uvf.clamp, uvf.clphs)
@@ -1061,16 +963,18 @@ class modeling:
 
                 uvf.ploter.draw_trplot(
                     result=self.results, nmod=nmod_,
-                    ifsingle=self.ifsingle, set_spectrum=self.set_spectrum, model=self.model,
-                    fontsize=20, save_path=path_fig,
+                    ifsingle=self.ifsingle, set_spectrum=self.set_spectrum,
+                    model=self.model, fontsize=20,
+                    save_path=path_fig,
                     save_name=f"{self.source}.{self.date}.trplot",
                     save_form="pdf"
                 )
 
                 uvf.ploter.draw_cnplot(
                     result=self.results, nmod=nmod_,
-                    ifsingle=self.ifsingle, set_spectrum=self.set_spectrum, model=self.model,
-                    fontsize=20, save_path=path_fig,
+                    ifsingle=self.ifsingle, set_spectrum=self.set_spectrum,
+                    model=self.model, fontsize=20,
+                    save_path=path_fig,
                     save_name=f"{self.source}.{self.date}.cnplot",
                     save_form="pdf"
                 )
@@ -1099,22 +1003,24 @@ class modeling:
 
                 uvf.ploter.draw_image(
                     uvf=uvf, plotimg=False,
-                    npix=self.npix, mindr=self.mindr, plot_resi=True, addnoise=True,
-                    freq_ref=uvf.freq, freq=uvf.freq, model=self.model,
-                    ifsingle=self.ifsingle, set_spectrum=self.set_spectrum,
+                    npix=self.npix, mindr=self.mindr, plot_resi=True,
+                    addnoise=True, freq_ref=uvf.freq, freq=uvf.freq,
+                    model=self.model, ifsingle=self.ifsingle,
+                    set_spectrum=self.set_spectrum,
                     save_path=path_fig,
                     save_name=f"{self.source}.{self.date}.img",
                     save_form="pdf"
                 )
 
                 # set beam parameters
-                uvf.ploter.bnom = (uvf.beam_prms[0], uvf.beam_prms[0], 0)
+                uvf.ploter.bprms = (uvf.bprms[0], uvf.bprms[0], 0)
 
                 uvf.ploter.draw_image(
                     uvf=uvf, plotimg=False,
-                    npix=self.npix, mindr=self.mindr, plot_resi=False, addnoise=True,
-                    freq_ref=uvf.freq, freq=uvf.freq, model=self.model,
-                    ifsingle=self.ifsingle, set_spectrum=self.set_spectrum,
+                    npix=self.npix, mindr=self.mindr, plot_resi=False,
+                    addnoise=True, freq_ref=uvf.freq, freq=uvf.freq,
+                    model=self.model, ifsingle=self.ifsingle,
+                    set_spectrum=self.set_spectrum,
                     save_path=path_fig,
                     save_name=f"{self.source}.{self.date}.img.restore",
                     save_form="pdf"
@@ -1139,7 +1045,7 @@ class modeling:
                     freq_ref=uvfs[0].freq,
                     npix=self.npix,
                     mindr=3,
-                    beam_prms=uvall.beam_prms,
+                    bprms=uvall.bprms,
                     save_path=path_fig,
                     source=self.source,
                     date=self.date
@@ -1163,7 +1069,13 @@ class modeling:
                     self.fwght[mask_ftype] = self.re_wamp_mf
                 ftype = self.ftype.copy()
                 if self.fwght is None:
-                    fwght = gamvas.utils.get_fwght(ftype, uvf.data, uvf.clamp["clamp"], uvf.clphs["clphs"])
+                    fwght =\
+                        gamvas.utils.get_fwght(
+                            ftype,
+                            uvf.data,
+                            uvf.clamp["clamp"],
+                            uvf.clphs["clphs"]
+                        )
                 else:
                     fwght = self.fwght.copy()
                 self.fdict = dict(zip(ftype, fwght))
@@ -1175,7 +1087,13 @@ class modeling:
                 elif not self.re_ftype is None and self.re_fwght is None:
                     ftype = self.re_ftype.copy()[niter_ - 1]
                     if self.fwght is None:
-                        fwght = gamvas.utils.get_fwght(ftype, uvf.data, uvf.clamp["clamp"], uvf.clphs["clphs"])
+                        fwght =\
+                            gamvas.utils.get_fwght(
+                                ftype,
+                                uvf.data,
+                                uvf.clamp["clamp"],
+                                uvf.clphs["clphs"]
+                            )
                     else:
                         fwght = self.fwght.copy()
                     self.fdict = dict(zip(ftype, fwght))
@@ -1189,8 +1107,8 @@ class modeling:
 
             uvfs = copy.deepcopy(self.uvfs)
             uvf = gamvas.utils.set_uvf(self.uvfs, type="mf")
-            zblf = self.factor_zblf * np.max(np.abs(uvf.data["vis"]))
-            print(f"\n# Maximum baseline flux : {zblf:.3f} Jy")
+            sblf = self.factor_sblf * np.max(np.abs(uvf.data["vis"]))
+            print(f"\n# Maximum baseline flux : {sblf:.3f} Jy")
 
             if niter_ == 0:
                 selfcal_ = "initial"
@@ -1199,7 +1117,9 @@ class modeling:
 
             uvf.ploter.draw_tplot(
                 uvf, plotimg=False, show_title=False,
-                save_path=self.path_fig, save_name=f"{self.source}.{self.date}.mf.{selfcal_}.tplot", save_form="pdf"
+                save_path=self.path_fig,
+                save_name=f"{self.source}.{self.date}.mf.{selfcal_}.tplot",
+                save_form="pdf"
             )
 
             uvf.ploter.draw_radplot(
@@ -1227,24 +1147,31 @@ class modeling:
             path_fig = self.path_fig + "mf/"
             gamvas.utils.mkdir(path_fig)
 
-            if not self.bnd_f is None:
-                bnd_S, bnd_a, bnd_l, bnd_m, bnd_f, bnd_i =\
-                gamvas.utils.set_boundary(
-                        nmod=nmod, select=self.select, spectrum=self.spectrum, zblf=zblf,
-                        width=self.width, mrng=self.mrng, bnd_l=self.bnd_l, bnd_m=self.bnd_m, bnd_f=self.bnd_f
+            if self.bnds is None:
+                if self.bnd_f is not None:
+                    bnd_S, bnd_a, bnd_l, bnd_m, bnd_f, bnd_i =\
+                    gamvas.utils.set_boundary(
+                            nmod=nmod, select=self.select, spectrum=self.spectrum, sblf=sblf,
+                            width=self.width, mrng=self.mrng, bnd_l=self.bnd_l, bnd_m=self.bnd_m, bnd_f=self.bnd_f
+                    )
+                else:
+                    bnd_S, bnd_a, bnd_l, bnd_m, bnd_f, bnd_i =\
+                    gamvas.utils.set_boundary(
+                            nmod=nmod, select=self.select, spectrum=self.spectrum, sblf=sblf,
+                            width=self.width, mrng=self.mrng, bnd_l=self.bnd_l, bnd_m=self.bnd_m
+                    )
+
+                bnds = gamvas.utils.sarray(
+                        data=(bnd_S, bnd_a, bnd_l, bnd_m, bnd_f, bnd_i),
+                        field=fields_mf,
+                        dtype=dtypes_mf
                 )
             else:
-                bnd_S, bnd_a, bnd_l, bnd_m, bnd_f, bnd_i =\
-                gamvas.utils.set_boundary(
-                        nmod=nmod, select=self.select, spectrum=self.spectrum, zblf=zblf,
-                        width=self.width, mrng=self.mrng, bnd_l=self.bnd_l, bnd_m=self.bnd_m
-                )
-
-            bnds = gamvas.utils.sarray(
-                    data=(bnd_S, bnd_a, bnd_l, bnd_m, bnd_f, bnd_i),
+                bnds = gamvas.utils.sarray(
+                    data=self.bnds,
                     field=fields_mf,
                     dtype=dtypes_mf
-            )
+                )
 
             ftype = list(self.fdict.keys())
             fwhgt = list(self.fdict.values())
@@ -1266,6 +1193,8 @@ class modeling:
                     uvf.tmpl_clamp,
                     uvf.tmpl_clphs
                 )
+            self.clamp_uvcomb = clamp_uvcomb
+            self.clphs_uvcomb = clphs_uvcomb
 
             self.x =\
             (
@@ -1277,7 +1206,7 @@ class modeling:
 
             self.y =\
             (
-                np.ma.getdata(uvf.data["vis"]),
+                np.ma.getdata(uvf.data["vis"]).astype(np.complex64),
                 np.ma.getdata(uvf.clamp["clamp"]),
                 np.ma.getdata(uvf.clphs["clphs"]),
                 clamp_uvcomb,
@@ -1291,12 +1220,89 @@ class modeling:
                 np.ma.getdata(uvf.clphs["sigma_clphs"])
             )
 
+            Nant = len(np.unique(np.append(np.ma.getdata(uvf.data["ant_name1"]), np.ma.getdata(uvf.data["ant_name2"]))))
+            uv_coord = np.column_stack((self.x[2], self.x[3]))
+            uv_coord = uv_coord.reshape(len(uv_coord), -1)
+            if Nant >= 4:
+                mask_amp12 = self.clamp_uvcomb[1].reshape(len(self.clamp_uvcomb[1]), -1)
+                mask_amp34 = self.clamp_uvcomb[2].reshape(len(self.clamp_uvcomb[2]), -1)
+                mask_amp13 = self.clamp_uvcomb[3].reshape(len(self.clamp_uvcomb[3]), -1)
+                mask_amp24 = self.clamp_uvcomb[4].reshape(len(self.clamp_uvcomb[4]), -1)
+                mask_amp12 = np.array(np.argmax((mask_amp12[:, None, :] == uv_coord[None, :, :]).all(axis=2), axis=1), dtype=np.int64)
+                mask_amp34 = np.array(np.argmax((mask_amp34[:, None, :] == uv_coord[None, :, :]).all(axis=2), axis=1), dtype=np.int64)
+                mask_amp13 = np.array(np.argmax((mask_amp13[:, None, :] == uv_coord[None, :, :]).all(axis=2), axis=1), dtype=np.int64)
+                mask_amp24 = np.array(np.argmax((mask_amp24[:, None, :] == uv_coord[None, :, :]).all(axis=2), axis=1), dtype=np.int64)
+            if Nant >= 3:
+                mask_phs12 = self.clphs_uvcomb[1].reshape(len(self.clphs_uvcomb[1]), -1)
+                mask_phs23 = self.clphs_uvcomb[2].reshape(len(self.clphs_uvcomb[2]), -1)
+                mask_phs31 = self.clphs_uvcomb[3].reshape(len(self.clphs_uvcomb[3]), -1)
+                mask_phs12 = np.array(np.argmax((mask_phs12[:, None, :] == uv_coord[None, :, :]).all(axis=2), axis=1), dtype=np.int64)
+                mask_phs23 = np.array(np.argmax((mask_phs23[:, None, :] == uv_coord[None, :, :]).all(axis=2), axis=1), dtype=np.int64)
+                mask_phs31 = np.array(np.argmax((mask_phs31[:, None, :] == uv_coord[None, :, :]).all(axis=2), axis=1), dtype=np.int64)
+            if Nant == 3:
+                mask_amp12 = np.array([0], dtype=np.int64)
+                mask_amp34 = np.array([0], dtype=np.int64)
+                mask_amp13 = np.array([0], dtype=np.int64)
+                mask_amp24 = np.array([0], dtype=np.int64)
+
+            if self.set_spectrum:
+                set_spectrum = 1
+            else:
+                set_spectrum = 0
+
+            if self.spectrum == "single":
+                spectrum = 0
+            elif self.spectrum == "spl":
+                spectrum = 1
+            elif self.spectrum == "cpl":
+                spectrum = 2
+            elif self.spectrum == "ssa":
+                spectrum = 3
+            else:
+                raise Exception(f"Unexpected spectrum type is given: {self.spectrum}. Choose 'single', 'spl', 'cpl', or 'ssa'.")
+
+            if self.model == "delta":
+               modeltype = 0
+            elif self.model == "gaussian":
+                modeltype = 1
+            else:
+                modeltype = 1
+                print(f"Unexpected model type is given: {self.model}. Assume 'gaussian'.")
+
+            if self.ifsingle:
+                ifsingle = 1
+            else:
+                ifsingle = 0
+
+            ftype_ = []
+            fwght_ = [0, 0, 0, 0, 0]
+            filoc_ = []
+            if "vis"   in list(self.fdict.keys()):
+                ftype_.append(0)
+                fwght_[0] = np.array(list(self.fdict.values()))[np.isin(list(self.fdict.keys()), "vis")][0]
+            if "amp"   in list(self.fdict.keys()):
+                ftype_.append(1)
+                fwght_[1] = np.array(list(self.fdict.values()))[np.isin(list(self.fdict.keys()), "amp")][0]
+            if "phs"   in list(self.fdict.keys()):
+                ftype_.append(2)
+                fwght_[2] = np.array(list(self.fdict.values()))[np.isin(list(self.fdict.keys()), "phs")][0]
+            if "clamp" in list(self.fdict.keys()):
+                if Nant >= 4:
+                    ftype_.append(3)
+                    fwght_[3] = np.array(list(self.fdict.values()))[np.isin(list(self.fdict.keys()), "clamp")][0]
+            if "clphs" in list(self.fdict.keys()):
+                ftype_.append(4)
+                fwght_[4] = np.array(list(self.fdict.values()))[np.isin(list(self.fdict.keys()), "clphs")][0]
+            ftype_ = np.array(ftype_, dtype=np.int64)
+            fwght_ = np.array(fwght_, dtype=np.float64)
             self.args =\
             (
                 self.x, self.y, self.yerr,
                 (
                     np.ma.getdata(uvf.data["ant_name1"]),
-                    np.ma.getdata(uvf.data["ant_name2"])
+                    np.ma.getdata(uvf.data["ant_name2"]),
+                    set_spectrum, spectrum, modeltype, ifsingle, np.array([self.bnd_pa[0]], dtype=np.float64), np.array([self.bnd_pa[1]], dtype=np.float64), ftype_, fwght_,
+                    mask_amp12, mask_amp34, mask_amp13, mask_amp24, mask_phs12, mask_phs23, mask_phs31
                 )
             )
 
@@ -1368,19 +1374,19 @@ class modeling:
                 else:
                     if self.doampcal:
                         if self.dophscal:
-                            uvfs[nuvf].selfcal(type="phs", gnorm=self.dognorm)
+                            uvfs[nuvf].selfcal(type="phs")
                             cgain1[uvf.data["freq"] == self.ufreq[nuvf]] *= uvfs[nuvf].cgain1
                             cgain2[uvf.data["freq"] == self.ufreq[nuvf]] *= uvfs[nuvf].cgain2
-                            uvfs[nuvf].selfcal(type="a&p", gnorm=self.dognorm)
+                            uvfs[nuvf].selfcal(type="a&p")
                             cgain1[uvf.data["freq"] == self.ufreq[nuvf]] *= uvfs[nuvf].cgain1
                             cgain2[uvf.data["freq"] == self.ufreq[nuvf]] *= uvfs[nuvf].cgain2
                         else:
-                            uvfs[nuvf].selfcal(type="amp", gnorm=self.dognorm)
+                            uvfs[nuvf].selfcal(type="amp")
                             cgain1[uvf.data["freq"] == self.ufreq[nuvf]] *= uvfs[nuvf].cgain1
                             cgain2[uvf.data["freq"] == self.ufreq[nuvf]] *= uvfs[nuvf].cgain2
                     else:
                         if self.dophscal:
-                            uvfs[nuvf].selfcal(type="phs", gnorm=self.dognorm)
+                            uvfs[nuvf].selfcal(type="phs")
                             cgain1[uvf.data["freq"] == self.ufreq[nuvf]] *= uvfs[nuvf].cgain1
                             cgain2[uvf.data["freq"] == self.ufreq[nuvf]] *= uvfs[nuvf].cgain2
 
@@ -1401,7 +1407,7 @@ class modeling:
             )
 
             uvf.fit_beam(uvw=self.uvw)
-            uvf.ploter.bnom = uvf.beam_prms
+            uvf.ploter.bprms = uvf.bprms
             uvf.ploter.prms = self.mprms
             uvf.ploter.spectrum = self.spectrum
 
@@ -1454,7 +1460,7 @@ class modeling:
                 )
 
             for i in range(len(uvfs)):
-                uvfs[i].ploter.bnom = uvfs[i].beam_prms
+                uvfs[i].ploter.bprms = uvfs[i].bprms
                 uvfs[i].ploter.prms = self.mprms
                 uvfs[i].ploter.fitset = self.runfit_set
                 uvfs[i].ploter.spectrum = self.spectrum
@@ -1479,21 +1485,61 @@ class modeling:
             self.uvfs = uvfs
 
             gc.collect()
-        self.ftype = ftype
-        self.fwght = fwght
-        self.path_fig = path_fig
 
 
-    def run(self):
+    def run(self, uvave=None):
         """
         Run the modeling utilies
         """
+
+        uvfs = copy.deepcopy(self.uvfs)
+        uvall = gamvas.utils.set_uvf(uvfs, type="mf")
+
+        nvis  = uvall.data.shape[0]
+        ncamp = uvall.tmpl_clamp.shape[0]
+        ncphs = uvall.tmpl_clphs.shape[0]
+
+        mrng = self.mrng
+        spectrum = self.spectrum
+        ftype = self.ftype.copy()
+        fwght = self.fwght.copy()
+        model = self.model
+        select = self.select.upper()
+        ncpu = self.ncpu
+        if uvave is None:
+            uvave = uvall.avgtime
+            if isinstance(uvave, (float, int)):
+                uvave_unit = "(sec)"
+            else:
+                uvave_unit = ""
+        else:
+            uvave_unit = ""
+
+        out_txt =\
+            f"\n### Running parameters ###\n" \
+            f"# Map range: {mrng:.1f} (mas)\n" \
+            f"# B_min: {uvall.bprms[0]:.3f} (mas)\n" \
+            f"# B_maj: {uvall.bprms[1]:.3f} (mas)\n" \
+            f"# B_pa: {uvall.bprms[2]:.3f} (deg)\n" \
+            f"# Fit-spec: '{spectrum}'\n" \
+            f"# Fit-type: {ftype}\n" \
+            f"# Fit-wght: {fwght}\n" \
+            f"# G.model: '{model}'\n" \
+            f"# Number of complex visibility: {nvis}\n" \
+            f"# Number of closure amplitude: {ncamp}\n" \
+            f"# Number of closure phase: {ncphs}\n" \
+            f"# uv-average time: {uvave} {uvave_unit}\n" \
+            f"# Selected polarization: '{select}'\n" \
+            f"# Number of active CPU cores: {ncpu}/{os.cpu_count()}\n"
+        print(out_txt)
+
         runfit_set = self.runfit_set
         runfit_sf = self.runfit_sf
         runfit_mf = self.runfit_mf
         if not runfit_set.lower() in ["sf", "mf"]:
-            raise Exception("Given 'runfit_set' option is not intended. (available options: 'sf', 'mf')")
-        ftype = self.ftype.copy()
+            out_txt = "Given 'runfit_set' option is not intended." \
+                "(available options: 'sf', 'mf')"
+            raise Exception(out_txt)
 
         if "clphs" in ftype:
             self.relmod = True
@@ -1501,17 +1547,22 @@ class modeling:
             self.relmod = False
 
         if runfit_set == "sf":
+            self.check_dof(uvfs=self.uvfs, runfit_set="sf", maxn=self.maxn)
             self.ifsingle = True
             self.set_spectrum = False
             self.run_sf()
         if runfit_set == "mf":
             if runfit_sf:
+                self.check_dof(uvfs=self.uvfs, runfit_set="sf", maxn=self.maxn)
                 self.ifsingle = False
                 self.set_spectrum = False
                 self.run_sf()
             if runfit_mf:
+                self.check_dof(uvfs=self.uvfs, runfit_set="mf", maxn=self.maxn)
                 for i in range(len(self.uvfs)):
-                    self.uvfs[i].add_error_fraction(self.gacalerr, set_vis=True, set_clq=False)
+                    self.uvfs[i].add_error_fraction(self.gacalerr,
+                        set_vis=True, set_clq=False
+                    )
                 self.ifsingle = False
                 self.set_spectrum = True
                 self.run_mf()
@@ -1532,11 +1583,56 @@ class modeling:
                         freq_ref=self.uvfs[0].freq,
                         npix=self.npix,
                         mindr=3,
-                        beam_prms=uvfs_.beam_prms,
+                        bprms=uvfs_.bprms,
                         save_path=self.path_fig,
                         source=self.source,
                         date=self.date
                     )
+
+
+    def check_dof(self, uvfs=None, runfit_set=None, maxn=None):
+        if np.any([uvfs is None, runfit_set is None, maxn is None]):
+            raise Exception("'uvfs', 'runfit_set', and 'maxn' must be provided.")
+
+        if runfit_set == "sf":
+            dof = 2 + 4 * (maxn - 1)
+            for uvf in uvfs:
+                nvis = uvf.data .size
+                ncla = uvf.clamp.size
+                nclp = uvf.clphs.size
+                if ncla == 1:
+                    ncla = np.nan
+                if nclp == 1:
+                    nclp = np.nan
+                ndat = np.nanmin([nvis, ncla, nclp]).astype(int)
+                if ndat <= 2 * dof:
+                    if ndat <= 1 * dof:
+                        raise Exception(
+                            f"Insufficient data ({uvf.freq:.1f} GHz): {ndat} (data) & {dof} (allowed dof)."
+                            "Please check the number of visibility data or reduce either 'uvave' or 'snrflag'."
+                        )
+                    else:
+                        print(f"WARNING! The number of data ({ndat}) is recommended to be twice the allowed dof ({dof}).")
+
+        if runfit_set == "mf":
+            dof = 4 + 6 * (maxn - 1)
+            uvf = gamvas.utils.set_uvf(uvfs, type="mf")
+            nvis = uvf.data .size
+            ncla = uvf.clamp.size
+            nclp = uvf.clphs.size
+            if ncla == 1:
+                ncla = np.nan
+            if nclp == 1:
+                nclp = np.nan
+            ndat = np.nanmin([nvis, ncla, nclp]).astype(int)
+            if ndat <= 2 * dof:
+                if ndat <= 1 * dof:
+                    raise Exception(
+                        f"Insufficient data: {ndat} (data) & {dof} (allowed dof). "
+                        "Please check the number of visibility data or reduce either 'uvave' or 'snrflag'."
+                    )
+                else:
+                    print(f"WARNING! The number of data ({ndat}) is recommended to be twice the allowed dof ({dof}).")
 
 
     def rsc_amplitude(self,
@@ -1547,21 +1643,53 @@ class modeling:
             Arguments:
                 uvfs (list): list of uvf objects
         """
-        # rescale visibility amplitude at zero-baseline ("amp" not in ftype)
-        ftype = list(self.fdict.keys())
-        data_obs = uvfs[0].data
-        zblf_obs, zbl_obs = uvfs[0].get_zblf()
-        mask_zbl = (data_obs["ant_name1"] == zbl_obs[0]) | (data_obs["ant_name2"] == zbl_obs[1])
-        zblf_mod = copy.deepcopy(uvfs[0])
-        zblf_mod.append_visibility_model(
-            freq_ref=uvfs[0].freq, freq=uvfs[0].freq,
-            theta=self.mprms, fitset=self.run_type, model=self.model,
-            spectrum=self.spectrum, set_spectrum=self.set_spectrum
+        def cal_nll(rscf, inobs, inmod, inmprms, inmodel, inmask_sbl):
+            nmod = int(np.round(inmprms["nmod"]))
+            inmprms_ = copy.deepcopy(inmprms)
+            for i in range(nmod):
+                inmprms_[f"{i+1}_S"] *= rscf[0]
+
+            inmod.append_visibility_model(
+                freq_ref=inmod.freq, freq=inmod.freq,
+                theta=inmprms_, fitset="sf", model=inmodel,
+                spectrum="single", set_spectrum=False
+            )
+
+            amp_obs = np.abs(inobs.data[inmask_sbl]["vis"])
+            sig_obs = np.abs(inobs.data[inmask_sbl]["sigma"])
+            amp_mod = np.abs(inmod.data[inmask_sbl]["vism"])
+
+            inmod.drop_visibility_model()
+
+            out =\
+                0.5 * np.sum(
+                    np.abs(amp_mod - amp_obs)**2 / sig_obs**2
+                    + np.log(2 * np.pi * sig_obs**2)
+                )
+            return out
+
+        obs = copy.deepcopy(uvfs[0])
+        mod = copy.deepcopy(uvfs[0])
+        sblf_obs, sbl_obs = obs.get_sblf()
+        mask_sbl =\
+            (obs.data["ant_name1"] == sbl_obs[0]) \
+            | (obs.data["ant_name2"] == sbl_obs[1])
+
+        def nll(*args):
+            return cal_nll(*args)
+
+        soln = optimize.minimize(
+            nll,
+            [1],
+            args=(obs, mod, copy.deepcopy(self.mprms), self.model, mask_sbl),
+            bounds=[[0, 2]], method="Powell"
         )
-        zblf_mod = np.median(np.abs(zblf_mod.data[mask_zbl]["vism"]))
-        scale_factor = zblf_obs/zblf_mod
+
+        rscf = soln.x[0]
+
+        nmod = int(np.round(self.mprms["nmod"]))
         for i in range(nmod):
-            self.mprms[f"{i+1}_S"] *= scale_factor
+            self.mprms[f"{i+1}_S"] *= rscf
 
 
     def rsc_sigma(self,
@@ -1633,23 +1761,23 @@ class modeling:
                                     smax_, a_, l_, m_, alpha_ = mprms[f"{i+1}_S"], mprms[f"{i+1}_a"], 0, 0, mprms[f"{i+1}_alpha"]
                                 else:
                                     smax_, a_, l_, m_, alpha_ = mprms[f"{i+1}_S"], mprms[f"{i+1}_a"], mprms[f"{i+1}_l"], mprms[f"{i+1}_m"], mprms[f"{i+1}_alpha"]
-                                S_ = gamvas.functions.S_spl(ufreq[0], freq, smax_, alpha_)
+                                S_ = S_spl(ufreq[0], freq, smax_, alpha_)
                             if spectrum in ["cpl", "ssa"]:
                                 if i == 0:
                                     smax_, a_, l_, m_, alpha_, tfreq_ = mprms[f"{i+1}_S"], mprms[f"{i+1}_a"], 0, 0, mprms[f"{i+1}_alpha"], mprms[f"{i+1}_freq"]
                                     if spectrum in ["cpl"]:
-                                        S_ = gamvas.functions.S_cpl(freq, smax_, tfreq_, alpha_)
+                                        S_ = S_cpl(freq, smax_, tfreq_, alpha_)
                                     elif spectrum in ["ssa"]:
-                                        S_ = gamvas.functions.SSA(freq, smax_, tfreq_, alpha_)
+                                        S_ = SSA(freq, smax_, tfreq_, alpha_)
                                 else:
                                     smax_, a_, l_, m_, alpha_, tfreq_ = mprms[f"{i+1}_S"], mprms[f"{i+1}_a"], mprms[f"{i+1}_l"], mprms[f"{i+1}_m"], mprms[f"{i+1}_alpha"], mprms[f"{i+1}_freq"]
                                     if bool(np.round(mprms[f"{i+1}_thick"])):
                                         if spectrum in ["cpl"]:
-                                            S_ = gamvas.functions.S_cpl(freq, smax_, tfreq_, alpha_)
+                                            S_ = S_cpl(freq, smax_, tfreq_, alpha_)
                                         elif spectrum in ["ssa"]:
-                                            S_ = gamvas.functions.SSA(freq, smax_, tfreq_, alpha_)
+                                            S_ = SSA(freq, smax_, tfreq_, alpha_)
                                     else:
-                                        S_ = gamvas.functions.S_spl(ufreq[0], freq, smax_, alpha_)
+                                        S_ = S_spl(ufreq[0], freq, smax_, alpha_)
                         else:
                             if i == 0:
                                 smax_, a_, l_, m_ = mprms[f"{i+1}_S"], mprms[f"{i+1}_a"], 0, 0
@@ -1703,3 +1831,721 @@ class modeling:
             modelprms.write(f"BIC_tot  : {bic_tot:8.3f}\n")
             modelprms.write(f"logz : {stats[-2]:.3f} +/- {stats[-1]:.3f}\n")
             modelprms.close()
+
+
+# @staticmethod
+@jit(nopython=True)
+def objective_function(theta, x, y, yerr, args):
+    """
+    Compute objective function (Bayesian Information Criterion)
+        Arguments:
+            theta (list): A list of parameters
+            x (tuple): A tuple of x-arguments
+            y (tuple): A tuple of y-arguments
+            yerr (tuple): A tuple of y-error-arguments
+            args (tuple): Arguments set
+                args[0] (array, str): antenna name 1
+                args[1] (array, str): antenna name 2
+                args[2] (int): set_spectrum // 1: True, 0: False
+                args[3] (int): spectrum ('single', 'spl', 'cpl', 'ssa')
+                args[4] (int): modeltype (0:'delta', 1: 'gaussian')
+                args[5] (int): ifsingle // 1: True, 0: False
+                args[6] (float): lower boundary of bnd_pa
+                args[7] (float): upper boundary of bnd_pa
+                args[8] (list, str): 'fdict' keys
+                args[9] (list, str): 'fdict' values
+                args[10 - 13] (array): mask for closure amplitudes
+                args[14 - 16] (array): mask for closure phases
+        Returns:
+            Bayesian Information Criterion value (float)
+    """
+    N = len(x[1])
+    model = np.zeros(N, dtype=np.complex64)
+    ufreq = np.unique(x[1])
+
+    nidx = 0
+    nmprm = 0
+
+    pa_bnd1 = args[6][0]
+    pa_bnd2 = args[7][0]
+
+    nmod = int(np.round(theta[0]))
+    prms = theta[1:]
+    mask_pa = 0
+
+    if args[4] == 1: # model == "gaussian"
+        for i in range(nmod):
+            if args[5] == 1: # ifsingle == True (single-frequency)
+                if i == 0:
+                    model +=\
+                        gvis0(
+                            (x[2], x[3]),
+                            prms[nidx+0],
+                            prms[nidx+1]
+                        )
+                    nidx += 2
+                    nmprm += 2
+                else:
+                    if not np.isnan(pa_bnd1):
+                        pa = np.angle(prms[nidx+3] + 1j * prms[nidx+2]) * 180 / np.pi
+                        if pa < 0 :
+                            pa += 360
+                        if pa_bnd1 < 0:
+                            pa_bnd1 += 360
+                        if pa_bnd2 < 0:
+                            pa_bnd2 += 360
+                        if pa_bnd1 > pa or pa > pa_bnd2:
+                            mask_pa = 1
+
+                    model +=\
+                        gvis(
+                            (x[2], x[3]),
+                            prms[nidx+0],
+                            prms[nidx+1],
+                            prms[nidx+2],
+                            prms[nidx+3]
+                        )
+                    nidx += 4
+                    nmprm += 4
+            else: # ifsingle == False (multi-frequency)
+                if args[2] == 1: # set_spectrum == True
+                    if i == 0:
+                        if args[3] == 1: # spectrum == "spl"
+                            model +=\
+                                gvis_spl0(
+                                    (x[0], x[1], x[2], x[3]),
+                                    prms[nidx+0],
+                                    prms[nidx+1],
+                                    prms[nidx+2]
+                                )
+                            nidx += 3
+                            nmprm += 3
+                        elif args[3] == 2: # spectrum == "cpl"
+                            model +=\
+                                gvis_cpl0(
+                                    (x[1], x[2], x[3]),
+                                    prms[nidx+0],
+                                    prms[nidx+1],
+                                    prms[nidx+2],
+                                    prms[nidx+3]
+                                )
+                            nidx += 4
+                            nmprm += 4
+                        elif args[3] == 3: # spectrum == "ssa"
+                            model +=\
+                                gvis_ssa0(
+                                    (x[1], x[2], x[3]),
+                                    prms[nidx+0],
+                                    prms[nidx+1],
+                                    prms[nidx+2],
+                                    prms[nidx+3]
+                                )
+                            nidx += 4
+                            nmprm += 4
+                    else:
+                        if args[3] == 1: # spectrum == "spl"
+                            if not np.isnan(pa_bnd1):
+                                pa = np.angle(prms[nidx+3] + 1j * prms[nidx+2]) * 180 / np.pi
+                                if pa < 0 :
+                                    pa += 360
+                                if pa_bnd1 < 0:
+                                    pa_bnd1 += 360
+                                if pa_bnd2 < 0:
+                                    pa_bnd2 += 360
+                                if pa_bnd1 > pa or pa > pa_bnd2:
+                                    mask_pa = 1
+
+                            model +=\
+                                gvis_spl(
+                                    (x[0], x[1], x[2], x[3]),
+                                    prms[nidx+0],
+                                    prms[nidx+1],
+                                    prms[nidx+2],
+                                    prms[nidx+3],
+                                    prms[nidx+4]
+                                )
+                            nidx += 5
+                            nmprm += 5
+                        else: # spectrum in ["cpl", "ssa"]
+                            if not np.isnan(pa_bnd1):
+                                pa = np.angle(prms[nidx+4] + 1j * prms[nidx+3]) * 180 / np.pi
+                                if pa < 0 :
+                                    pa += 360
+                                if pa_bnd1 < 0:
+                                    pa_bnd1 += 360
+                                if pa_bnd2 < 0:
+                                    pa_bnd2 += 360
+                                if pa_bnd1 > pa or pa > pa_bnd2:
+                                    mask_pa = 1
+
+                            # optically thin spectrum
+                            if int(np.round(prms[nidx])) == 0:
+                                model +=\
+                                    gvis_spl(
+                                        (x[0], x[1], x[2], x[3]),
+                                        prms[nidx+1],
+                                        prms[nidx+2],
+                                        prms[nidx+3],
+                                        prms[nidx+4],
+                                        prms[nidx+5]
+                                    )
+                                nidx += 7
+                                nmprm += 5
+                            # optically thick spectrum
+                            else:
+                                if args[3] == 2: # spectrum == "cpl"
+                                    model +=\
+                                        gvis_cpl(
+                                            (x[1], x[2], x[3]),
+                                            prms[nidx+1],
+                                            prms[nidx+2],
+                                            prms[nidx+3],
+                                            prms[nidx+4],
+                                            prms[nidx+5],
+                                            prms[nidx+6]
+                                        )
+                                    nidx += 7
+                                    nmprm += 6
+                                elif args[3] == 3: # spectrum == "ssa"
+                                    model +=\
+                                        gvis_ssa(
+                                            (x[1], x[2], x[3]),
+                                            prms[nidx+1],
+                                            prms[nidx+2],
+                                            prms[nidx+3],
+                                            prms[nidx+4],
+                                            prms[nidx+5],
+                                            prms[nidx+6]
+                                        )
+                                    nidx += 7
+                                    nmprm += 6
+                else: # set_spectrum == False
+                    if i == 0:
+                        model +=\
+                            gvis0(
+                                (x[2], x[3]),
+                                prms[nidx+0],
+                                prms[nidx+1]
+                            )
+                        nidx += 2
+                        nmprm += 2
+                    else:
+                        if not np.isnan(pa_bnd1):
+                            pa = np.angle(prms[nidx+3] + 1j * prms[nidx+2]) * 180 / np.pi
+                            if pa < 0 :
+                                pa += 360
+                            if pa_bnd1 < 0:
+                                pa_bnd1 += 360
+                            if pa_bnd2 < 0:
+                                pa_bnd2 += 360
+                            if pa_bnd1 > pa or pa > pa_bnd2:
+                                mask_pa = 1
+
+                        model +=\
+                            gvis(
+                                (x[2], x[3]),
+                                prms[nidx+0],
+                                prms[nidx+1],
+                                prms[nidx+2],
+                                prms[nidx+3]
+                            )
+                        nidx += 4
+                        nmprm += 4
+    elif args[4] == 0: # model == "delta"
+        for i in range(nmod):
+            if args[5] == 1: # ifsingle == True (single-frequency)
+                if i == 0:
+                    model += prms[nidx] * np.ones(N, dtype=np.complex64)
+                    nidx += 1
+                    nmprm += 1
+                else:
+                    if not np.isnan(pa_bnd1):
+                        pa = np.angle(prms[nidx+2] + 1j * prms[nidx+1]) * 180 / np.pi
+                        if pa < 0 :
+                            pa += 360
+                        if pa_bnd1 < 0:
+                            pa_bnd1 += 360
+                        if pa_bnd2 < 0:
+                            pa_bnd2 += 360
+                        if pa_bnd1 > pa or pa > pa_bnd2:
+                            mask_pa = 1
+
+                    model +=\
+                        dvis(
+                            (x[2], x[3]),
+                            theta[nidx+0],
+                            theta[nidx+1],
+                            theta[nidx+2]
+                        )
+                    nidx += 3
+                    nmprm += 3
+
+    nasum = np.nansum(np.abs(model))
+
+    # compute objective functions
+    if not np.isnan(nasum) and not nasum == 0:
+        objective = 0
+
+        def compute_bic(in_res, in_sig2, in_type, in_nobs, in_nmprm):
+            penalty = in_nmprm * np.log(in_nobs)
+            if in_type == 0:
+                nll =\
+                    0.5 *\
+                    (np.nansum(0.5 * (in_res**2 / in_sig2) + np.log(2 * np.pi * in_sig2)))
+            else:
+                nll =\
+                    0.5 *\
+                    (np.nansum(1.0 * (in_res**2 / in_sig2) + np.log(2 * np.pi * in_sig2)))
+            return 2 * nll + penalty
+
+        if 0 in args[8]:
+            vis_obs = y[0]
+            vis_mod = model
+            vis_res = np.abs(vis_mod - vis_obs)
+            nobs = len(y[0])
+            vis_sig2 = yerr[0]**2
+            objective -=\
+                args[9][0] * compute_bic(vis_res, vis_sig2, 0, nobs, nmprm)
+
+        if 1 in args[8]:
+            nobs = len(y[0])
+            amp_obs = np.abs(y[0])
+            amp_obs = np.where(amp_obs <= yerr[0], 0, np.sqrt(amp_obs**2 - yerr[0]**2))
+            amp_mod = np.abs(model)
+            amp_sig2 = yerr[0]**2
+            amp_res = amp_mod - amp_obs
+            objective -=\
+                args[9][1] * compute_bic(amp_res, amp_sig2, 1, nobs, nmprm)
+
+        if 2 in args[8]:
+            nobs = len(y[0])
+            phs_obs = np.angle(y[0])
+            phs_mod = np.angle(model)
+            phs_sig2 = (yerr[0] / np.abs(y[0]))**2
+            phs_res = np.abs(np.exp(1j * phs_mod) - np.exp(1j * phs_obs))
+            objective -=\
+                args[9][2] * compute_bic(phs_res, phs_sig2, 2, nobs, nmprm)
+
+        if 3 in args[8]:
+            amp12 = np.abs(model[args[10]])
+            amp34 = np.abs(model[args[11]])
+            amp13 = np.abs(model[args[12]])
+            amp24 = np.abs(model[args[13]])
+            clamp_mod = (amp12 * amp34) / (amp13 * amp24)
+            nobs = len(y[2])
+            clamp_obs = y[1]
+            clamp_sig2 = yerr[1]**2
+            clamp_res = np.abs( np.log(clamp_mod) - np.log(clamp_obs) )
+            objective -=\
+                args[9][3] * compute_bic(clamp_res, clamp_sig2, 3, nobs, nmprm)
+
+        if 4 in args[8]:
+            phs12 = np.angle(model[args[14]])
+            phs23 = np.angle(model[args[15]])
+            phs31 = np.angle(model[args[16]].conjugate())
+            clphs_mod = phs12 + phs23 + phs31
+            nobs = len(y[2])
+            clphs_obs = y[2]
+            clphs_sig2 = yerr[2]**2
+            clphs_res = np.abs( np.exp(1j * clphs_mod) - np.exp(1j * clphs_obs) )
+            objective -=\
+                args[9][4] * compute_bic(clphs_res, clphs_sig2, 4, nobs, nmprm)
+        if mask_pa == 1:
+            objective = -np.inf
+    else:
+        objective = -np.inf
+    return objective
+
+r2m = u.rad.to(u.mas)
+d2m = u.rad.to(u.mas)
+
+@jit(nopython=True)
+def linear(x, m, a):
+    """
+        Arguments:
+            x (array): input x-axis data points
+            m (float): slope of the linear function
+            a (float): offset of the linear function (constant)
+        Returns:
+            A linear function
+    """
+    out = m * x + a
+    return out
+
+
+@jit(nopython=True)
+def gaussian_1d(x, peak, a, mx):
+    """
+        Arguments:
+            x (array): input x-axis data points
+            peak (float): peak-value of the Gaussian
+            a (float): standard deviation of the Gaussian
+            mx (float): offset of the peak in x-axis from the zero-position
+        Returns:
+            A 1-D Guassian function
+    """
+    out = peak * np.e**(-((x - mx) / a)**2 / 2)
+    return out
+
+
+@jit(nopython=True)
+def gaussian_2d(xy, peak, ax, ay, mx, my, theta):
+    """
+        Arguments:
+            xy (2D-array, tuple): input x/y-axis data points
+            peak (float): peak-value of the Gaussian
+            ax/y (float): standard deviation of the Gaussian in x/y-axis
+            mx/y (float): offset of the peak in x/y-axis from the zero-position
+            theta (float): position angle of the Gaussian (elliptical Guassian)
+        Returns:
+            A 2-D Guassian function
+    """
+    # x, y = xy
+    out =\
+        peak \
+        * np.e**(
+            -(xy[0] - mx)**2 / (2 * ax**2) -(xy[1] - my)**2 / (2 * ay**2)
+        )
+    return out
+
+
+@jit(nopython=True)
+def SSA(nu, Smax, tf, alpha):
+    """
+    NOTE: This function assumes optically thick spectral index as 2.5
+    (Turler+1999, A&A, 349, 45T)
+        Arguments:
+            nu (array or float): input frequency
+            Smax (float): flux density at 'tf'
+            tf (float): turnover frequency of the SSA spectrum
+            alpha (float): optically thin spectral index
+        Returns:
+            estimated flux density at nu (nu: float) / SSA spectrm (nu: list or array)
+    """
+    out =\
+        Smax \
+        * ((nu / tf)**2.5) \
+        * (
+            (1
+                - np.e**(
+                    -(1.5 * ((1 - (8 * alpha) / 7.5)**0.5 - 1))
+                    * (nu / tf)**(alpha - 2.5)
+                )
+            )
+            / (1 - np.e**(-(1.5 * ((1 - (8 * alpha) / 7.5)**0.5 - 1))))
+        )
+    return out
+
+
+@jit(nopython=True)
+def S_spl(nu_ref, nu, Smax, alpha):
+    """
+        Arguments:
+            nu_ref (float): reference frequency, recommended to set at the lowest one
+            nu (array or float): input frequency
+            Smax (float): flux density at 'nu_ref'
+            alpha (float): optically thin spectral index
+        Returns:
+            estimated flux density at nu (nu: float) / simple power-law spectrum (nu: list or array)
+    """
+    out = 10**(alpha * (np.log10(nu) - np.log10(nu_ref)) + np.log10(Smax))
+    return out
+
+
+@jit(nopython=True)
+def S_cpl(nu, Smax, tf, alpha):
+    """
+        Arguments:
+            nu (array or float): input frequency
+            Smax (float): flux density at 'tf'
+            alpha (float): optically thin spectral index
+        Returns:
+            estimated flux density at nu (nu: float) / curved power-law spectrum (nu: list or array)
+    """
+    out = Smax * (nu / tf)**(alpha * np.log10(nu / tf))
+    return out
+
+
+@jit(nopython=True)
+def dvis0(args, S):
+    """
+    NOTE: This function is intended to fix model position to (0,0)
+        Arguments:
+            args (tuple): input sub-arguments
+                args[0] (1D-array): u-axis data points
+                args[1] (1D-array): v-axis data points
+            S (float): flux density of Gaussian model
+        Returns:
+            complex visibility of a delta function model
+    """
+    out = S * np.ones(len(S), dtype=np.complex64)
+    return out
+
+
+@jit(nopython=True)
+def gvis0(args, S, fwhm):
+    """
+    NOTE: This function is intended to fix model position to (0,0)
+        Arguments:
+            args (tuple): input sub-arguments
+                args[0] (1D-array): u-axis data points
+                args[1] (1D-array): v-axis data points
+            S (float): flux density of Gaussian model
+            fwhm (float): full-width at half maximum of Gaussian model
+        Returns:
+            complex visibility of a Gaussian model
+    """
+    out =\
+        S \
+        * np.e**(
+            -2*np.pi**2 * (fwhm / (2 * (2 * np.log(2))**0.5))**2 \
+            * ((args[1] / r2m)**2 + (args[0] / r2m)**2)
+        )
+    return out
+
+
+@jit(nopython=True)
+def gvis_spl0(args, Smax, fwhm, alpha):
+    """
+    NOTE: This function is intended to fix model position to (0,0)
+        Arguments:
+            args (tuple): input sub-arguments
+                args[0] (float): reference frequency; recommended to set at the lowest one
+                args[1] (array or float): input frequency
+                args[2] (1D-array): u-axis data points
+                args[3] (1D-array): v-axis data points
+            Smax (float): flux density of Gaussian model at 'args[0]'
+            fwhm (float): full-width at half maximum of Gaussian model
+            alpha (float): optically thin spectral index of Gaussian model
+        Returns:
+            complex visibility of Gaussian model (based on a simple power-law spectrum)
+    """
+    out =\
+        S_spl(args[0], args[1], Smax, alpha) \
+        * np.e**(
+            -2 * (np.pi * (fwhm / (2 * (2 * np.log(2))**0.5)))**2 \
+            * ((args[2] / r2m)**2 + (args[3] / r2m)**2)
+        )
+    return out
+
+
+@jit(nopython=True)
+def gvis_cpl0(args, Smax, fwhm, alpha, nu_m):
+    """
+    NOTE: This function is intended to fix model position to (0,0)
+        Arguments:
+            args (tuple): input sub-arguments
+                args[0] (array or float): input frequency
+                args[1] (1D-array): u-axis data points
+                args[2] (1D-array): v-axis data points
+            Smax (float): flux density of Gaussian model at 'nu_m'
+            fwhm (float): full-width at half maximum of Gaussian model
+            alpha (float): optically thin spectral index of Gaussian model
+        Returns:
+            complex visibility of Gaussian model (based on curved power-law spectrum)
+    """
+    out =\
+        S_cpl(args[0], Smax, nu_m, alpha) \
+        * np.e**(
+            -2 * (np.pi * (fwhm / (2 * (2 * np.log(2))**0.5)))**2
+            * ((args[1] / r2m)**2 + (args[2] / r2m)**2)
+        )
+    return out
+
+
+@jit(nopython=True)
+def gvis_ssa0(args, Smax, fwhm, alpha, nu_m):
+    """
+    NOTE: This function is intended to fix model position to (0,0)
+        Arguments:
+            args (tuple): input sub-arguments
+                args[0] (array or float): input frequency
+                args[1] (1D-array): u-axis data points
+                args[2] (1D-array): v-axis data points
+            Smax (float): flux density of Gaussian model at 'nu_m'
+            fwhm (float): full-width at half maximum of Gaussian model
+            alpha (float): optically thin spectral index of Gaussian model
+            nu_m (float): turnover frequency
+        Returns:
+            complex visibility of Gaussian model (based on SSA spectrum; Turler+1999, A&A, 349, 45T)
+    """
+    out =\
+        SSA(args[0], Smax, nu_m, alpha) \
+        * np.e**(
+            -2 * (np.pi * (fwhm / (2 * (2 * np.log(2))**0.5)))**2
+            * ((args[1] / r2m)**2 + (args[2] / r2m)**2)
+        )
+    return out
+
+
+@jit(nopython=True)
+def dvis(args, S, l, m):
+    """
+        Arguments:
+            args (tuple): input sub-arguments
+                args[0] (1D-array): u-axis data points
+                args[1] (1D-array): v-axis data points
+            S (float): flux density of delta function model
+            l (float): right ascension position of delta function model
+            m (float): declination position of delta function model
+        Returns:
+            complex visibility of Gaussian model
+    """
+    out =\
+        S \
+        * np.e**(
+            2j * np.pi * ((args[0] / r2m) * l + (args[1] / r2m) * m)
+        )
+    return out
+
+
+@jit(nopython=True)
+def gvis(args, S, fwhm, l, m):
+    """
+        Arguments:
+            args (tuple): input sub-arguments
+                args[0] (1D-array): u-axis data points
+                args[1] (1D-array): v-axis data points
+            S (float): flux density of Gaussian model
+            fwhm (float): full-width at half maximum of Gaussian model
+            l (float): right ascension position of Gaussian model
+            m (float): declination position of Gaussian model
+        Returns:
+            complex visibility of Gaussian model
+    """
+    out =\
+        S \
+        * np.e**(
+            -2 * np.pi**2 * (fwhm / (2 * (2 * np.log(2))**0.5))**2
+            * ((args[0] / r2m)**2 + (args[1] / r2m)**2)
+            + 2j * np.pi * ((args[0] / r2m) * l + (args[1] / r2m) * m)
+        )
+    return out
+
+
+@jit(nopython=True)
+def gvis_spl(args, Smax, fwhm, l, m, alpha):
+    """
+        Arguments:
+            args (tuple): input sub-arguments
+                args[0] (float): reference frequency, recommended to set at the lowest one
+                args[1] (array or float): input frequency
+                args[2] (1D-array): u-axis data points
+                args[3] (1D-array): v-axis data points
+            Smax (float): flux density of Gaussian model at 'args[0]'
+            fwhm (float): full-width at half maximum of Gaussian model
+            l (float): right ascension position of Gaussian model
+            m (float): declination position of Gaussian model
+            alpha (float): optically thin spectral index of Gaussian model
+        Returns:
+            complex visibility of Gaussian model (based on simple power-law spectrum)
+    """
+    out =\
+        S_spl(args[0], args[1], Smax, alpha) \
+        * np.e**(
+            -2 * (np.pi * (fwhm / (2 * (2 * np.log(2))**0.5)))**2
+            * ((args[2] / r2m)**2 + (args[3] / r2m)**2)
+            + 2j * np.pi * ((args[2] / r2m) * l + (args[3] / r2m) * m)
+        )
+    return out
+
+
+@jit(nopython=True)
+def gvis_cpl(args, Smax, fwhm, l, m, alpha, nu_m):
+    """
+        Arguments:
+            args (tuple): input sub-arguments
+                args[0] (float): reference frequency, recommended to set at the lowest one
+                args[1] (array or float): input frequency
+                args[2] (1D-array): u-axis data points
+                args[3] (1D-array): v-axis data points
+            Smax (float): flux density of Gaussian model at 'nu_m'
+            fwhm (float): full-width at half maximum of Gaussian model
+            l (float): right ascension position of Gaussian model
+            m (float): declination position of Gaussian model
+            alpha (float): optically thin spectral index of Gaussian model
+        Returns:
+            complex visibility of Gaussian model (based on simple power-law spectrum)
+    """
+    out =\
+        S_cpl(args[0], Smax, nu_m, alpha) \
+        * np.e**(
+            -2 * (np.pi * (fwhm / (2 * (2 * np.log(2))**0.5)))**2
+            * ((args[1] / r2m)**2 + (args[2] / r2m)**2)
+            + 2j * np.pi * ((args[1] / r2m) * l + (args[2] / r2m) * m)
+        )
+    return out
+
+
+@jit(nopython=True)
+def gvis_ssa(args, Smax, fwhm, l, m, alpha, nu_m):
+    """
+        Arguments:
+            args (tuple): input sub-arguments
+                args[0] (array or float): input frequency
+                args[1] (1D-array): u-axis data points
+                args[2] (1D-array): v-axis data points
+            Smax (float): flux density of Gaussian model at 'nu_m'
+            fwhm (float): full-width at half maximum of Gaussian model
+            l (float): right ascension position of Gaussian model
+            m (float): declination position of Gaussian model
+            alpha (float): optically thin spectral index of Gaussian model
+            nu_m (float): turnover frequency
+        Returns:
+            complex visibility of Gaussian model (based on SSA spectrum)
+    """
+    out =\
+        SSA(args[0], Smax, nu_m, alpha) \
+        * np.e**(
+            -2
+            * (np.pi * (fwhm / (2 * (2 * np.log(2))**0.5)))**2
+            * ((args[1] / r2m)**2 + (args[2] / r2m)**2)
+            + 2j * np.pi * ((args[1] / r2m) * l + (args[2] / r2m) * m)
+        )
+    return out
+
+
+@jit(nopython=True)
+def set_closure(
+    data_vis, data_ant1, data_ant2,
+    mask_amp12, mask_amp34, mask_amp13, mask_amp24,
+    mask_phs12, mask_phs23, mask_phs31
+):
+    """
+    Set the closure quantities for the input dataset
+        Arguments:
+            data_u (1D-array): u-coordinate of the visibility data
+            data_v (1D-array): v-coordinate of the visibility data
+            data_vis (1D-array): visibility data
+            data_sig (1D-array): uncertainty of the visibility data
+            data_ant1 (1D-array): antenna 1 of the visibility data
+            data_ant2 (1D-array): antenna 2 of the visibility data
+            clamp_uvcomb (tuple): closure amplitude uv-combination
+            clphs_uvcomb (tuple): closure phase uv-combination
+        Returns:
+            tuple: (closure_amplitude, closure_phase),
+    """
+
+    clamp = np.array([])
+    clphs = np.array([])
+
+    Nant = len(np.unique(np.append(data_ant1, data_ant2)))
+
+    if Nant >= 4:
+        amp12 = np.abs(data_vis[mask_amp12])
+        amp34 = np.abs(data_vis[mask_amp34])
+        amp13 = np.abs(data_vis[mask_amp13])
+        amp24 = np.abs(data_vis[mask_amp24])
+        clamp = (amp12 * amp34) / (amp13 * amp24)
+
+    if Nant >= 3:
+        phs12 = np.angle(data_vis[mask_phs12])
+        phs23 = np.angle(data_vis[mask_phs23])
+        phs31 = np.angle(data_vis[mask_phs31].conj())
+        clphs = phs12 + phs23 + phs31
+
+    if Nant >= 3:
+        return clamp, clphs
+    else:
+        out_txt = "There are no valid closure quantities"
+        raise Exception(out_txt)

@@ -26,7 +26,7 @@ class polarization:
     def __init__(self,
         uvfs=None, runmf=False, iprms=None, ierrors=None, ftype=None, fwght=None, bands=None,
         sampler=None, bound="multi", stokes=["q", "u"], spectrum=None, freq_ref=None,
-        npix=128, mindr=3, beam_prms=None,
+        npix=128, mindr=3, bprms=None,
         save_path=None, source=None, date=None, ncpu=1
     ):
         self.uvfs = uvfs
@@ -45,7 +45,7 @@ class polarization:
 
         self.npix = npix
         self.mindr = mindr
-        self.beam_prms = beam_prms
+        self.bprms = bprms
 
         self.save_path = save_path
         self.source = source
@@ -267,14 +267,14 @@ class polarization:
     def run_pol(self,
         uvfs=None, uvw=None, runmf=False, iprms=None, ierrors=None, ftype=None, fwght=None, bands=None,
         sampler=None, bound=None, stokes=["q", "u"], spectrum=None, freq_ref=None,
-        npix=128, mindr=3, beam_prms=None,
+        npix=128, mindr=3, bprms=None,
         save_path=None, source=None, date=None
     ):
         self.source = source
         self.date = date
         self.npix = npix
         self.mindr = mindr
-        self.beam_prms = beam_prms
+        self.bprms = bprms
 
         nfreq = len(uvfs)
         ufreq = [uvfs[i].freq for i in range(nfreq)]
@@ -300,20 +300,20 @@ class polarization:
             uvf_ = gamvas.utils.set_uvf([uvfs[nfreq_]], type="sf")
 
             # set total, model flux density
-            zblf = []
+            sblf = []
             if runmf:
                 if spectrum == "spl":
                     for nmod_ in range(nmod):
                         mask_s = np.where(np.array(iprms.dtype.names) == f"{nmod_ + 1}_S")[0][0]
                         mask_a = np.where(np.array(iprms.dtype.names) == f"{nmod_ + 1}_alpha")[0][0]
-                        uzblf =\
+                        usblf =\
                             gamvas.functions.S_spl(
                                 freq_ref,
                                 uvf_.freq,
                                 ufloat(np.ma.getdata(iprms).tolist()[mask_s], ierrors[mask_s]),
                                 ufloat(np.ma.getdata(iprms).tolist()[mask_a], ierrors[mask_a])
                             )
-                        zblf.append(uzblf)
+                        sblf.append(usblf)
                 elif spectrum == "cpl":
                     for nmod_ in range(nmod):
                         if nmod_ == 0:
@@ -324,25 +324,25 @@ class polarization:
                             mask_s = np.where(np.array(iprms.dtype.names) == f"{nmod_ + 1}_S")[0][0]
                             mask_f = np.where(np.array(iprms.dtype.names) == f"{nmod_ + 1}_freq")[0][0]
                             mask_a = np.where(np.array(iprms.dtype.names) == f"{nmod_ + 1}_alpha")[0][0]
-                            uzblf =\
+                            usblf =\
                                 gamvas.functions.S_cpl(
                                     uvf_.freq,
                                     ufloat(np.ma.getdata(iprms).tolist()[mask_s], ierrors[mask_s]),
                                     ufloat(np.ma.getdata(iprms).tolist()[mask_f], ierrors[mask_f]),
                                     ufloat(np.ma.getdata(iprms).tolist()[mask_a], ierrors[mask_a])
                                 )
-                            zblf.append(uzblf)
+                            sblf.append(usblf)
                         else:
                             mask_s = np.where(np.array(iprms.dtype.names) == f"{nmod_ + 1}_S")[0][0]
                             mask_a = np.where(np.array(iprms.dtype.names) == f"{nmod_ + 1}_alpha")[0][0]
-                            uzblf =\
+                            usblf =\
                                 gamvas.functions.S_spl(
                                     freq_ref,
                                     uvf_.freq,
                                     ufloat(np.ma.getdata(iprms).tolist()[mask_s], ierrors[mask_s]),
                                     ufloat(np.ma.getdata(iprms).tolist()[mask_a], ierrors[mask_a])
                                 )
-                            zblf.append(uzblf)
+                            sblf.append(usblf)
                 elif spectrum == "ssa":
                     for nmod_ in range(nmod):
                         if nmod_ == 0:
@@ -353,33 +353,33 @@ class polarization:
                             mask_s = np.where(np.array(iprms.dtype.names) == f"{nmod_ + 1}_S")[0][0]
                             mask_f = np.where(np.array(iprms.dtype.names) == f"{nmod_ + 1}_freq")[0][0]
                             mask_a = np.where(np.array(iprms.dtype.names) == f"{nmod_ + 1}_alpha")[0][0]
-                            uzblf =\
+                            usblf =\
                                 gamvas.functions.SSA(
                                     uvf_.freq,
                                     ufloat(np.ma.getdata(iprms).tolist()[mask_s], ierrors[mask_s]),
                                     ufloat(np.ma.getdata(iprms).tolist()[mask_f], ierrors[mask_f]),
                                     ufloat(np.ma.getdata(iprms).tolist()[mask_a], ierrors[mask_a])
                                 )
-                            zblf.append(uzblf)
+                            sblf.append(usblf)
                         else:
                             mask_s = np.where(np.array(iprms.dtype.names) == f"{nmod_ + 1}_S")[0][0]
                             mask_a = np.where(np.array(iprms.dtype.names) == f"{nmod_ + 1}_alpha")[0][0]
-                            uzblf =\
+                            usblf =\
                                 gamvas.functions.S_spl(
                                     freq_ref,
                                     uvf_.freq,
                                     ufloat(np.ma.getdata(iprms).tolist()[mask_s], ierrors[mask_s]),
                                     ufloat(np.ma.getdata(iprms).tolist()[mask_a], ierrors[mask_a])
                                 )
-                            zblf.append(uzblf)
+                            sblf.append(usblf)
             else:
                 for nmod_ in range(nmod):
                     mask_s = np.where(np.array(iprms.dtype.names) == f"{nmod_ + 1}_S")[0][0]
-                    uzblf = ufloat(np.ma.getdata(iprms).tolist()[mask_s], ierrors[mask_s])
-                    zblf.append(uzblf)
+                    usblf = ufloat(np.ma.getdata(iprms).tolist()[mask_s], ierrors[mask_s])
+                    sblf.append(usblf)
 
-            uiflux = np.sum(zblf)
-            zblf = unp.nominal_values(zblf) / np.sqrt(2)
+            uiflux = np.sum(sblf)
+            sblf = unp.nominal_values(sblf) / np.sqrt(2)
 
             for nstoke, stoke in enumerate(stokes):
                 # set ata
@@ -421,7 +421,7 @@ class polarization:
                 )
 
                 # extract total emission map (nominal beam)
-                uvf.ploter.bnom = uvf.beam_prms
+                uvf.ploter.bprms = uvf.bprms
                 uvf.ploter.prms = iprms
                 uvf.ploter.fitset = fitset
                 uvf.ploter.spectrum = spectrum
@@ -446,11 +446,11 @@ class polarization:
                 uvf_.fits_clean_dflux_i = unp.std_devs(uiflux)
 
                 # extract total emission map (restored beam)
-                bnom_ = uvf.ploter.bnom
+                bnom_ = uvf.ploter.bprms
                 if fitset == "mf":
-                    uvf.ploter.bnom = self.beam_prms
+                    uvf.ploter.bprms = self.bprms
                 else:
-                    uvf.ploter.bnom = (bnom_[0], bnom_[0], 0)
+                    uvf.ploter.bprms = (bnom_[0], bnom_[0], 0)
                 returned =\
                     uvf.ploter.draw_image(
                         uvf=uvf,
@@ -465,7 +465,7 @@ class polarization:
                         ifsingle=True,
                         set_spectrum=set_spectrum_,
                     )
-                uvf.ploter.bnom = bnom_
+                uvf.ploter.bprms = bnom_
                 uvf_.fits_image_vi_res = returned[0]
                 uvf_.fits_image_rms_i_res = gamvas.utils.cal_rms(returned[1])
                 uvf_.fits_imgcntr_i_res = gamvas.utils.make_cntr(returned[0], rms=uvf_.fits_image_rms_i)
@@ -495,7 +495,7 @@ class polarization:
                 # set boundary
                 bnd_S =\
                     gamvas.utils.set_boundary(
-                        nmod=nmod, select=stoke, spectrum="single", zblf=zblf
+                        nmod=nmod, select=stoke, spectrum="single", sblf=sblf
                     )
 
                 bnds =\
@@ -654,7 +654,7 @@ class polarization:
                     save_name="model_result.txt"
                 )
 
-                uvf.ploter.bnom = uvf.beam_prms
+                uvf.ploter.bprms = uvf.bprms
                 uvf.ploter.prms = iprms
                 uvf.ploter.pprms = pprms
 
@@ -764,9 +764,9 @@ class polarization:
 
                 # set restoring beam parameters
                 if fitset == "mf":
-                    uvf.ploter.bnom = self.beam_prms
+                    uvf.ploter.bprms = self.bprms
                 else:
-                    uvf.ploter.bnom = (bnom_[0], bnom_[0], 0)
+                    uvf.ploter.bprms = (bnom_[0], bnom_[0], 0)
                 returned_res =\
                     uvf.ploter.draw_image(
                         uvf=uvf,
@@ -813,9 +813,9 @@ class polarization:
 
             # draw nominal-beam image
             ## set fits restoring beam size
-            uvf_.fits_bmin = uvf_.beam_prms[0]
-            uvf_.fits_bmaj = uvf_.beam_prms[1]
-            uvf_.fits_bpa = uvf_.beam_prms[2]
+            uvf_.fits_bmin = uvf_.bprms[0]
+            uvf_.fits_bmaj = uvf_.bprms[1]
+            uvf_.fits_bpa = uvf_.bprms[2]
 
             ## set image parameters
             fnpix = int(np.round(self.npix / 256))
@@ -850,12 +850,12 @@ class polarization:
             ## draw restored-beam image
             ## set fits restoring beam size
             if fitset == "mf":
-                uvf_.fits_bmin = self.beam_prms[0]
-                uvf_.fits_bmaj = self.beam_prms[1]
-                uvf_.fits_bpa = self.beam_prms[2]
+                uvf_.fits_bmin = self.bprms[0]
+                uvf_.fits_bmaj = self.bprms[1]
+                uvf_.fits_bpa = self.bprms[2]
             else:
-                uvf_.fits_bmin = uvf_.beam_prms[0]
-                uvf_.fits_bmaj = uvf_.beam_prms[0]
+                uvf_.fits_bmin = uvf_.bprms[0]
+                uvf_.fits_bmaj = uvf_.bprms[0]
                 uvf_.fits_bpa = 0
 
             ## set restored images
@@ -901,7 +901,7 @@ class polarization:
             pprms_q = self.pprms_q
             pprms_u = self.pprms_u
             lp = np.sqrt(pprms_q**2 + pprms_u**2)
-            fp = lp / np.ma.getdata(zblf) * 100
+            fp = lp / np.ma.getdata(sblf) * 100
             pa = 0.5 * np.arctan2(pprms_u, pprms_q) * u.rad.to(u.deg)
 
             modelprms = open(save_path_p + "model_result.txt", mode="a")

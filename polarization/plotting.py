@@ -24,7 +24,7 @@ import gamvas
 class plotter:
     def __init__(
         self, mrng=False, npix=128, nmod=False, prms=False, freq_ref=False, freq=False,
-        bmin=False, bmaj=False, bpa=False, bnom=False, source=False, date=False
+        bmin=False, bmaj=False, bpa=False, bprms=False, source=False, date=False
     ):
 
         self.mrng = mrng
@@ -39,7 +39,7 @@ class plotter:
         self.bpa = bpa
         self.psize = self.mrng / self.npix
 
-        self.bnom = bnom
+        self.bprms = bprms
 
         axis_range = np.linspace(-mrng, +mrng, npix)
         xgrid, ygrid = np.meshgrid(-axis_range, +axis_range)
@@ -73,8 +73,8 @@ class plotter:
         self.bmin = bmin
         self.bmaj = bmaj
         self.bpa = bpa
-        self.bnom = (bmin, bmaj, bpa)
-        return self.bnom
+        self.bprms = (bmin, bmaj, bpa)
+        return self.bprms
 
 
     def draw_cgains(self,
@@ -1323,7 +1323,7 @@ class plotter:
 
 
     def convolve_image(
-        self, uvf, npix, image=False, bnom=False
+        self, uvf, npix, image=False, bprms=False
     ):
         """
         convolve the generated intensity image with restoring beam (Jy/beam)
@@ -1331,13 +1331,13 @@ class plotter:
             uvf (python class): opened-fits file in uvf-class
             npix (int): the number of pixels in the map
             image (2D-array): generated image
-            bnom (tuple): beam parameters (beam minor, beam major, beam position angle)
+            bprms (tuple): beam parameters (beam minor, beam major, beam position angle)
         Returns:
             conv_image (2D-array): convolved image (n by n)
         """
-        if isinstance(bnom, bool) and not bnom:
-            bnom = self.bnom
-        bmin, bmaj, bpa = bnom
+        if isinstance(bprms, bool) and not bprms:
+            bprms = self.bprms
+        bmin, bmaj, bpa = bprms
         bsize = np.pi*bmin*bmaj/4/np.log(2)
 
         mrng, npix, psize = self.set_imgprms(uvf=uvf, npix=npix, mrng=uvf.mrng.value)
@@ -1352,7 +1352,7 @@ class plotter:
 
 
     def draw_image(self,
-        uvf, bnom=None, freq_ref=None, freq=None, genlevels=False, npix=128, mindr=3, minlev=0.01, maxlev=0.99, step=2, fsize=8,
+        uvf, bprms=None, freq_ref=None, freq=None, genlevels=False, npix=128, mindr=3, minlev=0.01, maxlev=0.99, step=2, fsize=8,
         contourw=0.3, mintick_map=0.5, majtick_map=2.5, mintick_cb=0.2, majtick_cb=1.0, ifsingle=True, set_spectrum=True,
         save_img=False, save_path=False, save_name=False, save_form="png",
         plotimg=True, plot_resi=False, addnoise=False, outfig=False, title=None, show_title=False
@@ -1361,7 +1361,7 @@ class plotter:
         draw final image
         Arguments:
             uvf (python class): opened-fits file in uvf-class
-            bnom (tuple): beam parameters (beam minor, beam major, beam position angle)
+            bprms (tuple): beam parameters (beam minor, beam major, beam position angle)
             freq_ref (float): reference frequency
             freq (float): frequency to plot by considering estimated spectrum
             levels (list): contour levels to draw
@@ -1386,10 +1386,10 @@ class plotter:
             freq_ref = self.freq_ref
         if freq is None:
             freq = self.freq
-        if bnom is None:
-            bnom = self.bnom
+        if bprms is None:
+            bprms = self.bprms
 
-        bmin, bmaj, bpa = bnom
+        bmin, bmaj, bpa = bprms
 
         mrng = uvf.mrng.value
         npix = npix
@@ -1433,7 +1433,7 @@ class plotter:
         self.draw_dirtymap(uvf=uvf, mrng=mrng, npix=npix, uvw=uvf.uvw, plot_resi=addnoise, plotimg=False)
         self.generate_image(uvf=uvf, freq_ref=freq_ref, freq=freq, prms=prms, ifsingle=ifsingle, set_spectrum=set_spectrum, spectrum=self.spectrum)
         image = self.image.copy()
-        image = self.convolve_image(uvf=uvf, npix=npix, image=image, bnom=bnom)
+        image = self.convolve_image(uvf=uvf, npix=npix, image=image, bprms=bprms)
         if addnoise:
             resim = uvf.resid
             image += resim
