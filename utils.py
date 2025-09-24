@@ -7,7 +7,8 @@ import numpy as np
 import numpy.lib.recfunctions as rfn
 import matplotlib.pyplot as plt
 from scipy import optimize
-from astropy.convolution import convolve, Gaussian2DKernel
+from astropy.convolution import convolve
+from astropy.convolution import Gaussian2DKernel
 from astropy.modeling.models import Gaussian2D
 from astropy.time import Time as Ati
 from astropy import units as u
@@ -23,10 +24,9 @@ def close_figure(fig):
     """
     Close all figures and free memory.
     """
-    tmp=1
-    # plt.close(fig)
-    # plt.close("all")
-    # gc.collect()
+    plt.close(fig)
+    plt.close("all")
+    gc.collect()
 
 
 def mkdir(path):
@@ -50,10 +50,18 @@ def cal_rms(image, roi=False):
         cent = image.size
         unit = int(cent / 10)
         roi_1 = image[0:unit, 0:unit].reshape(-1)
-        roi_2 = image[0:unit, cent - int(unit / 2):cent + int(unit / 2)].reshape(-1)
+        roi_2 =\
+            image[
+                0:unit,
+                cent - int(unit / 2):cent + int(unit / 2)
+            ].reshape(-1)
         roi_3 = image[0:unit, -unit:-1].reshape(-1)
         roi_4 = image[-unit:-1, 0:unit].reshape(-1)
-        roi_5 = image[-unit:-1, cent - int(unit / 2):cent + int(unit / 2)].reshape(-1)
+        roi_5 =\
+            image[
+                -unit:-1,
+                cent - int(unit / 2):cent + int(unit / 2)
+            ].reshape(-1)
         roi_6 = image[-unit:-1, -unit:-1].reshape(-1)
         rois = np.concatenate((roi_1, roi_2, roi_3, roi_4, roi_5, roi_6))
         rms = np.nanstd(rois)
@@ -65,10 +73,18 @@ def cal_rms(image, roi=False):
             cent = image.size
             unit = int(cent / 10)
             roi_1 = image[0:unit, 0:unit].reshape(-1)
-            roi_2 = image[0:unit, cent - int(unit / 2):cent + int(unit / 2)].reshape(-1)
+            roi_2 =\
+                image[
+                    0:unit,
+                    cent - int(unit / 2):cent + int(unit / 2)
+                ].reshape(-1)
             roi_3 = image[0:unit, -unit:-1].reshape(-1)
             roi_4 = image[-unit:-1, 0:unit].reshape(-1)
-            roi_5 = image[-unit:-1, cent - int(unit / 2):cent + int(unit / 2)].reshape(-1)
+            roi_5 =\
+                image[
+                    -unit:-1,
+                    cent - int(unit / 2):cent + int(unit / 2)
+                ].reshape(-1)
             roi_6 = image[-unit:-1, -unit:-1].reshape(-1)
             rois = np.concatenate((roi_1, roi_2, roi_3, roi_4, roi_5, roi_6))
             rms = np.nanstd(rois)
@@ -424,8 +440,29 @@ def set_uvf(dataset, type="sf"):
     """
     out = copy.deepcopy(dataset[0])
     ndat = len(dataset)
+    mjd = np.array([])
+    ww = np.array([])
+    vis_1 = np.array([])
+    vis_2 = np.array([])
+    vis_3 = np.array([])
+    vis_4 = np.array([])
+    sig_1 = np.array([])
+    sig_2 = np.array([])
+    sig_3 = np.array([])
+    sig_4 = np.array([])
     for i in range(ndat):
+        mjd = np.append(mjd, dataset[i].mjd)
+        ww = np.append(ww, dataset[i].ww)
+        vis_1 = np.append(vis_1, dataset[i].vis_1)
+        vis_2 = np.append(vis_2, dataset[i].vis_2)
+        vis_3 = np.append(vis_3, dataset[i].vis_3)
+        vis_4 = np.append(vis_4, dataset[i].vis_4)
+        sig_1 = np.append(sig_1, dataset[i].sig_1)
+        sig_2 = np.append(sig_2, dataset[i].sig_2)
+        sig_3 = np.append(sig_3, dataset[i].sig_3)
+        sig_4 = np.append(sig_4, dataset[i].sig_4)
         data_ = dataset[i].data
+        tarr_ = dataset[i].tarr
         clamp_ = dataset[i].clamp
         clphs_ = dataset[i].clphs
         tmpl_clamp_ = dataset[i].tmpl_clamp
@@ -433,6 +470,7 @@ def set_uvf(dataset, type="sf"):
         uant = np.unique(np.append(data_["ant_name1"], data_["ant_name2"]))
         if ndat == 1:
             data = data_
+            tarr = tarr_
             clamp = clamp_
             clphs = clphs_
             tmpl_clamp = tmpl_clamp_
@@ -440,12 +478,16 @@ def set_uvf(dataset, type="sf"):
         else:
             if i == 0:
                 data = data_
+                tarr = tarr_
                 clamp = clamp_
                 clphs = clphs_
                 tmpl_clamp = tmpl_clamp_
                 tmpl_clphs = tmpl_clphs_
             else:
                 data = rfn.stack_arrays((data, data_))
+                for nant in range(len(uant)):
+                    if tarr_["name"][nant] not in tarr["name"]:
+                        tarr = rfn.stack_arrays((tarr, tarr_[nant]))
                 if len(uant) >= 4:
                     clamp = rfn.stack_arrays((clamp, clamp_))
                     tmpl_clamp = rfn.stack_arrays((tmpl_clamp, tmpl_clamp_))
@@ -455,17 +497,39 @@ def set_uvf(dataset, type="sf"):
     out.ufreq = [dataset[i].freq for i in range(ndat)]
     out.avgtime = dataset[0].avgtime
     out.data = data
+    out.tarr = tarr
     out.clamp = clamp
     out.clphs = clphs
     out.tmpl_clamp = tmpl_clamp
     out.tmpl_clphs = tmpl_clphs
     out.fit_beam(uvw=dataset[0].uvw)
     out.ploter.clq_obs = (clamp, clphs)
+
     if type == "sf":
         out.select = dataset[0].select
     elif type == "mf":
         out.freq = nan
         out.select = "mf"
+
+    out.time = data["time"]
+    out.tint = data["tint"]
+    out.ant_name1 = data["ant_name1"]
+    out.ant_name2 = data["ant_name2"]
+    out.ant_num1 = data["ant_num1"]
+    out.ant_num2 = data["ant_num2"]
+    out.uvu = data["u"]
+    out.uvv = data["v"]
+    out.mjd = mjd
+    out.ww = ww
+    out.vis_1 = vis_1
+    out.vis_2 = vis_2
+    out.vis_3 = vis_3
+    out.vis_4 = vis_4
+    out.sig_1 = sig_1
+    out.sig_2 = sig_2
+    out.sig_3 = sig_3
+    out.sig_4 = sig_4
+
     return out
 
 
@@ -597,8 +661,8 @@ def set_boundary(
         in_bnd_m = [[+0.00, +1.00]]
         in_bnd_f = [bnd_f]
         if spectrum in ["single", "spl"]:
-            # in_bnd_i = [[-3.00, +3.00]]
-            in_bnd_i = [[-3.00, -0.00]]
+            in_bnd_i = [[-3.00, +3.00]]
+            # in_bnd_i = [[-3.00, -0.00]]
         else:
             in_bnd_i = [[-3.00, +0.00]]
 
@@ -614,8 +678,8 @@ def set_boundary(
                     in_bnd_l += [bnd_l]
                     in_bnd_m += [bnd_m]
                     in_bnd_f += [bnd_f]
-                    # in_bnd_i += [[-3.00, +3.00]]
-                    in_bnd_i += [[-3.00, -0.00]]
+                    in_bnd_i += [[-3.00, +3.00]]
+                    # in_bnd_i += [[-3.00, -0.00]]
                     in_bnd_a += [[+0.00, +width]]
             elif spectrum in ["cpl", "ssa"]:
                 for i in range(nmod_):

@@ -49,11 +49,11 @@ ftype = ["amp", "clamp", "clphs"]
 fwght = [0.1, 1, 1]
 
 # set source-corresponding parameters
-source = "1928+738"     # (str) : source name
-mrng   = 22.0           # (float) [mas] : map range
-bnd_l  = [-5 , +5]      # (list, float) [mas] : boundary condition on Right Ascension
-bnd_m  = [-20, +0]      # (list, float) [mas] : boundary condition on Declination
-bnd_pa = None           # (list, float / or None) [deg] : boundary condition on jet position angle
+source = "1928+738"     # (str): source name
+mrng   = 22.0           # (float) [mas]: map range
+bnd_l  = [-5 , +5]      # (list, float) [mas]: boundary condition on Right Ascension
+bnd_m  = [-20, +0]      # (list, float) [mas]: boundary condition on Declination
+bnd_pa = [None]         # (list, float / or None) [deg]: boundary condition on jet position angle
 width  = 3              # (float) [mas] : maximum width of a Gaussian model
 
 
@@ -88,23 +88,22 @@ uvf3.flag_uvvis(type="snr", value=snrflag)
 uvf4.flag_uvvis(type="snr", value=snrflag)
 
 # NOTE: flag uv-visibility data by the number of antenna
-fant = 4 # flag visibility if the number of antenna is less than this value
-uvf1.flag_uvvis(type="nant", value=fant)
-uvf2.flag_uvvis(type="nant", value=fant)
-uvf3.flag_uvvis(type="nant", value=fant)
-uvf4.flag_uvvis(type="nant", value=3)       # assume 129 GHz data contains only three stations
+uvf1.flag_uvvis(type="nant", value=4)
+uvf2.flag_uvvis(type="nant", value=4)
+uvf3.flag_uvvis(type="nant", value=4)
+uvf4.flag_uvvis(type="nant", value=3)
 
 # apply systematics estimated from median absolute deviation (MAD)
-# NOTE: four stations are necessary to apply systematics to "clamp"
 uvf1.apply_systematics(binning=uvave, types=["vis", "clamp", "clphs"])
 uvf2.apply_systematics(binning=uvave, types=["vis", "clamp", "clphs"])
 uvf3.apply_systematics(binning=uvave, types=["vis", "clamp", "clphs"])
 uvf4.apply_systematics(binning=uvave, types=["vis", "clphs"])
 
-# (optional) add additional fractinoal errors to complex visibility to consider gain self-calibration unceratinty
-uvf1.add_error_fraction(0.20)   # add 20% (22 GHz)
-uvf2.add_error_fraction(0.20)   # add 20% (43 GHz)
-uvf3.add_error_fraction(0.20)   # add 20% (86 GHz)
+# add additional fractinoal errors to complex visibility
+# to consider gain self-calibration unceratinty
+uvf1.add_error_fraction(0.10)   # add 20% (22 GHz)
+uvf2.add_error_fraction(0.10)   # add 20% (43 GHz)
+uvf3.add_error_fraction(0.10)   # add 20% (86 GHz)
 uvf4.add_error_fraction(0.30)   # add 30% (129 GHz)
 
 # make multi-frequency uv-fits

@@ -138,15 +138,15 @@ def get_vlbi(name):
         if name.upper() == "KVN":
             VLBIarr = ["KT", "KU", "KY"]
         elif name.upper() == "EKVN":
-            VLBIarr = ["KT", "KU", "KY", "KC"]
+            VLBIarr = ["KC", "KT", "KU", "KY"]
         elif name.upper() == "EKVN+KR":
-            VLBIarr = ["KT", "KU", "KY", "KC", "KR"]
+            VLBIarr = ["KC", "KT", "KU", "KY", "KR"]
         elif name.upper() == "EKVN+KR+KV":
-            VLBIarr = ["KT", "KU", "KY", "KC", "KV", "KR"]
+            VLBIarr = ["KC", "KT", "KU", "KY", "KV", "KR"]
         elif name.upper() == "KVNMP":
             VLBIarr = ["KT", "KU", "KY", "MP"]
         elif name.upper() == "EKVNMP":
-            VLBIarr = ["KT", "KU", "KY", "KC", "MP"]
+            VLBIarr = ["KC", "KT", "KU", "KY", "MP"]
         elif name.upper() == "VLBA":
             VLBIarr = ["BR", "FD", "HN", "KP", "LA", "MK", "NL", "OV", "PT", "SC"]
         elif name.upper() == "KAVA":

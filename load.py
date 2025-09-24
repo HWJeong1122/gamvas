@@ -76,7 +76,7 @@ class open_fits:
         load_uvf (bool): toggle option if load uv-fits
     """
     def __init__(self,
-                 path=None, file=None, npixel1=False, npixel2=False,
+                 path="", file="", npixel1=False, npixel2=False,
                  bmin=False, bmaj=False, bpa=False, fluxmax=False,
                  fluxmin=False, noise=False, freq=False, stokes=None,
                  date=None, data=None, units=None, model=None,
@@ -320,14 +320,15 @@ class open_fits:
             out2 = self.fits_date
             out3 = self.fits_freq
             out4 = np.sum(self.fits_model["FLUX"])
-            out_txt = f"\nloading fits file.."\
+            out_txt =\
+                f"\nloading fits file.."\
                 f"  {out1} ({out2}, {out3:.3f} GHz, {out4:.2f} Jy)"
             print(out_txt)
 
         if self.uvinfo:
-            uu = self.data["u"]
-            vv = self.data["v"]
-            uvr = np.sqrt(uu**2 + vv**2)
+            uvu = self.data["u"]
+            uvv = self.data["v"]
+            uvr = np.sqrt(uvu**2 + uvv**2)
 
             major = self.fits_model["MAJOR AX"]
             minor = self.fits_model["MINOR AX"]
@@ -340,7 +341,7 @@ class open_fits:
             vism = np.zeros(len(uvr), dtype="c8")
             for i in range(self.fits_Nmodel):
                 vism += gamvas.functions.gvis(
-                    (uu, vv), mod_S[i], mod_a[i], mod_l[i], mod_m[i])
+                    (uvu, uvv), mod_S[i], mod_a[i], mod_l[i], mod_m[i])
 
             vism_s = []
             if self.fits_stokes == 1:
@@ -357,9 +358,10 @@ class open_fits:
             self.vism = vism_s
 
     def load_uvf(self,
-                 select="i", select_if="all", uvw="natural", uvave="none",
-                 scanlen=600, d=0.0, m=0.0, dosyscal=True, doscatter=False,
-                 set_clq=True, set_pang=True, fullclq=True, pinfo=True):
+                 select="i", select_if="all", uvw="natural", mrng=None,
+                 uvave="none", scanlen=600, d=0.0, m=0.0, dosyscal=True,
+                 doscatter=False, set_clq=True, set_pang=True, minclq=True,
+                 pinfo=True):
         """
         Load uv-fits file and extract the information
             Arguments:
@@ -379,7 +381,9 @@ class open_fits:
         self.uvw = uvw
         self.uvinfo = True
         self.select_if = select_if
-        self.fullclq = fullclq
+        self.minclq = minclq
+        if mrng is not None:
+            self.mrng = mrng
 
         self.d = d
         self.m = m
@@ -387,6 +391,7 @@ class open_fits:
         if not os.path.isfile(self.path + self.file):
             raise Exception(f"File not found: {self.path + self.file}")
         uvf_file = fits.open(self.path + self.file)
+        self.uvf_file = uvf_file
 
         h1 = uvf_file["PRIMARY"]
         h2 = uvf_file["AIPS FQ"]
@@ -412,12 +417,12 @@ class open_fits:
         self.refGST = h3.header["GSTIA0"]
         self.f2w = (C.c / (self.freq * u.GHz)).to(u.m).value
 
-        if self.select_if == "all":
-            ifs = np.arange(self.no_if)
-        elif self.select_if in ["1", "2", "3", "4", "5", "6", "7", "8"]:
-            ifs = np.array([self.select_if]).astype(int)-1
-        else:
+        if isinstance(self.select_if, (list, tuple)):
             ifs = np.array(self.select_if)
+        elif self.select_if == "all":
+            ifs = np.arange(self.no_if)
+        else:
+            ifs = np.array([self.select_if]).astype(int) - 1
         self.no_if = ifs.size
 
         list_uu = ["UU---SIN", "UU--", "UU"]
@@ -436,7 +441,6 @@ class open_fits:
         vv = data1[idx_vv] * self.freq * 1e9
         ww = data1[idx_ww] * self.freq * 1e9
 
-        bline = data1["BASELINE"]
         DATE = data1["DATE"].astype(np.float64)
         _DATE = data1["_DATE"].astype(np.float64)
         date = Ati(DATE + _DATE, format="jd").iso
@@ -696,8 +700,8 @@ class open_fits:
 
         self.time = time
         self.mjd = mjd
-        self.uu = uu
-        self.vv = vv
+        self.uvu = uu
+        self.uvv = vv
         self.ww = ww
         self.uvdist = uvdist
 
@@ -722,8 +726,14 @@ class open_fits:
 
         self.select = select
 
-        self.set_uvvis()
-        self.set_closure(fullclq=self.fullclq)
+        self.sort_uvvis(
+            type="tb&ant", reverse=False, set_uvvis=False, set_closure=False,
+            minclq=minclq
+        )
+
+        self.set_uvvis(set_pang=set_pang)
+        if set_clq:
+            self.set_closure(minclq=self.minclq)
 
         if self.avgtime in ["none", "scan"]:
             binning = self.scanlen
@@ -732,9 +742,9 @@ class open_fits:
 
         if dosyscal:
             self.cal_systematics(binning=binning, type="vis")
-            if len(uant) >= 4:
+            if len(uant) >= 4 and set_clq:
                 self.cal_systematics(binning=binning, type="clamp")
-            if len(uant) >= 3:
+            if len(uant) >= 3 and set_clq:
                 self.cal_systematics(binning=binning, type="clphs")
 
         self.uvave(
@@ -742,19 +752,13 @@ class open_fits:
             scanlen=scanlen,
             doscatter=doscatter,
             set_clq=set_clq,
-            set_pang=set_pang,
-            pinfo=pinfo
+            set_pang=set_pang
         )
 
         self.date = Ati(self.data["mjd"], format="mjd").iso[0][:10]
         self.fit_beam(uvw=uvw)
         bmin, bmaj, bpa = self.bprms
         source = self.source.replace(" ", "")
-
-        if self.nstokes == 4:
-            i = self.data["vis_i"]
-            p = self.data["vis_p"]
-            self.m = np.abs(np.nanmean(p/i))
 
         if pinfo:
             out1 = self.source
@@ -765,13 +769,19 @@ class open_fits:
             out6 = bpa
 
             if self.nstokes == 4:
+                i = self.data["vis_i"]
+                p = self.data["vis_p"]
+                self.m = np.abs(np.nanmedian(p/i))
                 out7 = self.m * 100
-                out_txt = f"\nloading uvf file.." \
+                out_txt =\
+                    f"\nloading uvf file.." \
                     f"  {out1:10s} ({out2}, {out3:7.3f} GHz" \
                     f", [{out4:5.2f} X {out5:5.2f} mas^2, {out6:5.1f} deg]" \
                     f", m_p={out7:.2f}% / rough estimation)"
             else:
-                out_txt = f"\nloading uvf file.." \
+                self.m = m
+                out_txt =\
+                    f"\nloading uvf file.." \
                     f"  {out1:10s} ({out2}, {out3:7.3f} GHz" \
                     f", [{out4:5.2f} X {out5:5.2f} mas^2, {out6:5.1f} deg])"
 
@@ -783,7 +793,7 @@ class open_fits:
 
     def uvave(self,
               uvave="none", scanlen=300, doscatter=False,
-              set_clq=True, set_pang=True, pinfo=True):
+              set_clq=True, set_pang=True):
         """
         Average the uv-visibility data
             Arguments:
@@ -813,8 +823,9 @@ class open_fits:
             mjd_ = data["mjd"]
             ant_name1_ = data["ant_name1"]
             ant_name2_ = data["ant_name2"]
-            uu_ = data["u"]
-            vv_ = data["v"]
+            uvu_ = data["u"]
+            uvv_ = data["v"]
+            ww_ = self.ww
             time_sec = data["time"] * 3600
 
             utime_sec = np.unique(time_sec)
@@ -854,8 +865,9 @@ class open_fits:
             tint = []
             ant_name1 = []
             ant_name2 = []
-            uu = []
-            vv = []
+            uvu = []
+            uvv = []
+            ww = []
             vis_1 = []
             vis_2 = []
             vis_3 = []
@@ -866,14 +878,7 @@ class open_fits:
             sig_4 = []
 
             for nstoke, pol in enumerate(pols):
-                if nstoke == 0:
-                    outvis, outsig = vis_1, sig_1
-                elif nstoke == 1:
-                    outvis, outsig = vis_2, sig_2
-                elif nstoke == 2:
-                    outvis, outsig = vis_3, sig_3
-                elif nstoke == 3:
-                    outvis, outsig = vis_4, sig_4
+                outvis, outsig = [], []
 
                 for nscan, scan in enumerate(uscan):
                     mask_scan = scannum == scan
@@ -889,13 +894,14 @@ class open_fits:
                                 mask_ant_name1 = ant_name1_ == uant_name1_
                                 mask_ant_name2 = ant_name2_ == uant_name2_
 
-                                mask_tot = mask_scan \
+                                mask_tot =\
+                                    mask_scan \
                                     & mask_time \
                                     & mask_ant_name1 \
                                     & mask_ant_name2
 
-                                mask_vis = len(data[f"vis_{pol}"][mask_tot]) \
-                                    == 0
+                                mask_vis =\
+                                    len(data[f"vis_{pol}"][mask_tot]) == 0
 
                                 if mask_vis:
                                     continue
@@ -910,10 +916,18 @@ class open_fits:
                                     continue
 
                                 weight = 1 / getsig**2
-                                avg_vis = np.average(getvis, weights=weight)
+
+                                mask_w =\
+                                    np.any(np.isnan(weight)) \
+                                    | np.any(np.isinf(weight))
+                                if mask_w:
+                                    avg_vis = np.mean(getvis)
+                                else:
+                                    avg_vis =\
+                                        np.average(getvis, weights=weight)
 
                                 if doscatter:
-                                    outsig_ = np.std(np.abs(getvis))
+                                    outsig_ = np.std(np.abs(getvis)) / np.sqrt(nvis)
                                     outsig.append(outsig_)
                                     outvis.append(avg_vis)
                                 else:
@@ -922,8 +936,11 @@ class open_fits:
                                         outvis.append(avg_vis)
                                     else:
                                         weight = 1 / getsig**2
-                                        outsig.append(np.sqrt(
-                                            (np.sum(getsig**2) / nvis**2)))
+                                        outsig.append(
+                                            np.sqrt(
+                                                (np.sum(getsig**2) / nvis**2)
+                                            )
+                                        )
                                         outvis.append(avg_vis)
 
                                 if nstoke == 0:
@@ -932,11 +949,22 @@ class open_fits:
                                     mjd.append(np.mean(mjd_[mask_tot]))
                                     ant_name1.append(uant_name1_)
                                     ant_name2.append(uant_name2_)
-                                    uu.append(np.mean(uu_[mask_tot]))
-                                    vv.append(np.mean(vv_[mask_tot]))
+                                    uvu.append(np.mean(uvu_[mask_tot]))
+                                    uvv.append(np.mean(uvv_[mask_tot]))
+                                    ww.append(np.mean(ww_[mask_tot]))
+
+                if nstoke == 0:
+                    vis_1, sig_1 = outvis, outsig
+                elif nstoke == 1:
+                    vis_2, sig_2 = outvis, outsig
+                elif nstoke == 2:
+                    vis_3, sig_3 = outvis, outsig
+                elif nstoke == 3:
+                    vis_4, sig_4 = outvis, outsig
 
             if self.nstokes not in [1, 2, 4]:
-                out_txt = "Unexpected polarization type number"\
+                out_txt =\
+                    "Unexpected polarization type number"\
                     f"(input:{self.nstokes})"
                 raise Exception(out_txt)
 
@@ -961,20 +989,22 @@ class open_fits:
                 self.vis_4 = np.full(len(vis_1), np.nan)
                 self.sig_3 = np.full(len(vis_1), 0.0)
                 self.sig_4 = np.full(len(vis_1), 0.0)
+
             self.time = np.array(time)
             self.tint = np.array(tint)
             self.mjd = np.array(mjd)
             self.ant_name1 = np.array(ant_name1)
             self.ant_name2 = np.array(ant_name2)
-            self.uu = np.array(uu)
-            self.vv = np.array(vv)
+            self.uvu = np.array(uvu)
+            self.uvv = np.array(uvv)
+            self.ww = np.array(ww)
             self.set_uvvis()
-        if set_pang:
-            self.cal_pangle()
-        if set_clq:
-            self.set_closure(fullclq=self.fullclq)
+            if set_pang:
+                self.cal_pangle()
+            if set_clq:
+                self.set_closure(minclq=self.minclq)
 
-    def set_uvvis(self):
+    def set_uvvis(self, set_pang=True):
         """
         Set the uv-visibility data
         """
@@ -983,9 +1013,9 @@ class open_fits:
         mjd = self.mjd
         ant_name1 = self.ant_name1
         ant_name2 = self.ant_name2
-        uu = self.uu
-        vv = self.vv
-        uvdist = np.sqrt(self.uu**2 + self.vv**2)
+        uvu = self.uvu
+        uvv = self.uvv
+        uvdist = np.sqrt(self.uvu**2 + self.uvv**2)
         freq = np.full(len(self.vis_1), self.freq)
         vis_1 = self.vis_1
         vis_2 = self.vis_2
@@ -1009,8 +1039,13 @@ class open_fits:
         sig_v = np.sqrt(sig_1**2 + sig_2**2) * 0.5
         sig_p = np.sqrt(sig_q**2 + sig_u**2) * 1.0
 
-        ant_num1 = np.array(list(map(self.ant_dict_name2num.get, ant_name1)))
-        ant_num2 = np.array(list(map(self.ant_dict_name2num.get, ant_name2)))
+        ant_dict_name2num = dict(zip(
+            self.tarr["name"],
+            np.arange(len(self.tarr), dtype=int) + 1)
+        )
+        ant_num1 = np.array(list(map(ant_dict_name2num.get, ant_name1)))
+        ant_num2 = np.array(list(map(ant_dict_name2num.get, ant_name2)))
+
 
         time_sec = (time * u.hour.to(u.second))
 
@@ -1034,7 +1069,7 @@ class open_fits:
 
             ]
             dataset = [
-                time, freq, tint, mjd, uu, vv,
+                time, freq, tint, mjd, uvu, uvv,
                 ant_num1, ant_num2, ant_name1, ant_name2, pair,
                 vis_i, vis_q, vis_u, vis_v, vis_p,
                 sig_i, sig_q, sig_u, sig_v, sig_p,
@@ -1059,7 +1094,7 @@ class open_fits:
             ]
 
             dataset = [
-                time, freq, tint, mjd, uu, vv,
+                time, freq, tint, mjd, uvu, uvv,
                 ant_num1, ant_num2, ant_name1, ant_name2, pair,
                 vis_i, vis_1, vis_2,
                 sig_i, sig_1, sig_2
@@ -1080,7 +1115,7 @@ class open_fits:
             ]
 
             dataset = [
-                time, freq, tint, mjd, uu, vv,
+                time, freq, tint, mjd, uvu, uvv,
                 ant_num1, ant_num2, ant_name1, ant_name2, pair,
                 vis_1, sig_1
             ]
@@ -1100,17 +1135,22 @@ class open_fits:
             usemask=False)
 
         self.data = data
-        self.cal_pangle()
+        if set_pang:
+            self.cal_pangle()
 
-    def set_closure(self, fullclq=True):
+    def set_closure_(self, minclq=False):
         """
         Set the closure quantities
         """
         if "vis" not in self.data.dtype.names:
             self.set_uvvis()
         data = self.data
-        ant_names = np.unique(np.append(data["ant_name1"], data["ant_name2"]))
+        tarr = self.tarr
         times = np.unique(data["time"])
+
+        torder = {tel: idx for idx, tel in enumerate(tarr["name"])}
+
+        ant_names = np.unique(np.append(data["ant_name1"], data["ant_name2"]))
 
         selects = []
         for ns, select in enumerate(data.dtype.names):
@@ -1189,26 +1229,42 @@ class open_fits:
             outcp_u23, outcp_v23 = [], []
             outcp_u31, outcp_v31 = [], []
 
+            flag_clamp = False
+            flag_clphs = False
+
             for ut, time in enumerate(utimes):
                 mask_time = data["time"] == time
                 data_ = data[data["time"] == time]
-                ant_names_ = np.unique(np.append(
-                    data_["ant_name1"], data_["ant_name2"]))
+
+                # ant_names_ =\
+                #     np.unique(np.append(
+                #         data_["ant_name1"], data_["ant_name2"]
+                #     ))
+                ant_names_ =\
+                    np.array(sorted(
+                        np.unique(np.append(
+                            data_["ant_name1"], data_["ant_name2"]
+                        )),
+                        key=lambda x: torder[x]
+                    ))
 
                 Nant = len(ant_names_)
                 if Nant >= 4:
                     crit = int(round(0.5 * Nant * (Nant - 3) / 2))
+                    crit_count = 0
                     quadrangles = list(it.combinations(ant_names_.tolist(), 4))
 
-                    if not fullclq:
-                        quadrangles = quadrangles[:crit]
-
                     for quadrangle in quadrangles:
+                        if minclq and crit_count >= crit:
+                            continue
+
                         for nvert in range(2):
                             if nvert == 0:
-                                quadra_ = [
-                                    quadrangle[0], quadrangle[1],
-                                    quadrangle[2], quadrangle[3]]
+                                quadra_ =\
+                                    [
+                                        quadrangle[0], quadrangle[1],
+                                        quadrangle[2], quadrangle[3]
+                                    ]
 
                                 mask_uv12 =\
                                     (mask_time) \
@@ -1227,9 +1283,11 @@ class open_fits:
                                     & (data["ant_name1"] == quadrangle[1]) \
                                     & (data["ant_name2"] == quadrangle[3])
                             else:
-                                quadra_ = [
-                                    quadrangle[0], quadrangle[2],
-                                    quadrangle[1], quadrangle[3]]
+                                quadra_ =\
+                                    [
+                                        quadrangle[0], quadrangle[2],
+                                        quadrangle[1], quadrangle[3]
+                                    ]
 
                                 mask_uv12 =\
                                     (mask_time) \
@@ -1270,6 +1328,7 @@ class open_fits:
                                     data["u"][mask_uv24][0],
                                     data["v"][mask_uv24][0])
 
+                                crit_count += 1
                                 outca_time.append(time)
                                 outca_freq.append(self.freq)
                                 outca_quad.append(out_quadrangle)
@@ -1283,12 +1342,13 @@ class open_fits:
                                 outca_v24.append(out_uv24[1])
                 if Nant >= 3:
                     crit = int(round(0.5 * (Nant - 1) * (Nant - 2)))
+                    crit_count = 0
                     triangles = list(it.combinations(ant_names_.tolist(), 3))
 
-                    if not fullclq:
-                        triangles = triangles[:crit]
-
                     for triangle in triangles:
+                        if minclq and crit_count >= crit:
+                            continue
+
                         mask_uv12 =\
                             (mask_time) \
                             & (data["ant_name1"] == triangle[0]) \
@@ -1322,6 +1382,7 @@ class open_fits:
                                 data["u"][mask_uv31][0],
                                 data["v"][mask_uv31][0])
 
+                            crit_count += 1
                             outcp_time.append(time)
                             outcp_freq.append(self.freq)
                             outcp_tri.append(out_triangle)
@@ -1331,9 +1392,6 @@ class open_fits:
                             outcp_v23.append(out_uv23[1])
                             outcp_u31.append(out_uv31[0])
                             outcp_v31.append(out_uv31[1])
-
-            flag_clamp = False
-            flag_clphs = False
 
             if len(outca_time) == 0:
                 tmpl_clamp = gamvas.utils.sarray(
@@ -1589,501 +1647,645 @@ class open_fits:
             self.clphs_check = False
         self.ploter.clq_obs = (self.clamp, self.clphs)
 
-    def set_closure_(self):
+    def set_closure(self, minclq=True):
         """
         Set the closure quantities
         """
-        if "vis" not in self.data.dtype.names:
-            self.set_uvvis()
-        data = self.data
-        ant_names = np.unique(np.append(data["ant_name1"], data["ant_name2"]))
-        times = np.unique(data["time"])
-
-        selects = []
-        for ns, select in enumerate(data.dtype.names):
-            if select in ["vis_i", "vis_q", "vis_u", "vis_v", "vis_p"]:
-                selects.append(select.split("_")[1])
-        selects.append("")
-
-        for ns, select in enumerate(selects):
-            if select in ["i", "q", "u", "v", "p"]:
-                field_vis = f"vis_{select}"
-                field_sig = f"sigma_{select}"
-                field_cav = f"clamp_{select}"
-                field_cas = f"sigma_clamp_{select}"
-                field_cpv = f"clphs_{select}"
-                field_cps = f"sigma_clphs_{select}"
-            if select == "":
-                field_vis = f"vis"
-                field_sig = f"sigma"
-                field_cav = f"clamp"
-                field_cas = f"sigma_clamp"
-                field_cpv = f"clphs"
-                field_cps = f"sigma_clphs"
-
-            uvvis = dict(zip(
-                tuple(zip(
-                    data["u"].tolist(), data["v"].tolist())),
-                data[field_vis]))
-
-            uvsig = dict(zip(
-                tuple(zip(
-                    data["u"].tolist(), data["v"].tolist())),
-                data[field_sig]))
-
-            utimes = np.unique(data["time"])
-
-            field_amp = [
-                "time", "freq", "quadra",
-                "u12", "v12", "u34", "v34", "u13", "v13", "u24", "v24",
-                "vis12", "vis34", "vis13", "vis24",
-                "sig12", "sig34", "sig13", "sig24",
-                field_cav, field_cas
-            ]
-
-            dtype_amp = [
-                "f8", "f8", "U32",
-                "f8", "f8", "f8", "f8", "f8", "f8", "f8", "f8",
-                "c16", "c16", "c16", "c16",
-                "f8", "f8", "f8", "f8",
-                "f8", "f8"
-            ]
-
-            field_phs = [
-                "time", "freq", "triangle",
-                "u12", "v12", "u23", "v23", "u31", "v31",
-                "vis12", "vis23", "vis31",
-                "sig12", "sig23", "sig31",
-                field_cpv, field_cps
-            ]
-
-            dtype_phs = [
-                "f8", "f8", "U32",
-                "f8", "f8", "f8", "f8", "f8", "f8",
-                "c16", "c16", "c16",
-                "f8", "f8", "f8",
-                "f8", "f8"
-            ]
-
-            tmpl_clamp = np.array([])
-            tmpl_clphs = np.array([])
-            for ut, time in enumerate(utimes):
-                data_ = data[data["time"] == time]
-
-                ant_nums_ = np.unique(
-                    np.append(data_["ant_num1"], data_["ant_num2"]))
-
-                ant_names_ = np.unique(
-                    np.append(data_["ant_name1"], data_["ant_name2"]))
-
-                Nant = len(ant_names_)
-                if Nant >= 4:
-                    pairs_obs = np.array(list(map(
-                        ",".join,
-                        tuple(zip(
-                            data_["ant_num1"].astype(str),
-                            data_["ant_num2"].astype(str)
-                        ))
-                    )))
-
-                    pairs_obs = np.sort(pairs_obs)
-                    matrix_clamp, pairs_full =\
-                        set_min_matrix_clamp(Nant, ant_nums_.astype(str))
-
-                    row = matrix_clamp.shape[0]
-                    for i in range(row):
-                        mask_add = matrix_clamp[i] == +1
-                        mask_sub = matrix_clamp[i] == -1
-                        pair_add = pairs_full[mask_add]
-                        pair_sub = pairs_full[mask_sub]
-                        mask_tot =\
-                            (pair_add[0] in pairs_obs) \
-                            & (pair_add[1] in pairs_obs) \
-                            & (pair_sub[0] in pairs_obs) \
-                            & (pair_sub[1] in pairs_obs)
-
-                        pair_add = [val.split(",") for val in pair_add]
-                        pair_sub = [val.split(",") for val in pair_sub]
-                        if mask_tot:
-                            pair_ants = np.array([
-                                int(pair_add[0][0]), int(pair_add[0][1]),
-                                int(pair_add[1][0]), int(pair_add[1][1])
-                            ])
-                            out_times = time
-                            out_frequency = self.freq
-                            out_quadrangle = "-".join(list(map(
-                                self.ant_dict_num2name.get, pair_ants)))
-
-                            loc_uv1 =\
-                                (data_["ant_num1"] == int(pair_add[0][0])) \
-                                & (data_["ant_num2"] == int(pair_add[0][1]))
-
-                            loc_uv2 =\
-                                (data_["ant_num1"] == int(pair_add[1][0])) \
-                                & (data_["ant_num2"] == int(pair_add[1][1]))
-
-                            loc_uv3 =\
-                                (data_["ant_num1"] == int(pair_sub[0][0])) \
-                                & (data_["ant_num2"] == int(pair_sub[0][1]))
-
-                            loc_uv4 =\
-                                (data_["ant_num1"] == int(pair_sub[1][0])) \
-                                & (data_["ant_num2"] == int(pair_sub[1][1]))
-
-                            out_uv1 = (
-                                data_["u"][loc_uv1][0],
-                                data_["v"][loc_uv1][0])
-
-                            out_uv2 = (
-                                data_["u"][loc_uv2][0],
-                                data_["v"][loc_uv2][0])
-
-                            out_uv3 = (
-                                data_["u"][loc_uv3][0],
-                                data_["v"][loc_uv3][0])
-
-                            out_uv4 = (
-                                data_["u"][loc_uv4][0],
-                                data_["v"][loc_uv4][0])
-
-                            tmpl_clamp_ = gamvas.utils.sarray(
-                                [
-                                    out_times, out_frequency, out_quadrangle,
-                                    out_uv1[0], out_uv1[1],
-                                    out_uv2[0], out_uv2[1],
-                                    out_uv3[0], out_uv3[1],
-                                    out_uv4[0], out_uv4[1],
-                                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-                                ],
-                                field=field_amp,
-                                dtype=dtype_amp
-                            )
-
-                            if tmpl_clamp.size == 0:
-                                tmpl_clamp = tmpl_clamp_
-                            else:
-                                tmpl_clamp = rfn.stack_arrays((
-                                    tmpl_clamp, tmpl_clamp_))
-                if Nant >= 3:
-                    pairs_obs = np.array(list(map(
-                        ",".join,
-                        tuple(zip(
-                            data_["ant_num1"].astype(str),
-                            data_["ant_num2"].astype(str)
-                        ))
-                    )))
-
-                    matrix_clphs, pairs_full =\
-                        set_min_matrix_clphs(Nant, ant_nums_.astype(str))
-
-                    row = matrix_clphs.shape[0]
-                    for i in range(row):
-                        mask_add = matrix_clphs[i] == +1
-                        mask_sub = matrix_clphs[i] == -1
-                        pair_add = pairs_full[mask_add]
-                        pair_sub = pairs_full[mask_sub]
-                        mask_tot =\
-                            (pair_add[0] in pairs_obs) \
-                            & (pair_add[1] in pairs_obs) \
-                            & (pair_sub[0] in pairs_obs)
-
-                        pair_add = [val.split(",") for val in pair_add]
-                        pair_sub = [val.split(",") for val in pair_sub]
-                        if mask_tot:
-                            pair_ants = np.array([
-                                int(pair_add[0][0]),
-                                int(pair_add[0][1]),
-                                int(pair_sub[0][1])])
-
-                            out_times = time
-                            out_frequency = self.freq
-                            out_triangle = "-".join(list(map(
-                                self.ant_dict_num2name.get, pair_ants)))
-
-                            loc_uv1 =\
-                                (data_["ant_num1"] == int(pair_add[0][0])) \
-                                & (data_["ant_num2"] == int(pair_add[0][1]))
-
-                            loc_uv2 =\
-                                (data_["ant_num1"] == int(pair_add[1][0])) \
-                                & (data_["ant_num2"] == int(pair_add[1][1]))
-
-                            loc_uv3 =\
-                                (data_["ant_num1"] == int(pair_sub[0][0])) \
-                                & (data_["ant_num2"] == int(pair_sub[0][1]))
-
-                            out_uv1 = (
-                                data_["u"][loc_uv1][0],
-                                data_["v"][loc_uv1][0])
-
-                            out_uv2 = (
-                                data_["u"][loc_uv2][0],
-                                data_["v"][loc_uv2][0])
-
-                            out_uv3 = (
-                                data_["u"][loc_uv3][0],
-                                data_["v"][loc_uv3][0])
-
-                            tmpl_clphs_ = gamvas.utils.sarray(
-                                [
-                                    out_times, out_frequency, out_triangle,
-                                    out_uv1[0], out_uv1[1],
-                                    out_uv2[0], out_uv2[1],
-                                    out_uv3[0], out_uv3[1],
-                                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-                                ],
-                                field=field_phs,
-                                dtype=dtype_phs
-                            )
-                            if tmpl_clphs.size == 0:
-                                tmpl_clphs = tmpl_clphs_
-                            else:
-                                tmpl_clphs = rfn.stack_arrays((
-                                    tmpl_clphs, tmpl_clphs_))
-
-            flag_clamp = False
-            flag_clphs = False
-
-            tmpl_clamp = tmpl_clamp.reshape(-1)
-            tmpl_clphs = tmpl_clphs.reshape(-1)
-
-            if tmpl_clamp.size == 0:
-                tmpl_clamp = [np.nan] * len(field_amp)
-                tmpl_clamp = gamvas.utils.sarray(
-                    tmpl_clamp,
-                    field=field_amp,
-                    dtype=dtype_amp)
-
-                flag_clamp = True
-            if tmpl_clphs.size == 0:
-                tmpl_clphs = [np.nan] * len(field_phs)
-                tmpl_clphs = gamvas.utils.sarray(
-                    tmpl_clphs,
-                    field=field_phs,
-                    dtype=dtype_phs)
-
-                flag_clphs = True
-            self.tmpl_clamp = copy.deepcopy(tmpl_clamp)
-            self.tmpl_clphs = copy.deepcopy(tmpl_clphs)
-            if not flag_clamp:
-                clamp_ = tmpl_clamp
-                clamp_["vis12"] = list(map(
-                    uvvis.get,
-                    tuple(zip(clamp_["u12"], clamp_["v12"]))))
-
-                clamp_["vis34"] = list(map(
-                    uvvis.get,
-                    tuple(zip(clamp_["u34"], clamp_["v34"]))))
-
-                clamp_["vis13"] = list(map(
-                    uvvis.get,
-                    tuple(zip(clamp_["u13"], clamp_["v13"]))))
-
-                clamp_["vis24"] = list(map(
-                    uvvis.get,
-                    tuple(zip(clamp_["u24"], clamp_["v24"]))))
-
-                clamp_["sig12"] = list(map(
-                    uvsig.get,
-                    tuple(zip(clamp_["u12"], clamp_["v12"]))))
-
-                clamp_["sig34"] = list(map(
-                    uvsig.get,
-                    tuple(zip(clamp_["u34"], clamp_["v34"]))))
-
-                clamp_["sig13"] = list(map(
-                    uvsig.get,
-                    tuple(zip(clamp_["u13"], clamp_["v13"]))))
-
-                clamp_["sig24"] = list(map(
-                    uvsig.get,
-                    tuple(zip(clamp_["u24"], clamp_["v24"]))))
-
-                amp12 = np.abs(clamp_["vis12"])
-                amp34 = np.abs(clamp_["vis34"])
-                amp13 = np.abs(clamp_["vis13"])
-                amp24 = np.abs(clamp_["vis24"])
-                amp12 = np.where(
-                    amp12 < clamp_["sig12"],
-                    0,
-                    np.sqrt(np.abs(clamp_["vis12"])**2 - clamp_["sig12"]**2))
-
-                amp34 = np.where(
-                    amp34 < clamp_["sig34"],
-                    0,
-                    np.sqrt(np.abs(clamp_["vis34"])**2 - clamp_["sig34"]**2))
-
-                amp13 = np.where(
-                    amp13 < clamp_["sig13"],
-                    0,
-                    np.sqrt(np.abs(clamp_["vis13"])**2 - clamp_["sig13"]**2))
-
-                amp24 = np.where(
-                    amp24 < clamp_["sig24"],
-                    0,
-                    np.sqrt(np.abs(clamp_["vis24"])**2 - clamp_["sig24"]**2))
-
-                snr12 = amp12 / np.abs(clamp_["sig12"])
-                snr34 = amp34 / np.abs(clamp_["sig34"])
-                snr13 = amp13 / np.abs(clamp_["sig13"])
-                snr24 = amp24 / np.abs(clamp_["sig24"])
-                clamp_[field_cav] = (amp12 * amp34) / (amp13 * amp24)
-                clamp_[field_cas] = np.sqrt(
-                    snr12**-2 + snr34**-2 + snr13**-2 + snr24**-2)
-
-            if not flag_clphs:
-                clphs_ = tmpl_clphs
-                clphs_["vis12"] = list(
-                    map(uvvis.get,
-                        tuple(zip(clphs_["u12"], clphs_["v12"]))))
-
-                clphs_["vis23"] = list(
-                    map(uvvis.get,
-                        tuple(zip(clphs_["u23"], clphs_["v23"]))))
-
-                clphs_["vis31"] = list(
-                    map(uvvis.get,
-                        tuple(zip(clphs_["u31"], clphs_["v31"]))))
-
-                clphs_["sig12"] = list(
-                    map(uvsig.get,
-                        tuple(zip(clphs_["u12"], clphs_["v12"]))))
-
-                clphs_["sig23"] = list(
-                    map(uvsig.get,
-                        tuple(zip(clphs_["u23"], clphs_["v23"]))))
-
-                clphs_["sig31"] = list(
-                    map(uvsig.get,
-                        tuple(zip(clphs_["u31"], clphs_["v31"]))))
-
-                phs12 = np.angle(clphs_["vis12"])
-                phs23 = np.angle(clphs_["vis23"])
-                phs31 = np.angle(clphs_["vis31"].conj())
-                snr12 = np.abs(clphs_["vis12"]) / np.abs(clphs_["sig12"])
-                snr23 = np.abs(clphs_["vis23"]) / np.abs(clphs_["sig23"])
-                snr31 = np.abs(clphs_["vis31"]) / np.abs(clphs_["sig31"])
-
-                clphs_v = phs12 + phs23 + phs31
-                clphs_[field_cpv] = clphs_v
-                clphs_[field_cps] = np.sqrt(snr12**-2 + snr23**-2 + snr31**-2)
-
-            if not flag_clamp:
-                fields = ["time", "quadra", "freq", field_cav, field_cas]
-                dtypes = ["f8", "U32", "f8", "f8", "f8"]
-                datas = [clamp_[fields[nf]] for nf in range(len(fields))]
-                clamp_ = gamvas.utils.sarray(datas, fields, dtypes)
-            else:
-                fields = ["time", "quadra", "freq", field_cav, field_cas]
-                dtypes = ["f8", "U32", "f8", "f8", "f8"]
-                clamp_ = gamvas.utils.sarray(
-                    [np.nan for i in range(len(fields))],
-                    fields,
-                    dtypes)
-
-            if not flag_clphs:
-                fields = ["time", "triangle", "freq", field_cpv, field_cps]
-                dtypes = ["f8", "U32", "f8", "f8", "f8"]
-                datas = [clphs_[fields[nf]] for nf in range(len(fields))]
-                clphs_ = gamvas.utils.sarray(datas, fields, dtypes)
-            else:
-                fields = ["time", "triangle", "freq", field_cpv, field_cps]
-                dtypes = ["f8", "U32", "f8", "f8", "f8"]
-                clphs_ = gamvas.utils.sarray(
-                    [np.nan for i in range(len(fields))],
-                    fields,
-                    dtypes)
-
-            if ns == 0:
-                clamp = clamp_
-                clphs = clphs_
-            else:
+        if not minclq:
+            self.set_closure_(minclq=minclq)
+        else:
+            if "vis" not in self.data.dtype.names:
+                self.set_uvvis()
+            data = self.data
+            tarr = self.tarr
+            times = np.unique(data["time"])
+
+            torder = {tel: idx for idx, tel in enumerate(tarr["name"])}
+
+            ant_names =\
+                np.array(sorted(
+                    np.unique(np.append(
+                        data["ant_name1"], data["ant_name2"]
+                    )),
+                    key=lambda x: torder[x]
+                ))
+
+            selects = []
+            for ns, select in enumerate(data.dtype.names):
+                if select in ["vis_i", "vis_q", "vis_u", "vis_v", "vis_p"]:
+                    selects.append(select.split("_")[1])
+            selects.append("")
+
+            for ns, select in enumerate(selects):
+                if select in ["i", "q", "u", "v", "p"]:
+                    field_vis = f"vis_{select}"
+                    field_sig = f"sigma_{select}"
+                    field_cav = f"clamp_{select}"
+                    field_cas = f"sigma_clamp_{select}"
+                    field_cpv = f"clphs_{select}"
+                    field_cps = f"sigma_clphs_{select}"
+                if select == "":
+                    field_vis = f"vis"
+                    field_sig = f"sigma"
+                    field_cav = f"clamp"
+                    field_cas = f"sigma_clamp"
+                    field_cpv = f"clphs"
+                    field_cps = f"sigma_clphs"
+
+                uvvis = dict(zip(
+                    tuple(zip(
+                        data["u"].tolist(), data["v"].tolist())),
+                    data[field_vis]))
+
+                uvsig = dict(zip(
+                    tuple(zip(
+                        data["u"].tolist(), data["v"].tolist())),
+                    data[field_sig]))
+
+                utimes = np.unique(data["time"])
+
+                field_amp = [
+                    "time", "freq", "quadra",
+                    "u12", "v12", "u34", "v34", "u13", "v13", "u24", "v24",
+                    "vis12", "vis34", "vis13", "vis24",
+                    "sig12", "sig34", "sig13", "sig24",
+                    field_cav, field_cas
+                ]
+
+                dtype_amp = [
+                    "f8", "f8", "U32",
+                    "f8", "f8", "f8", "f8", "f8", "f8", "f8", "f8",
+                    "c16", "c16", "c16", "c16",
+                    "f8", "f8", "f8", "f8",
+                    "f8", "f8"
+                ]
+
+                field_phs = [
+                    "time", "freq", "triangle",
+                    "u12", "v12", "u23", "v23", "u31", "v31",
+                    "vis12", "vis23", "vis31",
+                    "sig12", "sig23", "sig31",
+                    field_cpv, field_cps
+                ]
+
+                dtype_phs = [
+                    "f8", "f8", "U32",
+                    "f8", "f8", "f8", "f8", "f8", "f8",
+                    "c16", "c16", "c16",
+                    "f8", "f8", "f8",
+                    "f8", "f8"
+                ]
+
+                tmpl_clamp = np.array([])
+                tmpl_clphs = np.array([])
+                for ut, time in enumerate(utimes):
+                    data_ = data[data["time"] == time]
+
+                    ant_nums_ = np.unique(
+                        np.append(data_["ant_num1"], data_["ant_num2"]))
+
+                    ant_names_ = np.unique(
+                        np.append(data_["ant_name1"], data_["ant_name2"]))
+
+                    Nant = len(ant_names_)
+                    if Nant >= 4:
+                        pairs_obs = np.array(list(map(
+                            ",".join,
+                            tuple(zip(
+                                data_["ant_num1"].astype(str),
+                                data_["ant_num2"].astype(str)
+                            ))
+                        )))
+
+                        pairs_obs = np.sort(pairs_obs)
+                        matrix_clamp, pairs_full =\
+                            set_min_matrix_clamp(Nant, ant_nums_.astype(str))
+
+                        row = matrix_clamp.shape[0]
+                        for i in range(row):
+                            mask_add = matrix_clamp[i] == +1
+                            mask_sub = matrix_clamp[i] == -1
+                            pair_add = pairs_full[mask_add]
+                            pair_sub = pairs_full[mask_sub]
+                            mask_tot =\
+                                (pair_add[0] in pairs_obs) \
+                                & (pair_add[1] in pairs_obs) \
+                                & (pair_sub[0] in pairs_obs) \
+                                & (pair_sub[1] in pairs_obs)
+
+                            pair_add = [val.split(",") for val in pair_add]
+                            pair_sub = [val.split(",") for val in pair_sub]
+                            if mask_tot:
+                                pair_ants = np.array([
+                                    int(pair_add[0][0]), int(pair_add[0][1]),
+                                    int(pair_add[1][0]), int(pair_add[1][1])
+                                ])
+                                out_times = time
+                                out_frequency = self.freq
+                                out_quadrangle = "-".join(list(map(
+                                    self.ant_dict_num2name.get, pair_ants)))
+
+                                loc_uv1 =\
+                                    (data_["ant_num1"] == int(pair_add[0][0])) \
+                                    & (data_["ant_num2"] == int(pair_add[0][1]))
+
+                                loc_uv2 =\
+                                    (data_["ant_num1"] == int(pair_add[1][0])) \
+                                    & (data_["ant_num2"] == int(pair_add[1][1]))
+
+                                loc_uv3 =\
+                                    (data_["ant_num1"] == int(pair_sub[0][0])) \
+                                    & (data_["ant_num2"] == int(pair_sub[0][1]))
+
+                                loc_uv4 =\
+                                    (data_["ant_num1"] == int(pair_sub[1][0])) \
+                                    & (data_["ant_num2"] == int(pair_sub[1][1]))
+
+                                out_uv1 = (
+                                    data_["u"][loc_uv1][0],
+                                    data_["v"][loc_uv1][0])
+
+                                out_uv2 = (
+                                    data_["u"][loc_uv2][0],
+                                    data_["v"][loc_uv2][0])
+
+                                out_uv3 = (
+                                    data_["u"][loc_uv3][0],
+                                    data_["v"][loc_uv3][0])
+
+                                out_uv4 = (
+                                    data_["u"][loc_uv4][0],
+                                    data_["v"][loc_uv4][0])
+
+                                tmpl_clamp_ = gamvas.utils.sarray(
+                                    [
+                                        out_times, out_frequency, out_quadrangle,
+                                        out_uv1[0], out_uv1[1],
+                                        out_uv2[0], out_uv2[1],
+                                        out_uv3[0], out_uv3[1],
+                                        out_uv4[0], out_uv4[1],
+                                        0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+                                    ],
+                                    field=field_amp,
+                                    dtype=dtype_amp
+                                )
+
+                                if tmpl_clamp.size == 0:
+                                    tmpl_clamp = tmpl_clamp_
+                                else:
+                                    tmpl_clamp = rfn.stack_arrays((
+                                        tmpl_clamp, tmpl_clamp_))
+                    if Nant >= 3:
+                        pairs_obs = np.array(list(map(
+                            ",".join,
+                            tuple(zip(
+                                data_["ant_num1"].astype(str),
+                                data_["ant_num2"].astype(str)
+                            ))
+                        )))
+
+                        matrix_clphs, pairs_full =\
+                            set_min_matrix_clphs(Nant, ant_nums_.astype(str))
+
+                        row = matrix_clphs.shape[0]
+                        for i in range(row):
+                            mask_add = matrix_clphs[i] == +1
+                            mask_sub = matrix_clphs[i] == -1
+                            pair_add = pairs_full[mask_add]
+                            pair_sub = pairs_full[mask_sub]
+                            mask_tot =\
+                                (pair_add[0] in pairs_obs) \
+                                & (pair_add[1] in pairs_obs) \
+                                & (pair_sub[0] in pairs_obs)
+
+                            pair_add = [val.split(",") for val in pair_add]
+                            pair_sub = [val.split(",") for val in pair_sub]
+                            if mask_tot:
+                                pair_ants = np.array([
+                                    int(pair_add[0][0]),
+                                    int(pair_add[0][1]),
+                                    int(pair_sub[0][1])])
+
+                                out_times = time
+                                out_frequency = self.freq
+                                out_triangle = "-".join(list(map(
+                                    self.ant_dict_num2name.get, pair_ants)))
+
+                                loc_uv1 =\
+                                    (data_["ant_num1"] == int(pair_add[0][0])) \
+                                    & (data_["ant_num2"] == int(pair_add[0][1]))
+
+                                loc_uv2 =\
+                                    (data_["ant_num1"] == int(pair_add[1][0])) \
+                                    & (data_["ant_num2"] == int(pair_add[1][1]))
+
+                                loc_uv3 =\
+                                    (data_["ant_num1"] == int(pair_sub[0][0])) \
+                                    & (data_["ant_num2"] == int(pair_sub[0][1]))
+
+                                out_uv1 = (
+                                    data_["u"][loc_uv1][0],
+                                    data_["v"][loc_uv1][0])
+
+                                out_uv2 = (
+                                    data_["u"][loc_uv2][0],
+                                    data_["v"][loc_uv2][0])
+
+                                out_uv3 = (
+                                    data_["u"][loc_uv3][0],
+                                    data_["v"][loc_uv3][0])
+
+                                tmpl_clphs_ = gamvas.utils.sarray(
+                                    [
+                                        out_times, out_frequency, out_triangle,
+                                        out_uv1[0], out_uv1[1],
+                                        out_uv2[0], out_uv2[1],
+                                        out_uv3[0], out_uv3[1],
+                                        0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+                                    ],
+                                    field=field_phs,
+                                    dtype=dtype_phs
+                                )
+                                if tmpl_clphs.size == 0:
+                                    tmpl_clphs = tmpl_clphs_
+                                else:
+                                    tmpl_clphs = rfn.stack_arrays((
+                                        tmpl_clphs, tmpl_clphs_))
+
+                flag_clamp = False
+                flag_clphs = False
+
+                tmpl_clamp = tmpl_clamp.reshape(-1)
+                tmpl_clphs = tmpl_clphs.reshape(-1)
+
+                if tmpl_clamp.size == 0:
+                    tmpl_clamp = [np.nan] * len(field_amp)
+                    tmpl_clamp = gamvas.utils.sarray(
+                        tmpl_clamp,
+                        field=field_amp,
+                        dtype=dtype_amp)
+
+                    flag_clamp = True
+                if tmpl_clphs.size == 0:
+                    tmpl_clphs = [np.nan] * len(field_phs)
+                    tmpl_clphs = gamvas.utils.sarray(
+                        tmpl_clphs,
+                        field=field_phs,
+                        dtype=dtype_phs)
+
+                    flag_clphs = True
+                self.tmpl_clamp = copy.deepcopy(tmpl_clamp)
+                self.tmpl_clphs = copy.deepcopy(tmpl_clphs)
                 if not flag_clamp:
-                    clamp = rfn.append_fields(
-                        clamp,
-                        field_cav,
-                        clamp_[field_cav],
-                        usemask=False)
+                    clamp_ = tmpl_clamp
+                    clamp_["vis12"] = list(map(
+                        uvvis.get,
+                        tuple(zip(clamp_["u12"], clamp_["v12"]))))
 
-                    clamp = rfn.append_fields(
-                        clamp,
-                        field_cas,
-                        clamp_[field_cas],
-                        usemask=False)
+                    clamp_["vis34"] = list(map(
+                        uvvis.get,
+                        tuple(zip(clamp_["u34"], clamp_["v34"]))))
+
+                    clamp_["vis13"] = list(map(
+                        uvvis.get,
+                        tuple(zip(clamp_["u13"], clamp_["v13"]))))
+
+                    clamp_["vis24"] = list(map(
+                        uvvis.get,
+                        tuple(zip(clamp_["u24"], clamp_["v24"]))))
+
+                    clamp_["sig12"] = list(map(
+                        uvsig.get,
+                        tuple(zip(clamp_["u12"], clamp_["v12"]))))
+
+                    clamp_["sig34"] = list(map(
+                        uvsig.get,
+                        tuple(zip(clamp_["u34"], clamp_["v34"]))))
+
+                    clamp_["sig13"] = list(map(
+                        uvsig.get,
+                        tuple(zip(clamp_["u13"], clamp_["v13"]))))
+
+                    clamp_["sig24"] = list(map(
+                        uvsig.get,
+                        tuple(zip(clamp_["u24"], clamp_["v24"]))))
+
+                    amp12 = np.abs(clamp_["vis12"])
+                    amp34 = np.abs(clamp_["vis34"])
+                    amp13 = np.abs(clamp_["vis13"])
+                    amp24 = np.abs(clamp_["vis24"])
+                    amp12 = np.where(
+                        amp12 < clamp_["sig12"],
+                        0,
+                        np.sqrt(np.abs(clamp_["vis12"])**2 - clamp_["sig12"]**2))
+
+                    amp34 = np.where(
+                        amp34 < clamp_["sig34"],
+                        0,
+                        np.sqrt(np.abs(clamp_["vis34"])**2 - clamp_["sig34"]**2))
+
+                    amp13 = np.where(
+                        amp13 < clamp_["sig13"],
+                        0,
+                        np.sqrt(np.abs(clamp_["vis13"])**2 - clamp_["sig13"]**2))
+
+                    amp24 = np.where(
+                        amp24 < clamp_["sig24"],
+                        0,
+                        np.sqrt(np.abs(clamp_["vis24"])**2 - clamp_["sig24"]**2))
+
+                    snr12 = amp12 / np.abs(clamp_["sig12"])
+                    snr34 = amp34 / np.abs(clamp_["sig34"])
+                    snr13 = amp13 / np.abs(clamp_["sig13"])
+                    snr24 = amp24 / np.abs(clamp_["sig24"])
+                    clamp_[field_cav] = (amp12 * amp34) / (amp13 * amp24)
+                    clamp_[field_cas] = np.sqrt(
+                        snr12**-2 + snr34**-2 + snr13**-2 + snr24**-2)
 
                 if not flag_clphs:
-                    clphs = rfn.append_fields(
-                        clphs,
-                        field_cpv,
-                        clphs_[field_cpv],
-                        usemask=False)
+                    clphs_ = tmpl_clphs
+                    clphs_["vis12"] = list(
+                        map(uvvis.get,
+                            tuple(zip(clphs_["u12"], clphs_["v12"]))))
 
-                    clphs = rfn.append_fields(
-                        clphs,
-                        field_cps,
-                        clphs_[field_cps],
-                        usemask=False)
+                    clphs_["vis23"] = list(
+                        map(uvvis.get,
+                            tuple(zip(clphs_["u23"], clphs_["v23"]))))
 
-        if not flag_clamp:
-            self.clamp = clamp
-            self.clamp_check = True
-        else:
-            fields = [
-                "time", "quadra", "freq",
-                "clamp", "sigma_clamp",
-                "clamp_i", "sigma_clamp_i",
-                "clamp_q", "sigma_clamp_q",
-                "clamp_u", "sigma_clamp_u",
-                "clamp_v", "sigma_clamp_v",
-                "clamp_p", "sigma_clamp_p"
-            ]
-            dtypes = [
-                "f8", "U32", "f8",
-                "f8", "f8",
-                "f8", "f8",
-                "f8", "f8",
-                "f8", "f8",
-                "f8", "f8",
-                "f8", "f8"
-            ]
-            self.clamp = gamvas.utils.sarray(
-                data=[np.nan for i in range(len(fields))],
-                field=fields,
-                dtype=dtypes)
+                    clphs_["vis31"] = list(
+                        map(uvvis.get,
+                            tuple(zip(clphs_["u31"], clphs_["v31"]))))
 
-            self.clamp_check = False
+                    clphs_["sig12"] = list(
+                        map(uvsig.get,
+                            tuple(zip(clphs_["u12"], clphs_["v12"]))))
 
-        if not flag_clphs:
-            self.clphs = clphs
-            self.clphs_check = True
-        else:
-            fields = [
-                "time", "triangle", "freq",
-                "clphs", "sigma_clphs",
-                "clphs_i", "sigma_clphs_i",
-                "clphs_q", "sigma_clphs_q",
-                "clphs_u", "sigma_clphs_u",
-                "clphs_v", "sigma_clphs_v",
-                "clphs_p", "sigma_clphs_p"
-            ]
+                    clphs_["sig23"] = list(
+                        map(uvsig.get,
+                            tuple(zip(clphs_["u23"], clphs_["v23"]))))
 
-            dtypes = [
-                "f8", "U32", "f8",
-                "f8", "f8",
-                "f8", "f8",
-                "f8", "f8",
-                "f8", "f8",
-                "f8", "f8",
-                "f8", "f8"
-            ]
+                    clphs_["sig31"] = list(
+                        map(uvsig.get,
+                            tuple(zip(clphs_["u31"], clphs_["v31"]))))
 
-            self.clphs = gamvas.utils.sarray(
-                data=[np.nan for i in range(len(fields))],
-                field=fields,
-                dtype=dtypes)
+                    phs12 = np.angle(clphs_["vis12"])
+                    phs23 = np.angle(clphs_["vis23"])
+                    phs31 = np.angle(clphs_["vis31"].conj())
+                    snr12 = np.abs(clphs_["vis12"]) / np.abs(clphs_["sig12"])
+                    snr23 = np.abs(clphs_["vis23"]) / np.abs(clphs_["sig23"])
+                    snr31 = np.abs(clphs_["vis31"]) / np.abs(clphs_["sig31"])
 
-            self.clphs_check = False
-        self.ploter.clq_obs = (self.clamp, self.clphs)
+                    clphs_v = phs12 + phs23 + phs31
+                    clphs_[field_cpv] = clphs_v
+                    clphs_[field_cps] =\
+                        np.sqrt(snr12**-2 + snr23**-2 + snr31**-2)
+
+                if not flag_clamp:
+                    fields = ["time", "quadra", "freq", field_cav, field_cas]
+                    dtypes = ["f8", "U32", "f8", "f8", "f8"]
+                    datas = [clamp_[fields[nf]] for nf in range(len(fields))]
+                    clamp_ = gamvas.utils.sarray(datas, fields, dtypes)
+                else:
+                    fields = ["time", "quadra", "freq", field_cav, field_cas]
+                    dtypes = ["f8", "U32", "f8", "f8", "f8"]
+                    clamp_ = gamvas.utils.sarray(
+                        [np.nan for i in range(len(fields))],
+                        fields,
+                        dtypes)
+
+                if not flag_clphs:
+                    fields = ["time", "triangle", "freq", field_cpv, field_cps]
+                    dtypes = ["f8", "U32", "f8", "f8", "f8"]
+                    datas = [clphs_[fields[nf]] for nf in range(len(fields))]
+                    clphs_ = gamvas.utils.sarray(datas, fields, dtypes)
+                else:
+                    fields = ["time", "triangle", "freq", field_cpv, field_cps]
+                    dtypes = ["f8", "U32", "f8", "f8", "f8"]
+                    clphs_ = gamvas.utils.sarray(
+                        [np.nan for i in range(len(fields))],
+                        fields,
+                        dtypes)
+
+                if ns == 0:
+                    clamp = clamp_
+                    clphs = clphs_
+                else:
+                    if not flag_clamp:
+                        clamp = rfn.append_fields(
+                            clamp,
+                            field_cav,
+                            clamp_[field_cav],
+                            usemask=False)
+
+                        clamp = rfn.append_fields(
+                            clamp,
+                            field_cas,
+                            clamp_[field_cas],
+                            usemask=False)
+
+                    if not flag_clphs:
+                        clphs = rfn.append_fields(
+                            clphs,
+                            field_cpv,
+                            clphs_[field_cpv],
+                            usemask=False)
+
+                        clphs = rfn.append_fields(
+                            clphs,
+                            field_cps,
+                            clphs_[field_cps],
+                            usemask=False)
+
+            if not flag_clamp:
+                self.clamp = clamp
+                self.clamp_check = True
+            else:
+                fields = [
+                    "time", "quadra", "freq",
+                    "clamp", "sigma_clamp",
+                    "clamp_i", "sigma_clamp_i",
+                    "clamp_q", "sigma_clamp_q",
+                    "clamp_u", "sigma_clamp_u",
+                    "clamp_v", "sigma_clamp_v",
+                    "clamp_p", "sigma_clamp_p"
+                ]
+                dtypes = [
+                    "f8", "U32", "f8",
+                    "f8", "f8",
+                    "f8", "f8",
+                    "f8", "f8",
+                    "f8", "f8",
+                    "f8", "f8",
+                    "f8", "f8"
+                ]
+                self.clamp = gamvas.utils.sarray(
+                    data=[np.nan for i in range(len(fields))],
+                    field=fields,
+                    dtype=dtypes)
+
+                self.clamp_check = False
+
+            if not flag_clphs:
+                self.clphs = clphs
+                self.clphs_check = True
+            else:
+                fields = [
+                    "time", "triangle", "freq",
+                    "clphs", "sigma_clphs",
+                    "clphs_i", "sigma_clphs_i",
+                    "clphs_q", "sigma_clphs_q",
+                    "clphs_u", "sigma_clphs_u",
+                    "clphs_v", "sigma_clphs_v",
+                    "clphs_p", "sigma_clphs_p"
+                ]
+
+                dtypes = [
+                    "f8", "U32", "f8",
+                    "f8", "f8",
+                    "f8", "f8",
+                    "f8", "f8",
+                    "f8", "f8",
+                    "f8", "f8",
+                    "f8", "f8"
+                ]
+
+                self.clphs = gamvas.utils.sarray(
+                    data=[np.nan for i in range(len(fields))],
+                    field=fields,
+                    dtype=dtypes)
+
+                self.clphs_check = False
+            self.ploter.clq_obs = (self.clamp, self.clphs)
+
+    def sort_uvvis(self,
+        type="tb&ant", reverse=False, set_uvvis=False, set_closure=False,
+        minclq=True):
+        """
+        Sort the uv-visibilities in order of time and antenna number
+            Arguments:
+                type (str): sorting type
+                    available options:
+                        'time' or 'tb' : sort uv-visibilities in order of time
+                        'ant' or 'antenna' : sort uv-visibilities
+                                             in order of antenna number
+                        'tb&ant' or 'time&antenna' : sort uv-visibilities
+                                                     in order of time and
+                                                     antenna number
+                        'snr' : sort uv-visibilities in order of SNR
+                reverse (bool): toggle option for sorting in the reverse order
+        """
+        tarr = self.tarr
+        time = self.time
+        tint = self.tint
+        mjd = self.mjd
+        ant_name1 = self.ant_name1
+        ant_name2 = self.ant_name2
+        uvu = self.uvu
+        uvv = self.uvv
+        ww = self.ww
+        vis_1 = self.vis_1
+        vis_2 = self.vis_2
+        vis_3 = self.vis_3
+        vis_4 = self.vis_4
+        sig_1 = self.sig_1
+        sig_2 = self.sig_2
+        sig_3 = self.sig_3
+        sig_4 = self.sig_4
+
+        ant_dict_name2num =\
+            dict(zip(
+                tarr["name"],
+                np.arange(len(tarr), dtype=int) + 1)
+            )
+        ant_num1 = np.array(list(map(ant_dict_name2num.get, ant_name1)))
+        ant_num2 = np.array(list(map(ant_dict_name2num.get, ant_name2)))
+
+        if type == "time" or type == "tb":
+            order = np.argsort(time)
+        elif type == "ant" or type == "antenna":
+            order = np.lexsort((ant_num2, ant_num1))
+        elif type == "tb&ant" or type == "time&antenna":
+            order = np.lexsort((ant_num2, ant_num1, time))
+        elif type == "snr":
+            if self.nstokes == 1:
+                vis = vis_1
+                sig = sig_1
+            elif self.nstokes == 2:
+                if self.select.lower() == "rr":
+                    vis = vis_1
+                    sig = sig_1
+                elif self.select.lower() == "ll":
+                    vis = vis_2
+                    sig = sig_2
+                elif self.select.lower() == "i":
+                    vis = (vis_1 + vis_2) * 0.5
+                    sig = np.sqrt(sig_1**2 + sig_2**2) * 0.5
+                else:
+                    out_txt =\
+                        f"Unexpected polarization type is given: "\
+                        f"{self.select.upper()} "\
+                        f"(available: 'RR', 'LL', 'I')"
+                    raise Exception(out_txt)
+            elif self.nstokes == 4:
+                if self.select.lower() == "rr":
+                    vis = vis_1
+                    sig = sig_1
+                elif self.select.lower() == "ll":
+                    vis = vis_2
+                    sig = sig_2
+                elif self.select.lower() == "rl":
+                    vis = vis_3
+                    sig = sig_3
+                elif self.select.lower() == "lr":
+                    vis = vis_4
+                    sig = sig_4
+                elif self.select.lower() == "i":
+                    vis = (vis_1 + vis_2) * 0.5
+                    sig = np.sqrt(sig_1**2 + sig_2**2) * 0.5
+                elif self.select.lower() == "q":
+                    vis = (vis_3 + vis_4) * 0.5
+                    sig = np.sqrt(sig_3**2 + sig_4**2) * 0.5
+                elif self.select.lower() == "u":
+                    vis = (vis_3 - vis_4) * 0.5 / 1j
+                    sig = np.sqrt(sig_3**2 + sig_4**2) * 0.5
+                elif self.select.lower() == "v":
+                    vis = (vis_1 - vis_2) * 0.5
+                    sig = np.sqrt(sig_1**2 + sig_2**2) * 0.5
+                elif self.select.lower() == "p":
+                    vis_q = (vis_3 + vis_4) * 0.5
+                    vis_u = (vis_3 - vis_4) * 0.5 / 1j
+                    sig_q = np.sqrt(sig_3**2 + sig_4**2) * 0.5
+                    sig_u = np.sqrt(sig_3**2 + sig_4**2) * 0.5
+                    vis = (vis_q + 1j * vis_u) * 1.0
+                    sig = np.sqrt(sig_q**2 + sig_u**2) * 1.0
+            inverse_snr = 1 / (np.abs(vis) / np.abs(sig))
+            order = np.argsort(inverse_snr)
+
+        if reverse:
+            order = order[::-1]
+
+        self.time = time[order]
+        self.tint = tint[order]
+        self.mjd = mjd[order]
+        self.ant_name1 = ant_name1[order]
+        self.ant_name2 = ant_name2[order]
+        self.uvu = uvu[order]
+        self.uvv = uvv[order]
+        self.ww = ww[order]
+        self.vis_1 = vis_1[order]
+        self.vis_2 = vis_2[order]
+        self.vis_3 = vis_3[order]
+        self.vis_4 = vis_4[order]
+        self.sig_1 = sig_1[order]
+        self.sig_2 = sig_2[order]
+        self.sig_3 = sig_3[order]
+        self.sig_4 = sig_4[order]
+
+        if set_uvvis:
+            self.set_uvvis()
+
+        if set_closure:
+            self.set_closure()
 
     def flag_uvvis(self,
                    type=None, value=None, unit="m", pinfo=True):
@@ -2118,8 +2320,9 @@ class open_fits:
         mjd = self.mjd
         ant_name1 = self.ant_name1
         ant_name2 = self.ant_name2
-        uu = self.uu
-        vv = self.vv
+        uvu = self.uvu
+        uvv = self.uvv
+        ww = self.ww
         vis_1 = self.vis_1
         vis_2 = self.vis_2
         vis_3 = self.vis_3
@@ -2132,11 +2335,12 @@ class open_fits:
         ndat = len(time)
         utime = np.unique(time)
         uant = np.unique(np.append(ant_name1, ant_name2))
-        uvdist = np.sqrt(self.uu**2 + self.vv**2)
+        uvdist = np.sqrt(self.uvu**2 + self.uvv**2)
 
         if type is None or type not in \
                 ["time", "sigma", "snr", "ant", "nant", "uvr"]:
-            out_txt = f"Given type '{type}' cannot be assigned." \
+            out_txt =\
+                f"Given type '{type}' cannot be assigned." \
                 " Please give appropriate type!" \
                 " (available: 'time', 'sigma', 'snr', 'ant', 'nant', 'uvr')"
             raise Exception(out_txt)
@@ -2145,24 +2349,28 @@ class open_fits:
             raise Exception("Please give appropriate value for flagging!")
         else:
             if type == "time" and not isinstance(value, (list, tuple)):
-                out_txt = "Please give flagging value as a list of floats!" \
+                out_txt =\
+                    "Please give flagging value as a list of floats!" \
                     " ([float1, float2])"
                 raise Exception(out_txt)
 
             elif type in ["sigma", "snr", "nant"] \
                     and not isinstance(value, (int, float)):
-                out_txt = "Please give flagging value" \
+                out_txt =\
+                    "Please give flagging value" \
                     " as a float or an integer!"
                 raise Exception(out_txt)
 
             elif type in ["ant", "antenna"] \
                     and not isinstance(value, (str, list, tuple)):
-                out_txt = "Please give flagging value" \
+                out_txt =\
+                    "Please give flagging value" \
                     " as a string or a list of strings!"
                 raise Exception(out_txt)
 
             elif type == "uvr" and not isinstance(value, (list, tuple)):
-                out_txt = "Please give flagging value as a list of floats!" \
+                out_txt =\
+                    "Please give flagging value as a list of floats!" \
                     " ([float1, float2])"
                 raise Exception(out_txt)
 
@@ -2235,22 +2443,24 @@ class open_fits:
                     | (ant_name2 == value.upper())
 
                 if np.sum(mask) == 0 and pinfo:
-                    out_txt = f"None of '{value.upper()}' visibility." \
+                    out_txt =\
+                        f"None of '{value.upper()}' visibility." \
                         " Skip flagging on that antenna."
                     print(out_txt)
 
-        elif isinstance(value, list):
-            mask = np.zeros(ndat, dtype=bool)
-            for ant in value:
-                mask_ =\
-                    (ant_name1 == ant.upper()) \
-                    | (ant_name2 == ant.upper())
-                if np.sum(mask_) == 0 and pinfo:
-                    out_txt = f"None of '{ant.upper()}' visibility." \
-                        " Skip flagging on that antenna."
-                    print(out_txt)
-                else:
-                    mask = mask | mask_
+            elif isinstance(value, list):
+                mask = np.zeros(ndat, dtype=bool)
+                for ant in value:
+                    mask_ =\
+                        (ant_name1 == ant.upper()) \
+                        | (ant_name2 == ant.upper())
+                    if np.sum(mask_) == 0 and pinfo:
+                        out_txt =\
+                            f"None of '{ant.upper()}' visibility." \
+                            " Skip flagging on that antenna."
+                        print(out_txt)
+                    else:
+                        mask = mask | mask_
 
         elif type == "nant":
             mask = np.zeros(ndat, dtype=bool)
@@ -2274,11 +2484,13 @@ class open_fits:
 
         if pinfo:
             if type != "uvr":
-                out_txt = f"# Flag {np.sum(mask)}/{ndat} visibilities" \
+                out_txt =\
+                    f"# Flag {np.sum(mask)}/{ndat} visibilities" \
                     f" (type='{type}', value={value})"
                 print(out_txt)
             else:
-                out_txt = f"# Flag {np.sum(mask)}/{ndat} visibilities" \
+                out_txt =\
+                    f"# Flag {np.sum(mask)}/{ndat} visibilities" \
                     f"(type='{type}', value={value}, unit='{unit}')"
                 print(out_txt)
 
@@ -2287,8 +2499,9 @@ class open_fits:
         self.mjd = mjd[~mask]
         self.ant_name1 = ant_name1[~mask]
         self.ant_name2 = ant_name2[~mask]
-        self.uu = uu[~mask]
-        self.vv = vv[~mask]
+        self.uvu = uvu[~mask]
+        self.uvv = uvv[~mask]
+        self.ww = ww[~mask]
         self.vis_1 = vis_1[~mask]
         self.vis_2 = vis_2[~mask]
         self.vis_3 = vis_3[~mask]
@@ -2299,7 +2512,7 @@ class open_fits:
         self.sig_4 = sig_4[~mask]
 
         self.set_uvvis()
-        self.set_closure(fullclq=self.fullclq)
+        self.set_closure(minclq=self.minclq)
         self.fit_beam(uvw=self.uvw)
 
     def selfcal(self,
@@ -2317,11 +2530,13 @@ class open_fits:
                 lm (tuple): position of the point source
         """
         if pinfo:
-            out_txt = f"# Self-calibration" \
+            out_txt =\
+                f"# Self-calibration" \
                 f" (startmod={startmod}, type={type}, {self.freq:.1f} GHz)"
             print(out_txt)
             if startmod:
-                out_txt = f"# Startmod : Self-calibrating" \
+                out_txt =\
+                    f"# Startmod : Self-calibrating" \
                     f" to 1 Jy point source at ({lm[0]}, {lm[1]})"
                 print(out_txt)
 
@@ -2553,8 +2768,8 @@ class open_fits:
         self.mjd = self.data["mjd"]
         self.ant_name1 = self.data["ant_name1"]
         self.ant_name2 = self.data["ant_name2"]
-        self.uu = self.data["u"]
-        self.vv = self.data["v"]
+        self.uvu = self.data["u"]
+        self.uvv = self.data["v"]
         self.set_uvvis()
 
         if not startmod:
@@ -2568,95 +2783,110 @@ class open_fits:
     def fit_beam(self,
                  npix=256, uvw="natural"):
         """
-        Fit the beam parameters for the input UVF data
-         (imported from eht-imaging)
-         (https://achael.github.io/eht-imaging/; Chael+2018, ApJ, 857, 23C)
-            Arguments:
-                npix (int): number of pixels for the beam fitting
-                uvw (str): UV weighting option // natural (n), uniform (u)
+        Fit beam parameters under Gaussian approximation.
+        Given observed (u,v)-coordinates, the beam response near its peak
+        is approximated as a Gaussian
+        (TMS, Interferometry and Synthesis, 2017, Thompson, Moran, Swenson):
+            B_0(l,m) \approx
+                1 - 2*pi^2/N * (l^2*sum(u^2) - 2*l*m*sum(u*v) + m^2*sum(v^2))
+
+        Beam parameters can be determined by fitting the latter one to
+        a 2D Gaussian function:
+            F(x,y) = exp(-(a*x^2 + b*y^2 + c*x*y)),
+        where (a,b,c) are functions of beam parameters, (b_min, b_maj, b_pa).
+
+        Arguments:
+            npix (int): number of pixels for the beam fitting
+            uvw (str): UV weighting option
+                - n: natural weighting
+                - u: uniform weighting
         """
-        data = self.data
 
-        uu = data["u"]
-        vv = data["v"]
-        vis = data["vis"]
-        sig = data["sigma"]
+        uvu = self.data["u"]
+        uvv = self.data["v"]
+        vis = self.data["vis"]
+        sig = self.data["sigma"]
 
-        def fit_chisq(beamparams, db_coeff):
-            (fwhm_maj2, fwhm_min2, theta) = beamparams
-            a = (
-                4 * np.log(2)
-                * (
-                    np.cos(theta)**2 / fwhm_min2
-                    + np.sin(theta)**2 / fwhm_maj2
+        def fit_abc(beamparams, in_abc):
+            """
+            FWHM = 2 * sqrt(2 * ln(2)) * sigma
+            b_min**2 = 4 * 2 * ln(2) * sig_x**2
+            """
+            (b_maj, b_min, b_pa) = beamparams
+            sig_x2 = b_min**2 / (4 * 2 * np.log(2))
+            sig_y2 = b_maj**2 / (4 * 2 * np.log(2))
+            a =\
+                (
+                    np.cos(b_pa)**2 / sig_x2
+                    + np.sin(b_pa)**2 / sig_y2
+                ) * 0.5
+
+            b =\
+                (
+                    (1 / sig_y2 - 1 / sig_x2)
+                    * np.cos(b_pa) * np.sin(b_pa) * 0.5
                 )
-            )
 
-            b = (
-                4 * np.log(2)
-                * (
-                    np.cos(theta)**2 / fwhm_maj2
-                    + np.sin(theta)**2 / fwhm_min2
-                )
-            )
+            c =\
+                (
+                    np.sin(b_pa)**2 / sig_x2
+                    + np.cos(b_pa)**2 / sig_y2
+                ) * 0.5
 
-            c = (
-                8 * np.log(2)
-                * np.cos(theta)
-                * np.sin(theta)
-                * (1.0 / fwhm_maj2 - 1.0 / fwhm_min2)
-            )
+            out_abc = np.array([a, b, c])
+            out = np.sum((in_abc - out_abc)**2)
+            return out
 
-            gauss_coeff = np.array((a, b, c))
-            chisq = np.sum((np.array(db_coeff) - gauss_coeff)**2)
-            return chisq
-
-        rng_map = self.mrng
-        rng_axis = np.linspace(-rng_map, +rng_map, npix)
-        xgrid, ygrid = np.meshgrid(-rng_axis, rng_axis)
         if uvw in ["n", "natural"]:
-            wfn = 1/sig**2
+            wfn = 1 / sig**2
         else:
             wfn = np.ones(vis.shape)
 
-        abc = np.array([np.sum(wfn * uu**2),
-                        np.sum(wfn * vv**2),
-                        2 * np.sum(wfn * uu * vv)])
-        abc *= (2. * np.pi**2 / np.sum(wfn))
-        abc *= 1e-20    # Decrease size of coefficients
+        rsc = 1e-9  # Rescaling factor for fitting
+
+        abc = np.array(
+            [
+                np.sum(wfn * uvu**2),
+                np.sum(wfn * uvu * uvv),
+                np.sum(wfn * uvv**2)
+            ]
+        ) * 2 * np.pi**2 / np.sum(wfn)
+
+        abc *= rsc ** 2
 
         # Fit the beam
-        guess = [(50)**2, (50)**2, 0.0]
+        guess = np.array([1, 1, 0])
 
-        params = optimize.minimize(
-            fit_chisq, guess, args=(abc,),
+        Gprms = optimize.minimize(
+            fit_abc, guess, args=abc,
             method="Powell"
         )
 
-        if params.x[0] > params.x[1]:
-            fwhm_maj = 1e-10 * np.sqrt(params.x[0])
-            fwhm_min = 1e-10 * np.sqrt(params.x[1])
-            theta = np.mod(params.x[2], np.pi)
+        if Gprms.x[0] > Gprms.x[1]:
+            fwhm_maj = rsc * Gprms.x[0]
+            fwhm_min = rsc * Gprms.x[1]
+            theta = np.mod(Gprms.x[2], np.pi)
         else:
-            fwhm_maj = 1e-10 * np.sqrt(params.x[1])
-            fwhm_min = 1e-10 * np.sqrt(params.x[0])
-            theta = np.mod(params.x[2] + np.pi / 2.0, np.pi)
+            fwhm_maj = rsc * Gprms.x[1]
+            fwhm_min = rsc * Gprms.x[0]
+            theta = np.mod(Gprms.x[2] + np.pi / 2, np.pi)
 
-        gparams = np.array((fwhm_maj, fwhm_min, theta))
-        gparams[0] *= u.rad.to(u.mas)
-        gparams[1] *= u.rad.to(u.mas)
-        gparams[2] *= u.rad.to(u.deg)
+        bprms = np.array((fwhm_maj, fwhm_min, theta))
+        bprms[0] *= u.rad.to(u.mas)
+        bprms[1] *= u.rad.to(u.mas)
+        bprms[2] *= u.rad.to(u.deg)
 
-        self.bmin = gparams[1]
-        self.bmaj = gparams[0]
-        self.bpa = gparams[2]
+        self.bmin = bprms[1]
+        self.bmaj = bprms[0]
+        self.bpa = bprms[2]
         self.bprms = (self.bmin, self.bmaj, self.bpa)
         self.ploter.bprms = self.bprms
 
     def apply_systematics(self,
-                          types=None, binning=None, d=0.0, m=0.0):
+                          binning=None, types=None, d=0.0, m=0.0):
         if types is None:
-            out_txt = "Please provide appropriate list of type!" \
+            out_txt =\
+                "Please provide appropriate list of type!" \
                 " (available: 'clamp', 'clphs')"
             raise Exception(out_txt)
 
@@ -2711,7 +2941,8 @@ class open_fits:
                     count[mask] += 1
 
             if np.max(count) >= 2:
-                out_txt = f"WARNING:" \
+                out_txt =\
+                    f"WARNING:" \
                     f" Some duplicates are found in applying systematics." \
                     f" (type: '{systype}')"
                 print(out_txt)
@@ -3063,7 +3294,7 @@ class open_fits:
         if set_vis:
             self.set_uvvis()
         if set_clq:
-            self.set_closure(fullclq=self.fullclq)
+            self.set_closure(minclq=self.minclq)
 
     def add_error_factor(self,
                          factor=1, time="all", antenna="all",
@@ -3131,7 +3362,7 @@ class open_fits:
         if set_vis:
             self.set_uvvis()
         if set_clq:
-            self.set_closure(fullclq=self.fullclq)
+            self.set_closure(minclq=self.minclq)
 
     def cal_pangle(self):
         """
@@ -3181,9 +3412,7 @@ class open_fits:
 
         obstime = Ati(data["mjd"], format="mjd").iso
         src_coord = SkyCoord(ra=self.ra*u.deg, dec=self.dec*u.deg)
-        ants = np.unique(
-            np.append(data["ant_name1"], data["ant_name2"])
-        )
+        ants = self.tarr["name"]
 
         ant1 = data["ant_name1"]
         ant2 = data["ant_name2"]
@@ -3243,6 +3472,15 @@ class open_fits:
         p_angle1 = -np.angle(cos_pa1 + 1j * sin_pa1)
         p_angle2 = -np.angle(cos_pa2 + 1j * sin_pa2)
 
+        azel =\
+            gamvas.utils.sarray(
+                data=[self.data["time"], az1, az2, el1, el2],
+                field=["time", "az1", "az2", "el1", "el2"],
+                dtype=["f8", "f8", "f8", "f8", "f8"]
+            )
+        self.azel = azel
+
+
         if "phi1" in data.dtype.names:
             data["phi1"] = p_angle1
         else:
@@ -3286,7 +3524,8 @@ class open_fits:
             time = data["time"]
             sigma_th = data["sigma_clphs"]
         else:
-            out_txt = "Please provide appropriate type!" \
+            out_txt =\
+                "Please provide appropriate type!" \
                 " (availables: 'vis', 'clamp', 'clphs')"
             raise ValueError(out_txt)
 
@@ -3471,7 +3710,8 @@ class open_fits:
             self.fits_image_vtb = vtb
             self.fits_image_dtb = dtb
         else:
-            out_txt = "FITS-image is not provided." \
+            out_txt =\
+                "FITS-image is not provided." \
                 " Please check if you load UV-fits file."
             raise Exception(out_txt)
 
@@ -3501,7 +3741,8 @@ class open_fits:
         """
 
         if select is None:
-            out_txt = "Please assign polarization type into 'select'."\
+            out_txt =\
+                "Please assign polarization type into 'select'."\
                 " (available: i, q, u, v, rr, ll, rl, lr)"
             raise Exception(out_txt)
 
@@ -3529,7 +3770,7 @@ class open_fits:
         self.load_uvf(select=select, set_clq=False)
         self.uvave(
             uvave="scan",
-            set_clq=False, set_pang=False, pinfo=pinfo
+            set_clq=False, set_pang=False
         )
         self.fit_beam(uvw=uvw)
 
@@ -3682,15 +3923,261 @@ class open_fits:
         )
         self.fits_model_cal = model_cal
 
-    def save_newfits(self,
-                     save_name=False, save_path=False):
+    def save_uvfits(self,
+                     save_path=False, save_name=False):
         """
         Save new fits file
             Arguments:
                 save_name (str): name of the new fits file
                 save_path (str): path of the new fits file
         """
-        self.uvf_file.writeto(save_path + save_name)
+        hdul_cp = copy.deepcopy(self.uvf_file)
+        hdul = copy.deepcopy(self.uvf_file)
+
+        data = self.data.copy()
+        ufq = np.unique(data["freq"])
+
+        if len(ufq) == 1:
+            tarr = self.tarr
+        else:
+            for i in range(len(ufq)):
+                mask_fq = data["freq"] == ufq[i]
+                self.ant_name1[mask_fq] =\
+                    np.char.add(self.ant_name1[mask_fq], f"{i+1}")
+                self.ant_name2[mask_fq] =\
+                    np.char.add(self.ant_name2[mask_fq], f"{i+1}")
+
+                if i != 0:
+                    self.ant_num1[mask_fq] = self.ant_num1[mask_fq] + nant * i
+                    self.ant_num2[mask_fq] = self.ant_num2[mask_fq] + nant * i
+                nant = len(self.tarr)
+
+                if i == 0:
+                    tarr = self.tarr.copy()
+                    tarr["name"] = np.char.add(tarr["name"], "1")
+                else:
+                    tarr_ = self.tarr.copy()
+                    tarr_["name"] = np.char.add(tarr_["name"], f"{i+1}")
+                    tarr  = np.append(tarr, tarr_)
+
+        nant = len(tarr)
+        self.tarr = tarr
+        self.sort_uvvis(
+            type="tb&ant", reverse=False, set_uvvis=True,
+            set_closure=False, minclq=True
+        )
+
+        data = self.data
+
+
+        # PRIMARY table
+        nstokes = self.nstokes
+        data_pr = hdul["PRIMARY"].data
+        cols_pr = hdul["PRIMARY"].columns
+        pars_pr = hdul["PRIMARY"].data.parnames
+        ncol_pr = len(cols_pr)
+
+        ndata = len(data)
+        nfield = len(cols_pr.names)
+        dims_pr = (ndata, 1, 1, 1, 1, nstokes, 3)
+
+        data_ = np.empty(dims_pr)
+        lst_real =\
+            [
+                self.vis_1.real, self.vis_2.real,
+                self.vis_3.real, self.vis_4.real
+            ]
+        lst_imag =\
+            [
+                self.vis_1.imag, self.vis_2.imag,
+                self.vis_3.imag, self.vis_4.imag
+            ]
+        lst_wght =\
+            [
+                1 / self.sig_1**2, 1 / self.sig_2**2,
+                1 / self.sig_3**2, 1 / self.sig_4**2
+            ]
+
+        for i in range(nstokes):
+            data_[:, 0, 0, 0, 0, i, :] =\
+                np.stack([lst_real[i], lst_imag[i], lst_wght[i]], axis=-1)
+
+        ant1 = data["ant_num1"]
+        ant2 = data["ant_num2"]
+        time = data["time"]
+        jd = int(np.min(Ati(self.date, format="iso").jd + time / 24))
+
+        UU = data["u"] / (self.freq * 1e9)
+        VV = data["v"] / (self.freq * 1e9)
+        if len(self.ww) == ndata:
+            WW = self.ww / (self.freq * 1e9)
+        else:
+            WW = np.zeros(ndata)
+        BASELINE = ant1 * 256 + ant2
+        DATE = np.full(ndata, jd)
+        _DATE = time / 24
+        INTTIM = data["tint"]
+        DATA = data_
+
+        data_pr = [UU, VV, WW, BASELINE, DATE, _DATE, INTTIM]
+        cols_pr_ =\
+            fits.GroupData(
+                data_, bitpix=-32,
+                parnames=pars_pr,
+                pardata=data_pr
+            )
+        hdu_pr = fits.GroupsHDU(cols_pr_)
+        hdu_pr.name = "PRIMARY"
+
+        # AN table
+        cols_an = hdul["AIPS AN"].columns
+        ncol_an = len(cols_an)
+
+        ANNAME = tarr["name"]
+        STABXYZ =\
+            np.array(
+                [
+                    (tarr["x"][i], tarr["y"][i], tarr["z"][i]) \
+                    for i in range(nant)
+                ]
+            )
+        ORBPARM = [[] for i in range(nant)]
+        NOSTA = np.array([i+1 for i in range(nant)])
+        MNTSTA = np.array([0 for i in range(nant)])
+        STAXOF = np.array([0. for i in range(nant)])
+        POLTYA = np.array(["R" for i in range(nant)])
+        POLAA = np.array([0. for i in range(nant)])
+        POLCALA = np.array([[0., 0.] for i in range(nant)])
+        POLTYB = np.array(["L" for i in range(nant)])
+        POLAB = np.array([0. for i in range(nant)])
+        POLCALB = np.array([[0., 0.] for i in range(nant)])
+
+        data_an =\
+            [
+                ANNAME, STABXYZ, ORBPARM, NOSTA, MNTSTA, STAXOF,
+                POLTYA, POLAA, POLCALA, POLTYB, POLAB, POLCALB
+            ]
+
+        cols_an_ = [0 for i in range(ncol_an)]
+        for i in range(ncol_an):
+            cols_an_[i] =\
+                fits.Column(
+                    name=cols_an.names[i],
+                    format=cols_an.formats[i],
+                    array=data_an[i]
+                )
+        cols_an_ = fits.ColDefs(cols_an_)
+        hdu_an = fits.BinTableHDU.from_columns(cols_an_)
+        hdu_an.name = "AIPS AN"
+
+        for i, h in enumerate(hdul):
+            if h.name == "PRIMARY":
+                hdul[i] = hdu_pr
+                break
+        else:
+            hdul.append(hdu_pr)
+
+        for i, h in enumerate(hdul):
+            if h.name == "AIPS AN":
+                hdul[i] = hdu_an
+                break
+        else:
+            hdul.append(hdu_an)
+
+        hdul["PRIMARY"].header["CRVAL4"] = self.freq * 1e9
+
+        hdr_pr = hdul["PRIMARY"].header
+        hdr_cp = hdul_cp["PRIMARY"].header
+        hdr_pr["CTYPE2"] = (hdr_cp["CTYPE2"], "Axis name")          # COMPLEX
+        hdr_pr["CRPIX2"] = (hdr_cp["CRPIX2"], "Reference pixel")
+        hdr_pr["CRVAL2"] = (hdr_cp["CRVAL2"], "Reference value")
+        hdr_pr["CDELT2"] = (hdr_cp["CDELT2"], "Pixel increment")
+        hdr_pr["CROTA2"] = (hdr_cp["CROTA2"], "Axis rotation")
+        hdr_pr["CTYPE3"] = (hdr_cp["CTYPE3"], "Axis name")          # STOKES
+        hdr_pr["CRPIX3"] = (hdr_cp["CRPIX3"], "Reference pixel")
+        hdr_pr["CRVAL3"] = (hdr_cp["CRVAL3"], "Reference value")
+        hdr_pr["CDELT3"] = (hdr_cp["CDELT3"], "Pixel increment")
+        hdr_pr["CROTA3"] = (hdr_cp["CROTA3"], "Axis rotation")
+        hdr_pr["CTYPE4"] = (hdr_cp["CTYPE4"], "Axis name")          # FREQ
+        hdr_pr["CRPIX4"] = (hdr_cp["CRPIX4"], "Reference pixel")
+        hdr_pr["CRVAL4"] = (self.freq * 1e9 , "Reference value")
+        hdr_pr["CDELT4"] = (hdr_cp["CDELT4"], "Pixel increment")
+        hdr_pr["CROTA4"] = (hdr_cp["CROTA4"], "Axis rotation")
+        hdr_pr["CTYPE5"] = (hdr_cp["CTYPE5"], "Axis name")          # IF
+        hdr_pr["CRPIX5"] = (hdr_cp["CRPIX5"], "Reference pixel")
+        hdr_pr["CRVAL5"] = (hdr_cp["CRVAL5"], "Reference value")
+        hdr_pr["CDELT5"] = (hdr_cp["CDELT5"], "Pixel increment")
+        hdr_pr["CROTA5"] = (hdr_cp["CROTA5"], "Axis rotation")
+        hdr_pr["CTYPE6"] = (hdr_cp["CTYPE6"], "Axis name")          # RA
+        hdr_pr["CRPIX6"] = (hdr_cp["CRPIX6"], "Reference pixel")
+        hdr_pr["CRVAL6"] = (hdr_cp["CRVAL6"], "Reference value")
+        hdr_pr["CDELT6"] = (hdr_cp["CDELT6"], "Pixel increment")
+        hdr_pr["CROTA6"] = (hdr_cp["CROTA6"], "Axis rotation")
+        hdr_pr["CTYPE7"] = (hdr_cp["CTYPE7"], "Axis name")          # DEC
+        hdr_pr["CRPIX7"] = (hdr_cp["CRPIX7"], "Reference pixel")
+        hdr_pr["CRVAL7"] = (hdr_cp["CRVAL7"], "Reference value")
+        hdr_pr["CDELT7"] = (hdr_cp["CDELT7"], "Pixel increment")
+        hdr_pr["CROTA7"] = (hdr_cp["CROTA7"], "Axis rotation")
+        hdr_pr["PTYPE1"] = (hdr_cp["PTYPE1"], "Parameter name")     # UU
+        hdr_pr["PSCAL1"] = (hdr_cp["PSCAL1"], "Parameter scale")
+        hdr_pr["PZERO1"] = (hdr_cp["PZERO1"], "Parameter offset")
+        hdr_pr["PTYPE2"] = (hdr_cp["PTYPE2"], "Parameter name")     # VV
+        hdr_pr["PSCAL2"] = (hdr_cp["PSCAL2"], "Parameter scale")
+        hdr_pr["PZERO2"] = (hdr_cp["PZERO2"], "Parameter offset")
+        hdr_pr["PTYPE3"] = (hdr_cp["PTYPE3"], "Parameter name")     # VV
+        hdr_pr["PSCAL3"] = (hdr_cp["PSCAL3"], "Parameter scale")
+        hdr_pr["PZERO3"] = (hdr_cp["PZERO3"], "Parameter offset")
+        hdr_pr["PTYPE4"] = (hdr_cp["PTYPE4"], "Parameter name")     # BASELINE
+        hdr_pr["PSCAL4"] = (hdr_cp["PSCAL4"], "Parameter scale")
+        hdr_pr["PZERO4"] = (hdr_cp["PZERO4"], "Parameter offset")
+        hdr_pr["PTYPE5"] = (hdr_cp["PTYPE5"], "Parameter name")     # DATE
+        hdr_pr["PSCAL5"] = (hdr_cp["PSCAL5"], "Parameter scale")
+        hdr_pr["PZERO5"] = (hdr_cp["PZERO5"], "Parameter offset")
+        hdr_pr["PTYPE6"] = (hdr_cp["PTYPE6"], "Parameter name")     # DATE
+        hdr_pr["PSCAL6"] = (hdr_cp["PSCAL6"], "Parameter scale")
+        hdr_pr["PZERO6"] = (hdr_cp["PZERO6"], "Parameter offset")
+        hdr_pr["PTYPE7"] = (hdr_cp["PTYPE7"], "Parameter name")     # INTTIM
+        hdr_pr["PSCAL7"] = (hdr_cp["PSCAL7"], "Parameter scale")
+        hdr_pr["PZERO7"] = (hdr_cp["PZERO7"], "Parameter offset")
+        hdr_pr["ORIGIN"] = (hdr_cp["ORIGIN"], "Origin of data")
+        hdr_pr["DATE-OBS"] = (self.date, "Origin of data")
+        hdr_pr["TELESCOP"] = (hdr_cp["TELESCOP"], "Telescope used")
+        hdr_pr["INSTRUME"] = (hdr_cp["INSTRUME"], "Instrument used")
+        hdr_pr["OBSERVER"] = (hdr_cp["OBSERVER"], "Observers name")
+        hdr_pr["OBJECT"] = (self.source, "Name of observed source")
+        hdr_pr["EPOCH"] = (hdr_cp["EPOCH"], "Equinox of coordinates")
+        hdr_pr["BUNIT"] = (hdr_cp["BUNIT"], "Unit of measurement")
+        hdr_pr["VELREF"] = (hdr_cp["VELREF"], ">256 RADIO, 1 LSR 2 HEL 3 OBS")
+        hdr_pr["ALTRVAL"] = (hdr_cp["ALTRVAL"], "Alternate Freq/vel ref value")
+        hdr_pr["ALTRPIX"] = (hdr_cp["ALTRPIX"], "Alternate Freq/vel ref pixel")
+        hdr_pr["RESTFREQ"] = (hdr_cp["RESTFREQ"], "Rest frequency")
+        hdr_pr["OBSRA"] = (hdr_cp["OBSRA"], "Antenna pointing RA")
+        hdr_pr["OBSDEC"] = (hdr_cp["OBSDEC"], "Antenna pointing Dec")
+
+        hdr_an = hdul["AIPS AN"].header
+        hdr_cp = hdul_cp["AIPS AN"].header
+        hdr_an["EXTVER"] = (hdr_cp["EXTVER"], "Extension version number")
+        hdr_an["EXTLEVEL"] = (hdr_cp["EXTLEVEL"], "Hierarchical level")
+        hdr_an["ARRAYX"] = (hdr_cp["ARRAYX"], "Array center X coord wrt Earth center (meters)")
+        hdr_an["ARRAYY"] = (hdr_cp["ARRAYY"], "Array center Y coord.")
+        hdr_an["ARRAYZ"] = (hdr_cp["ARRAYZ"], "Array center Z coord.")
+        hdr_an["GSTIA0"] = (hdr_cp["GSTIA0"], "GST at time=0 on the ref. date (degrees).")
+        hdr_an["DEGPDY"] = (hdr_cp["DEGPDY"], "Earth rotation rate (deg/day).")
+        hdr_an["FREQ"] = (self.freq, "Ref. freq. of sub-array.")
+        hdr_an["RDATE"] = (self.date, "Ref. date (DD/MM/YY)")
+        hdr_an["POLARX"] = (hdr_cp["POLARX"], "Polar X position.")
+        hdr_an["POLARY"] = (hdr_cp["POLARY"], "Polar Y position.")
+        hdr_an["UT1UTC"] = (hdr_cp["UT1UTC"], "UT1-UTC (sec)")
+        hdr_an["DATUTC"] = (hdr_cp["DATUTC"], "Data time-UTC (sec)")
+        hdr_an["TIMSYS"] = (hdr_cp["TIMSYS"], "Time system")
+        hdr_an["ARRNAM"] = (hdr_cp["ARRNAM"], "Array name.")
+        hdr_an["NUMORB"] = (hdr_cp["NUMORB"], "Number of orbital parameters.")
+        hdr_an["NOPCAL"] = (hdr_cp["NOPCAL"], "Number of polarization parameters.")
+        hdr_an["POLTYPE"] = (hdr_cp["POLTYPE"], "Feed polarization parameterization.")
+
+        hdul.writeto(
+            save_path + save_name,
+            overwrite=True, output_verify="warn")
 
     def uvshift(self,
                 deltal=0, deltam=0, data=None, index=None):
@@ -3706,13 +4193,13 @@ class open_fits:
         deltal = deltal * m2r
         deltam = deltam * m2r
         indata = data[index]
-        uu = data["u"]
-        vv = data["v"]
+        uvu = data["u"]
+        uvv = data["v"]
 
         outdata =\
             indata \
-            * np.exp(+2j * np.pi * uu * deltal) \
-            * np.exp(+2j * np.pi * vv * deltam)
+            * np.exp(+2j * np.pi * uvu * deltal) \
+            * np.exp(+2j * np.pi * uvv * deltam)
 
         return outdata
 
@@ -3730,7 +4217,8 @@ class open_fits:
         sbl_ant2 = sbl["ant_name2"][0]
 
         mask_sbl =\
-            (data["ant_name1"] == sbl_ant1) \
+            (data["freq"] == np.min(data["freq"])) \
+            & (data["ant_name1"] == sbl_ant1) \
             & (data["ant_name2"] == sbl_ant2)
 
         sbl = data[mask_sbl]
@@ -3808,7 +4296,8 @@ class open_fits:
             return out_rl + out_lr
 
         if self.fits_model is None:
-            out_txt = "FITS model is not provided." \
+            out_txt =\
+                "FITS model is not provided." \
                 " Please check if you load UV-fits file."
             raise Exception(out_txt)
         fits_model = self.fits_model.copy()
@@ -3976,7 +4465,8 @@ class open_fits:
             dphs_ = soln_dphs.x[0]
             dphs += dphs_
 
-        out_txt = f"{self.source:8}" \
+        out_txt =\
+            f"{self.source:8}" \
             f" ({int(np.round(self.freq))} GHz, {self.date}):" \
             f" {dphs * u.rad.to(u.deg):.3f} [deg]"
         print(out_txt)
@@ -4136,12 +4626,12 @@ class open_fits:
             list_uvv = ["VV---SIN", "VV--", "VV"]
             for i in range(len(list_uvu)):
                 if list_uvu[i] in open_uvf["PRIMARY"].data.dtype.names:
-                    idx_uu = list_uvu[i]
+                    idx_uvu = list_uvu[i]
             for i in range(len(list_uvv)):
                 if list_uvv[i] in open_uvf["PRIMARY"].data.dtype.names:
-                    idx_vv = list_uvv[i]
-            uvu = open_uvf["PRIMARY"].data[idx_uu] * self.freq * 1e9
-            uvv = open_uvf["PRIMARY"].data[idx_vv] * self.freq * 1e9
+                    idx_uvv = list_uvv[i]
+            uvu = open_uvf["PRIMARY"].data[idx_uvu] * self.freq * 1e9
+            uvv = open_uvf["PRIMARY"].data[idx_uvv] * self.freq * 1e9
 
             vism_rl = np.zeros(ndat, dtype="c8")
             vism_lr = np.zeros(ndat, dtype="c8")
@@ -4176,7 +4666,7 @@ class open_fits:
 
             obstime = Ati(mjd, format="mjd").iso
             src_coord = SkyCoord(ra=self.ra*u.deg, dec=self.dec*u.deg)
-            ants = np.unique(np.append(ant_name1, ant_name2))
+            ants = self.tarr["name"]
 
             lat1 = np.zeros(ndat)
             lon1 = np.zeros(ndat)

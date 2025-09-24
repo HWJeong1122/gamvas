@@ -10,7 +10,8 @@ import matplotlib.pyplot as plt
 import matplotlib.colors as cls
 import matplotlib.patches as patches
 import matplotlib.cm as cm
-from matplotlib.ticker import (MultipleLocator, AutoMinorLocator)
+from matplotlib.ticker import MultipleLocator
+from matplotlib.ticker import AutoMinorLocator
 from astropy.convolution import convolve, Gaussian2DKernel
 from astropy.modeling.models import Gaussian2D
 from astropy.time import Time as Ati
@@ -28,8 +29,9 @@ m2r = u.mas.to(u.rad)
 
 class plotter:
     def __init__(self,
-        mrng=False, npix=128, nmod=False, prms=False, freq_ref=False, freq=False,
-        bmin=False, bmaj=False, bpa=False, bprms=False, source=False, date=False
+        mrng=False, npix=128, nmod=False, prms=False, freq_ref=False,
+        freq=False, bmin=False, bmaj=False, bpa=False, bprms=False,
+        source=False, date=False
     ):
 
         self.mrng = mrng
@@ -128,13 +130,24 @@ class plotter:
             cgain2_ = cgain2[freqs == freq]
             amplim =\
                 [
-                    0.9 * min(np.nanmin(np.abs(cgain1_)), np.nanmin(np.abs(cgain2_))),
-                    1.1 * max(np.nanmax(np.abs(cgain1_)), np.nanmax(np.abs(cgain2_)))
+                    0.9 * min(
+                        np.nanmin(np.abs(cgain1_)),
+                        np.nanmin(np.abs(cgain2_))
+                    ),
+                    1.1 * max(
+                        np.nanmax(np.abs(cgain1_)),
+                        np.nanmax(np.abs(cgain2_))
+                    )
                 ]
             newdat = gamvas.utils.sarray(
-                data =[data_["time"], data_["ant_name1"], data_["ant_name2"], cgain1_, cgain2_],
-                field=["time", "ant_name1", "ant_name2", "cgain1", "cgain2"],
-                dtype=["f8", "U32", "U32", "c8", "c8"])
+                data =\
+                    [
+                        data_["time"],
+                        data_["ant_name1"], data_["ant_name2"],
+                        cgain1_, cgain2_
+                    ],
+                field = ["time", "ant_name1", "ant_name2", "cgain1", "cgain2"],
+                dtype = ["f8", "U32", "U32", "c8", "c8"])
             for i in range(nfig):
                 if i != nfig-1:
                     nax = 10
@@ -144,7 +157,8 @@ class plotter:
                     else:
                         nax = len(uant)%10
 
-                fig_cgain, axes_cgain = plt.subplots(nax, 2, figsize=(fsize, fsize*8/16))
+                fig_cgain, axes_cgain =\
+                    plt.subplots(nax, 2, figsize=(fsize, fsize * 0.5))
                 for k in range(nax):
                     ax_cgamp = axes_cgain[k, 0]
                     ax_cgphs = axes_cgain[k, 1]
@@ -168,10 +182,27 @@ class plotter:
                     newdat_ = newdat[mask1 | mask2]
                     mask1_ = newdat_["ant_name1"] == ant
                     mask2_ = newdat_["ant_name2"] == ant
-                    ax_cgamp.scatter(newdat_["time"][mask1_], np.abs(newdat_["cgain1"][mask1_]), c="black", marker="o", s=12, label=f"{ant} ({freq:.1f} GHz)")
-                    ax_cgamp.scatter(newdat_["time"][mask2_], np.abs(newdat_["cgain2"][mask2_]), c="black", marker="o", s=12)
-                    ax_cgphs.scatter(newdat_["time"][mask1_], np.angle(newdat_["cgain1"][mask1_], deg=True), c="black", marker="o", s=12)
-                    ax_cgphs.scatter(newdat_["time"][mask2_], np.angle(newdat_["cgain2"][mask2_].conj(), deg=True), c="black", marker="o", s=12)
+                    ax_cgamp.scatter(
+                        newdat_["time"][mask1_],
+                        np.abs(newdat_["cgain1"][mask1_]),
+                        c="black", marker="o", s=12,
+                        label=f"{ant} ({freq:.1f} GHz)"
+                    )
+                    ax_cgamp.scatter(
+                        newdat_["time"][mask2_],
+                        np.abs(newdat_["cgain2"][mask2_]),
+                        c="black", marker="o", s=12
+                    )
+                    ax_cgphs.scatter(
+                        newdat_["time"][mask1_],
+                        np.angle(newdat_["cgain1"][mask1_], deg=True),
+                        c="black", marker="o", s=12
+                    )
+                    ax_cgphs.scatter(
+                        newdat_["time"][mask2_],
+                        np.angle(newdat_["cgain2"][mask2_].conj(), deg=True),
+                        c="black", marker="o", s=12
+                    )
                     if truth is not None:
                         ax_cgamp.axhline(y=truth[nfreq][ant], c="red", ls="--")
                     ax_cgamp.set_ylim(amplim)
@@ -183,7 +214,10 @@ class plotter:
                     save_path_ = save_path + "plot_cgain/"
                     gamvas.utils.mkdir(save_path_)
                     save_name_ = save_name + f".{freq:.0f}.v{i + 1}"
-                    fig_cgain.savefig(f"{save_path_}" + f"{save_name_}.{save_form}", format=save_form, dpi=200)
+                    fig_cgain.savefig(
+                        f"{save_path_}" + f"{save_name_}.{save_form}",
+                        format=save_form, dpi=200
+                    )
                 if plotimg:
                     plt.show()
                 close_figure(fig_cgain)
@@ -193,7 +227,12 @@ class plotter:
         uvf, select=None, plotimg=True, show_title=False,
         save_path=False, save_name=False, save_form="png"
     ):
-        dict_ants = dict(zip(uvf.tarr["name"], np.arange(len(uvf.tarr["name"]))))
+        dict_ants = dict(
+            zip(
+                uvf.tarr["name"],
+                np.arange(len(uvf.tarr["name"]))
+            )
+        )
 
         if save_path:
             gamvas.utils.mkdir(save_path)
@@ -213,7 +252,8 @@ class plotter:
         for nfreq, freq in enumerate(ufreq):
             yticks = []
             ytick_valid = []
-            fig_tplot, ax_tplot = plt.subplots(1,1, figsize=(fsize, fsize * 8 / 16))
+            fig_tplot, ax_tplot =\
+                plt.subplots(1,1, figsize=(fsize, fsize * 0.5))
             ax_tplot.set_rasterized(True)
             for nant, ant in enumerate(uants):
                 if nant == 0:
@@ -221,15 +261,30 @@ class plotter:
                 else:
                     label = None
                 mask_freq = freqs == freq
-                mask_ants = (data["ant_name1"] == ant) | (data["ant_name2"] == ant)
-                data_ = data[mask_freq & mask_ants]
+                mask_ants =\
+                    (data["ant_name1"] == ant) | (data["ant_name2"] == ant)
+                mask = mask_freq & mask_ants
+
+                if np.sum(mask) == 0:
+                    continue
+
+                data_ = data[mask]
                 ndat_ = len(data_)
                 addidx = 1 + dict_ants[ant] + len(ufreq) * nfreq
-                ax_tplot.scatter(data_["time"], np.zeros(ndat_) + addidx, c="black", marker="+", s=200, label=label)
+                ax_tplot.scatter(
+                    data_["time"],
+                    np.zeros(ndat_) + addidx,
+                    c="black", marker="+", s=200,
+                    label=label
+                )
 
                 yticks.append(ant)
                 ytick_valid.append(addidx)
-            ax_tplot.scatter(data["time"], np.zeros(len(data)) + addidx + 1, c="white")
+            ax_tplot.scatter(
+                data["time"],
+                np.zeros(len(data)) + addidx + 1,
+                c="white"
+            )
 
             ax_tplot.set_xlabel("Time (hour)", fontsize=20)
             ax_tplot.set_ylabel("Antenna", fontsize=20)
@@ -241,23 +296,41 @@ class plotter:
             ax_tplot.grid(True, ls="--", axis="y")
 
             handles, labels = ax_tplot.get_legend_handles_labels()
-            ax_tplot.legend(handles[::-1], labels[::-1], ncol=len(ufreq), loc="upper right", fontsize=13)
+            ax_tplot.legend(
+                handles[::-1], labels[::-1],
+                ncol=len(ufreq),
+                loc="upper right",
+                fontsize=13
+            )
 
             fig_tplot.tight_layout()
 
             if show_title:
                 if uvf.select == "mf":
-                    title = f"{uvf.source} ({uvf.date}, Select={uvf.select.upper()})"
+                    title =\
+                        f"{uvf.source} " \
+                        f"({uvf.date}, Select={uvf.select.upper()})"
                 else:
-                    title = f"{uvf.source} ({uvf.date}, Select={uvf.select.upper()}, {uvf.freq:.2f} GHz)"
+                    title =\
+                        f"{uvf.source} " \
+                        f"({uvf.date}, Select={uvf.select.upper()}, " \
+                        f"{uvf.freq:.2f} GHz)"
                 fig_tplot.suptitle(title, fontsize=20)
             fig_tplot.tight_layout()
 
             if save_name:
                 if uvf.select == "mf":
-                    fig_tplot.savefig(f"{save_path}" + f"{save_name}.{freq:.0f}.{save_form}", format=save_form, dpi=300)
+                    fig_tplot.savefig(
+                        f"{save_path}{save_name}.{freq:.0f}.{save_form}",
+                        format=save_form,
+                        dpi=300
+                    )
                 else:
-                    fig_tplot.savefig(f"{save_path}" + f"{save_name}.{save_form}", format=save_form, dpi=300)
+                    fig_tplot.savefig(
+                        f"{save_path}{save_name}.{save_form}",
+                        format=save_form,
+                        dpi=300
+                    )
 
             if plotimg:
                 plt.show()
@@ -266,14 +339,17 @@ class plotter:
 
 
     def draw_radplot(self,
-        uvf, select=None, plotvism=False, plotimg=True, plotsnr=False, show_title=False,
-        save_path=False, save_name=False, save_form="png"
+        uvf, select=None, plotvism=False, plotimg=True, plotsnr=False,
+        show_title=False, save_path=False, save_name=False, save_form="png"
     ):
         if save_path:
             gamvas.utils.mkdir(save_path)
         data = uvf.data
         if uvf.select == "mf":
-            clrs = ["tab:blue", "tab:green", "tab:olive", "tab:purple", "tab:orange", "tab:gray"]
+            clrs = [
+                "tab:blue", "tab:green", "tab:olive",
+                "tab:purple", "tab:orange", "tab:gray"
+            ]
         uu = data["u"]
         vv = data["v"]
         uvd = np.sqrt(uu**2 + vv**2)
@@ -290,20 +366,32 @@ class plotter:
         phs = np.angle(vis) * u.rad.to(u.deg)
 
         sig_a = sig
-        sig_p = sig/np.abs(vis) * u.rad.to(u.deg)
+        sig_p = sig / np.abs(vis) * u.rad.to(u.deg)
         date = Ati(data["mjd"], format="mjd").iso[0][:10]
 
         fsize=16
-        maxphs = 1.2*np.nanmax([np.abs(phs-sig_p), np.abs(phs+sig_p)])
+        maxphs = 1.2 * np.nanmax([np.abs(phs - sig_p), np.abs(phs + sig_p)])
+        if np.isnan(maxphs) or np.isinf(maxphs):
+            maxphs = 1.2 * np.nanmax([np.abs(phs), np.abs(phs)])
         if maxphs >= 200:
-            maxphs=200
+            maxphs = 200
 
         if plotsnr:
-            fig_tplot, ax_radplot = plt.subplots(4, 1, figsize=(fsize, fsize * 10 / 16), sharex=True)
+            fig_tplot, ax_radplot =\
+                plt.subplots(
+                    4, 1,
+                    figsize=(fsize, fsize * 10 / 16),
+                    sharex=True
+                )
             ax_radplot_s = ax_radplot[3]
             ax_radplot_s.set_rasterized(True)
         else:
-            fig_tplot, ax_radplot = plt.subplots(3, 1, figsize=(fsize, fsize*8/16), sharex=True)
+            fig_tplot, ax_radplot =\
+                plt.subplots(
+                    3, 1,
+                    figsize=(fsize, fsize * 8 / 16),
+                    sharex=True
+                )
         ax_radplot_a = ax_radplot[0]
         ax_radplot_p = ax_radplot[1]
         ax_radplot_e = ax_radplot[2]
@@ -326,12 +414,14 @@ class plotter:
                 sig_ = sig[uvf.data["freq"] == freq]
                 sig_a_ = sig_a[uvf.data["freq"] == freq]
                 sig_p_ = sig_p[uvf.data["freq"] == freq]
-                ax_radplot_a.errorbar(uvd_/1e6, amp_, sig_a_,
+                ax_radplot_a.errorbar(
+                    uvd_/1e6, amp_, sig_a_,
                     marker="o", markersize=mse, ls="", mfc=mfc, mec=mec, c=mec,
                     capsize=cs, capthick=ct, zorder=1,
                     label=f"{freq:.1f}"
                 )
-                ax_radplot_p.errorbar(uvd_/1e6, phs_, sig_p_,
+                ax_radplot_p.errorbar(
+                    uvd_/1e6, phs_, sig_p_,
                     marker="o", markersize=mse, ls="", mfc=mfc, mec=mec, c=mec,
                     capsize=cs, capthick=ct, zorder=1
                 )
@@ -371,8 +461,17 @@ class plotter:
             vism = np.where(data["u"] < 0, data["vism"].conj(), data["vism"])
             ampm = np.abs(vism)
             phsm = np.angle(vism) * u.rad.to(u.deg)
-            ax_radplot_a.scatter(uvd/1e6, ampm, marker="s", s=7, c="red", zorder=2, label="model")
-            ax_radplot_p.scatter(uvd/1e6, phsm, marker="s", s=7, c="red", zorder=2)
+            ax_radplot_a.scatter(
+                uvd/1e6,
+                ampm,
+                marker="s", s=7, c="red", zorder=2,
+                label="model"
+            )
+            ax_radplot_p.scatter(
+                uvd/1e6,
+                phsm,
+                marker="s", s=7, c="red", zorder=2
+            )
         ax_radplot_a.legend(ncol=10)
 
         ax_radplot_a.tick_params("both", labelsize=13)
@@ -392,14 +491,23 @@ class plotter:
 
         if show_title:
             if uvf.select == "mf":
-                title = f"{uvf.source} ({date}, Select={uvf.select.upper()})"
+                title =\
+                    f"{uvf.source} " \
+                    f"({date}, Select={uvf.select.upper()})"
             else:
-                title = f"{uvf.source} ({date}, Select={uvf.select.upper()}, {uvf.freq:.2f} GHz)"
+                title =\
+                    f"{uvf.source} " \
+                    f"({date}, Select={uvf.select.upper()}, " \
+                    f"{uvf.freq:.2f} GHz)"
             fig_tplot.suptitle(title, fontsize=20)
         fig_tplot.tight_layout()
 
         if save_name:
-            fig_tplot.savefig(f"{save_path}" + f"{save_name}.{save_form}", format=save_form, dpi=300)
+            fig_tplot.savefig(
+                f"{save_path}{save_name}.{save_form}",
+                format=save_form,
+                dpi=300
+            )
 
         if plotimg:
             plt.show()
@@ -441,10 +549,26 @@ class plotter:
         ax_phs.set_aspect("equal")
         ax_amp.set_facecolor("gray")
         ax_phs.set_facecolor("gray")
-        cmap1 = ax_amp.scatter(+uu, +vv, c=+amp1, s=30, ec="black", cmap="jet", vmin=0, vmax=+rng_a, zorder=2)
-        cmap2 = ax_phs.scatter(+uu, +vv, c=+phs1, s=30, ec="black", cmap="bwr", vmin=-rng_p, vmax=+rng_p, zorder=2)
-        cmap1 = ax_amp.scatter(-uu, -vv, c=+amp2, s=30, ec="black", cmap="jet", vmin=0, vmax=+rng_a, zorder=2)
-        cmap2 = ax_phs.scatter(-uu, -vv, c=-phs2, s=30, ec="black", cmap="bwr", vmin=-rng_p, vmax=+rng_p, zorder=2)
+        cmap1 = ax_amp.scatter(
+            +uu, +vv,
+            c=+amp1, s=30, ec="black", cmap="jet",
+            vmin=0, vmax=+rng_a, zorder=2
+        )
+        cmap2 = ax_phs.scatter(
+            +uu, +vv,
+            c=+phs1, s=30, ec="black", cmap="bwr",
+            vmin=-rng_p, vmax=+rng_p, zorder=2
+        )
+        cmap1 = ax_amp.scatter(
+            -uu, -vv,
+            c=+amp2, s=30, ec="black", cmap="jet",
+            vmin=0, vmax=+rng_a, zorder=2
+        )
+        cmap2 = ax_phs.scatter(
+            -uu, -vv,
+            c=-phs2, s=30, ec="black", cmap="bwr",
+            vmin=-rng_p, vmax=+rng_p, zorder=2
+        )
         cbar1 = fig_uvc.colorbar(cmap1, ax=ax_amp, orientation="horizontal")
         cbar2 = fig_uvc.colorbar(cmap2, ax=ax_phs, orientation="horizontal")
         cbar1.set_label("Amplitude (Jy)", fontsize=15)
@@ -463,14 +587,23 @@ class plotter:
 
         if show_title:
             if uvf.select == "mf":
-                title = f"{uvf.source} ({date}, Select={uvf.select.upper()})"
+                title =\
+                    f"{uvf.source} " \
+                    f"({date}, Select={uvf.select.upper()})"
             else:
-                title = f"{uvf.source} ({date}, Select={uvf.select.upper()}, {uvf.freq:.2f} GHz)"
+                title =\
+                    f"{uvf.source} " \
+                    f"({date}, Select={uvf.select.upper()}, " \
+                    f"{uvf.freq:.2f} GHz)"
             fig_uvc.suptitle (title, fontsize=20)
         fig_uvc.tight_layout()
 
         if save_name:
-            fig_uvc.savefig(f"{save_path}" + f"{save_name}.{save_form}", format=save_form, dpi=300)
+            fig_uvc.savefig(
+                f"{save_path}{save_name}.{save_form}",
+                format=save_form,
+                dpi=300
+            )
 
         if plotimg:
             plt.show()
@@ -509,19 +642,31 @@ class plotter:
         uvdir = np.zeros((npix, npix))
         uvbim = np.zeros((npix, npix))
 
-        xlist = -np.linspace(-uvf.mrng.value, uvf.mrng.value, npix) * u.mas.to(u.rad)
+        xlist =\
+            -np.linspace(
+                -uvf.mrng.value,
+                uvf.mrng.value,npix
+            ) * u.mas.to(u.rad)
         ygrid, xgrid = np.meshgrid(xlist, xlist)
         for i in range(npix):
             xset = xgrid[i, :].reshape(-1, 1)
             yset = ygrid[i, :].reshape(-1, 1)
-            uvbim[i, :] = np.mean(fn * np.cos(-2*np.pi*(xset*uut + yset*vvt)), axis=1)
+            uvbim[i, :] =\
+                np.mean(
+                    fn * np.cos(-2*np.pi*(xset*uut + yset*vvt)),
+                    axis=1
+                )
 
         uvd = np.sqrt(uu**2 + vv**2)
         for i in range(npix):
             xset = xgrid[i, :].reshape(-1, 1)
             yset = ygrid[i, :].reshape(-1, 1)
             expo = np.exp(-2j * np.pi * ((xset * uut + yset * vvt)))
-            uvdir[i, :] = np.mean(fn * (vis.real*expo.real - vis.imag*expo.imag), axis=1)
+            uvdir[i, :] =\
+                np.mean(
+                    fn * (vis.real*expo.real - vis.imag*expo.imag),
+                    axis=1
+                )
 
         if abs(np.max(uvdir)) < abs(np.min(uvdir)):
             nloc = np.where(uvdir < 0)
@@ -544,26 +689,45 @@ class plotter:
         else:
             uvf.dirty = uvdir
 
-        bimtitle = rf"$\rm beam~pattern~(\sigma \approx {np.std(uvbim):.3f})$"
+        bimtitle =\
+            rf"$\rm beam~pattern~(\sigma \approx {np.std(uvbim):.3f})$"
         if plot_resi:
-            dirtitle = rf"$\rm residual~ (map~range : {np.min(uvdir):.3f} <-> {np.max(uvdir):.3f})$"
+            dirtitle =\
+                rf"$\rm residual~$" \
+                rf"$\rm (map~range:~$" \
+                rf"${np.min(uvdir):.3f} <-> {np.max(uvdir):.3f})$"
         else:
-            dirtitle = r"$\rm dirty~map~(I_{\rm peak}$="+f"{max_dir:.2f} Jy)"
+            dirtitle =\
+                r"$\rm dirty~map~$" \
+                r"$(I_{\rm peak}=$" + f"{max_dir:.2f} Jy)"
 
         xgrid *= u.rad.to(u.mas)
         ygrid *= u.rad.to(u.mas)
         fsize = 15
-        fig_dirmap, ax_map = plt.subplots(1, 2, figsize=(fsize, fsize * 10 / 16))
+        fig_dirmap, ax_map =\
+            plt.subplots(1, 2, figsize=(fsize, fsize * 10 / 16))
         ax_bim = ax_map[0]
         ax_dir = ax_map[1]
         ax_bim.set_rasterized(True)
         ax_dir.set_rasterized(True)
         ax_bim.set_aspect("equal")
         ax_dir.set_aspect("equal")
-        cmap_bim = ax_bim.contourf(xgrid, ygrid, uvbim, cmap="gist_heat", levels=101, vmin=np.min(uvbim), vmax=np.max(uvbim))
-        cmap_dir = ax_dir.contourf(xgrid, ygrid, uvdir, cmap="gist_heat", levels=101, vmin=np.min(uvdir), vmax=np.max(uvdir))
-        cbar_bim = fig_dirmap.colorbar(cmap_bim, ax=ax_bim, orientation="horizontal")
-        cbar_dir = fig_dirmap.colorbar(cmap_dir, ax=ax_dir, orientation="horizontal")
+        cmap_bim =\
+            ax_bim.contourf(
+                xgrid, ygrid, uvbim,
+                cmap="gist_heat", levels=101,
+                vmin=np.min(uvbim), vmax=np.max(uvbim)
+            )
+        cmap_dir =\
+            ax_dir.contourf(
+                xgrid, ygrid, uvdir,
+                cmap="gist_heat", levels=101,
+                vmin=np.min(uvdir), vmax=np.max(uvdir)
+            )
+        cbar_bim =\
+            fig_dirmap.colorbar(cmap_bim, ax=ax_bim, orientation="horizontal")
+        cbar_dir =\
+            fig_dirmap.colorbar(cmap_dir, ax=ax_dir, orientation="horizontal")
         cbar_bim.set_label("Beam Response", fontsize=15)
         cbar_dir.set_label("Amplitude (Jy/beam)", fontsize=15)
         ax_bim.set_xlabel(f"Relative R.A ({uvf.mrng.unit})", fontsize=17)
@@ -581,16 +745,62 @@ class plotter:
         cbar_bim.ax.xaxis.set_major_locator(MultipleLocator(0.2))
         cbar_bim.ax.xaxis.set_minor_locator(MultipleLocator(0.1))
 
+        if mrng >= 20:
+            ax_bim.xaxis.set_major_locator(MultipleLocator(10))
+            ax_bim.yaxis.set_major_locator(MultipleLocator(10))
+            ax_bim.xaxis.set_minor_locator(MultipleLocator(2))
+            ax_bim.yaxis.set_minor_locator(MultipleLocator(2))
+            ax_dir.xaxis.set_major_locator(MultipleLocator(10))
+            ax_dir.yaxis.set_major_locator(MultipleLocator(10))
+            ax_dir.xaxis.set_minor_locator(MultipleLocator(2))
+            ax_dir.yaxis.set_minor_locator(MultipleLocator(2))
+        elif mrng >= 6:
+            ax_bim.xaxis.set_major_locator(MultipleLocator(5.0))
+            ax_bim.yaxis.set_major_locator(MultipleLocator(5.0))
+            ax_bim.xaxis.set_minor_locator(MultipleLocator(1.0))
+            ax_bim.yaxis.set_minor_locator(MultipleLocator(1.0))
+            ax_dir.xaxis.set_major_locator(MultipleLocator(5.0))
+            ax_dir.yaxis.set_major_locator(MultipleLocator(5.0))
+            ax_dir.xaxis.set_minor_locator(MultipleLocator(1.0))
+            ax_dir.yaxis.set_minor_locator(MultipleLocator(1.0))
+        elif 1 <= mrng < 6:
+            ax_bim.xaxis.set_major_locator(MultipleLocator(1.0))
+            ax_bim.yaxis.set_major_locator(MultipleLocator(1.0))
+            ax_bim.xaxis.set_minor_locator(MultipleLocator(0.2))
+            ax_bim.yaxis.set_minor_locator(MultipleLocator(0.2))
+            ax_dir.xaxis.set_major_locator(MultipleLocator(1.0))
+            ax_dir.yaxis.set_major_locator(MultipleLocator(1.0))
+            ax_dir.xaxis.set_minor_locator(MultipleLocator(0.2))
+            ax_dir.yaxis.set_minor_locator(MultipleLocator(0.2))
+        else:
+            ax_bim.xaxis.set_major_locator(MultipleLocator(0.10))
+            ax_bim.yaxis.set_major_locator(MultipleLocator(0.10))
+            ax_bim.xaxis.set_minor_locator(MultipleLocator(0.02))
+            ax_bim.yaxis.set_minor_locator(MultipleLocator(0.02))
+            ax_dir.xaxis.set_major_locator(MultipleLocator(0.10))
+            ax_dir.yaxis.set_major_locator(MultipleLocator(0.10))
+            ax_dir.xaxis.set_minor_locator(MultipleLocator(0.02))
+            ax_dir.yaxis.set_minor_locator(MultipleLocator(0.02))
+
         if show_title:
             if uvf.select == "mf":
-                title = f"{uvf.source} ({uvf.date}, Select={uvf.select.upper()})"
+                title =\
+                    f"{uvf.source} " \
+                    f"({uvf.date}, Select={uvf.select.upper()})"
             else:
-                title = f"{uvf.source} ({uvf.date}, Select={uvf.select.upper()}, {uvf.freq:.2f} GHz)"
+                title =\
+                    f"{uvf.source} " \
+                    f"({uvf.date}, Select={uvf.select.upper()}, " \
+                    f"{uvf.freq:.2f} GHz)"
             fig_dirmap.suptitle(title, fontsize=20)
         fig_dirmap.tight_layout()
 
         if save_name:
-            fig_dirmap.savefig(f"{save_path}" + f"{save_name}.{save_form}", format=save_form, dpi=300)
+            fig_dirmap.savefig(
+                f"{save_path}{save_name}.{save_form}",
+                format=save_form,
+                dpi=300
+            )
 
         if plotimg:
             plt.show()
@@ -607,7 +817,8 @@ class plotter:
 
 
     def draw_trplot(self,
-        result=None, pol=False, weight=None, nmod=None, ifsingle=True, spectrum="spl", set_spectrum=True, model="gaussian",
+        result=None, pol=False, weight=None, nmod=None, ifsingle=True,
+        spectrum="spl", set_spectrum=True, model="gaussian",
         fontsize=15, save_path=False, save_name=False, save_form="png"
     ):
         """
@@ -642,32 +853,60 @@ class plotter:
                             field = [r"$S_{%s}$"%(n), r"$a_{%s}$"%(n)]
                             nidx_ = 2
                         else:
-                            field = [r"$S_{%s}$"%(n), r"$a_{%s}$"%(n), r"$l_{%s}$"%(n), r"$m_{%s}$"%(n)]
+                            field =\
+                                [
+                                    r"$S_{%s}$"%(n), r"$a_{%s}$"%(n),
+                                    r"$l_{%s}$"%(n), r"$m_{%s}$"%(n)
+                                ]
                             nidx_ = 4
 
                     else:
                         if set_spectrum:
                             if spectrum in ["spl"]:
                                 if n == 1:
-                                    field = [r"$S_{%s}$"%(n), r"$a_{%s}$"%(n), r"$\alpha_{%s}$"%(n)]
+                                    field =\
+                                        [
+                                            r"$S_{%s}$"%(n), r"$a_{%s}$"%(n),
+                                            r"$\alpha_{%s}$"%(n)
+                                        ]
                                     nidx_ = 3
                                 else:
-                                    field = [r"$S_{%s}$"%(n), r"$a_{%s}$"%(n), r"$l_{%s}$"%(n), r"$m_{%s}$"%(n), r"$\alpha_{%s}$"%(n)]
+                                    field =\
+                                        [
+                                            r"$S_{%s}$"%(n), r"$a_{%s}$"%(n),
+                                            r"$l_{%s}$"%(n), r"$m_{%s}$"%(n),
+                                            r"$\alpha_{%s}$"%(n)
+                                        ]
                                     nidx_ = 5
 
                             elif spectrum in ["cpl", "ssa"]:
                                 if n == 1:
-                                    field = [r"$S_{%s}$"%(n), r"$a_{%s}$"%(n), r"$\alpha_{%s}$"%(n), r"$\nu_{\rm m,%s}$"%(n)]
+                                    field =\
+                                        [
+                                            r"$S_{%s}$"%(n), r"$a_{%s}$"%(n),
+                                            r"$\alpha_{%s}$"%(n),
+                                            r"$\nu_{\rm m,%s}$"%(n)
+                                        ]
                                     nidx_ = 4
                                 else:
-                                    field = [r"$S_{%s}$"%(n), r"$a_{%s}$"%(n), r"$l_{%s}$"%(n), r"$m_{%s}$"%(n), r"$\alpha_{%s}$"%(n), r"$\nu_{\rm m,%s}$"%(n)]
+                                    field =\
+                                        [
+                                            r"$S_{%s}$"%(n), r"$a_{%s}$"%(n),
+                                            r"$l_{%s}$"%(n), r"$m_{%s}$"%(n),
+                                            r"$\alpha_{%s}$"%(n),
+                                            r"$\nu_{\rm m,%s}$"%(n)
+                                        ]
                                     nidx_ = 7
                         else:
                             if n == 1:
                                 field = [r"$S_{%s}$"%(n), r"$a_{%s}$"%(n)]
                                 nidx_ = 2
                             else:
-                                field = [r"$S_{%s}$"%(n), r"$a_{%s}$"%(n), r"$l_{%s}$"%(n), r"$m_{%s}$"%(n)]
+                                field =\
+                                    [
+                                        r"$S_{%s}$"%(n), r"$a_{%s}$"%(n),
+                                        r"$l_{%s}$"%(n), r"$m_{%s}$"%(n)
+                                    ]
                                 nidx_ = 4
                 elif model == "delta":
                     if ifsingle:
@@ -675,7 +914,11 @@ class plotter:
                             field = [r"$S_{%s}$"%(n)]
                             nidx_ = 1
                         else:
-                            field = [r"$S_{%s}$"%(n), r"$l_{%s}$"%(n), r"$m_{%s}$"%(n)]
+                            field =\
+                                [
+                                    r"$S_{%s}$"%(n),
+                                    r"$l_{%s}$"%(n), r"$m_{%s}$"%(n)
+                                ]
                             nidx_ = 3
 
 
@@ -685,7 +928,12 @@ class plotter:
                 else:
                     add = 1
                     sidx.append(nidx)
-                    ql, qm, qh = dyquan(result.samples[:,nidx], (0.025, 0.500, 0.975), weights=result.importance_weights())
+                    ql, qm, qh =\
+                        dyquan(
+                            result.samples[:,nidx],
+                            (0.025, 0.500, 0.975),
+                            weights=result.importance_weights()
+                        )
                     mask_spectrum = int(np.round(qm)) == 0
                     if mask_spectrum:
                         field = field[:-1]
@@ -694,7 +942,8 @@ class plotter:
 
             # draw trace-plot
             fig_tr, axes_tr = dyplot.traceplot(
-                result, truth_color="black", show_titles=True, trace_cmap="viridis",
+                result, truth_color="black", show_titles=True,
+                trace_cmap="viridis",
                 dims=list(range(nidx+add, nidx+add+len(field))),
                 labels=field, label_kwargs={"fontsize":fontsize}
             )
@@ -704,7 +953,11 @@ class plotter:
                     axes_tr[nax1,nax2].set_rasterized(True)
 
             fig_tr.tight_layout()
-            fig_tr.savefig(f"{save_path}" + f"{save_name}.mod{n}.{save_form}", format=save_form, dpi=300)
+            fig_tr.savefig(
+                f"{save_path}{save_name}.mod{n}.{save_form}",
+                format=save_form,
+                dpi=300
+            )
             close_figure(fig_tr)
             nidx += nidx_
 
@@ -712,8 +965,8 @@ class plotter:
             # draw trace-plot of the number of model and spectrum
             slabel = ["nmod"] + [f"{i+2}_spectrum" for i in range(len(sidx)-1)]
             fig_tr, axes_tr = dyplot.traceplot(
-                result, truth_color="black", show_titles=True, trace_cmap="viridis",
-                dims=sidx,
+                result, truth_color="black", show_titles=True,
+                trace_cmap="viridis", dims=sidx,
                 labels=slabel, label_kwargs={"fontsize":fontsize}
             )
 
@@ -722,12 +975,17 @@ class plotter:
                     axes_tr[nax1,nax2].set_rasterized(True)
 
             fig_tr.tight_layout()
-            fig_tr.savefig(f"{save_path}" + f"{save_name}.mod.spectrum.{save_form}", format=save_form, dpi=300)
+            fig_tr.savefig(
+                f"{save_path}{save_name}.mod.spectrum.{save_form}",
+                format=save_form,
+                dpi=300
+            )
             close_figure(fig_tr)
 
 
     def draw_cnplot(self,
-        result=None, pol=False, nmod=None, ifsingle=True, spectrum="spl", set_spectrum=True, model="gaussian",
+        result=None, pol=False, nmod=None, ifsingle=True, spectrum="spl",
+        set_spectrum=True, model="gaussian",
         fontsize=15, save_path=False, save_name=False, save_form="png"
     ):
         """
@@ -764,32 +1022,60 @@ class plotter:
                             field = [r"$S_{%s}$"%(n), r"$a_{%s}$"%(n)]
                             nidx_ = 2
                         else:
-                            field = [r"$S_{%s}$"%(n), r"$a_{%s}$"%(n), r"$l_{%s}$"%(n), r"$m_{%s}$"%(n)]
+                            field =\
+                                [
+                                    r"$S_{%s}$"%(n), r"$a_{%s}$"%(n),
+                                    r"$l_{%s}$"%(n), r"$m_{%s}$"%(n)
+                                ]
                             nidx_ = 4
 
                     else:
                         if set_spectrum:
                             if spectrum in ["spl"]:
                                 if n == 1:
-                                    field = [r"$S_{%s}$"%(n), r"$a_{%s}$"%(n), r"$\alpha_{%s}$"%(n)]
+                                    field =\
+                                        [
+                                            r"$S_{%s}$"%(n), r"$a_{%s}$"%(n),
+                                            r"$\alpha_{%s}$"%(n)
+                                        ]
                                     nidx_ = 3
                                 else:
-                                    field = [r"$S_{%s}$"%(n), r"$a_{%s}$"%(n), r"$l_{%s}$"%(n), r"$m_{%s}$"%(n), r"$\alpha_{%s}$"%(n)]
+                                    field =\
+                                        [
+                                            r"$S_{%s}$"%(n), r"$a_{%s}$"%(n),
+                                            r"$l_{%s}$"%(n), r"$m_{%s}$"%(n),
+                                            r"$\alpha_{%s}$"%(n)
+                                        ]
                                     nidx_ = 5
 
                             elif spectrum in ["cpl", "ssa"]:
                                 if n == 1:
-                                    field = [r"$S_{%s}$"%(n), r"$a_{%s}$"%(n), r"$\alpha_{%s}$"%(n), r"$\nu_{\rm m,%s}$"%(n)]
+                                    field =\
+                                        [
+                                            r"$S_{%s}$"%(n), r"$a_{%s}$"%(n),
+                                            r"$\alpha_{%s}$"%(n),
+                                            r"$\nu_{\rm m,%s}$"%(n)
+                                        ]
                                     nidx_ = 4
                                 else:
-                                    field = [r"$S_{%s}$"%(n), r"$a_{%s}$"%(n), r"$l_{%s}$"%(n), r"$m_{%s}$"%(n), r"$\alpha_{%s}$"%(n), r"$\nu_{\rm m,%s}$"%(n)]
+                                    field =\
+                                        [
+                                            r"$S_{%s}$"%(n), r"$a_{%s}$"%(n),
+                                            r"$l_{%s}$"%(n), r"$m_{%s}$"%(n),
+                                            r"$\alpha_{%s}$"%(n),
+                                            r"$\nu_{\rm m,%s}$"%(n)
+                                        ]
                                     nidx_ = 7
                         else:
                             if n == 1:
                                 field = [r"$S_{%s}$"%(n), r"$a_{%s}$"%(n)]
                                 nidx_ = 2
                             else:
-                                field = [r"$S_{%s}$"%(n), r"$a_{%s}$"%(n), r"$l_{%s}$"%(n), r"$m_{%s}$"%(n)]
+                                field =\
+                                    [
+                                        r"$S_{%s}$"%(n), r"$a_{%s}$"%(n),
+                                        r"$l_{%s}$"%(n), r"$m_{%s}$"%(n)
+                                    ]
                                 nidx_ = 4
                 elif model == "delta":
                     if ifsingle:
@@ -797,7 +1083,11 @@ class plotter:
                             field = [r"$S_{%s}$"%(n)]
                             nidx_ = 1
                         else:
-                            field = [r"$S_{%s}$"%(n), r"$l_{%s}$"%(n), r"$m_{%s}$"%(n)]
+                            field =\
+                                [
+                                    r"$S_{%s}$"%(n),
+                                    r"$l_{%s}$"%(n), r"$m_{%s}$"%(n)
+                                ]
                             nidx_ = 3
 
             if set_spectrum and spectrum in ["cpl", "ssa"]:
@@ -806,7 +1096,12 @@ class plotter:
                 else:
                     add = 1
                     sidx.append(nidx)
-                    ql, qm, qh = dyquan(result.samples[:,nidx], (0.025, 0.500, 0.975), weights=result.importance_weights())
+                    ql, qm, qh =\
+                        dyquan(
+                            result.samples[:,nidx],
+                            (0.025, 0.500, 0.975),
+                            weights=result.importance_weights()
+                        )
                     mask_spectrum = int(np.round(qm)) == 0
                     if mask_spectrum:
                         field = field[:-1]
@@ -824,7 +1119,11 @@ class plotter:
                 for nax2 in np.arange(axes_cn.shape[1]):
                     axes_cn[nax1,nax2].set_rasterized(True)
             fig_cn.tight_layout()
-            fig_cn.savefig(f"{save_path}" + f"{save_name}.mod{n}.{save_form}", format=save_form, dpi=300)
+            fig_cn.savefig(
+                f"{save_path}{save_name}.mod{n}.{save_form}",
+                format=save_form,
+                dpi=300
+            )
             close_figure(fig_cn)
             nidx += nidx_
 
@@ -839,7 +1138,11 @@ class plotter:
                 for nax2 in np.arange(axes_cn.shape[1]):
                     axes_cn[nax1,nax2].set_rasterized(True)
             fig_cn.tight_layout()
-            fig_cn.savefig(f"{save_path}" + f"{save_name}.mod.spectrum.{save_form}", format=save_form, dpi=300)
+            fig_cn.savefig(
+                f"{save_path}{save_name}.mod.spectrum.{save_form}",
+                format=save_form,
+                dpi=300
+            )
             close_figure(fig_cn)
 
 
@@ -869,7 +1172,11 @@ class plotter:
             for i in range(nfreq):
                 clq_obs_1 = clq_obs[clq_obs["freq"] == ufreq[i]]
                 if len(clq_obs_1) == 0:
-                    print("WARNING: Empty closure amplitude data! Skip drawing closure amplitude.")
+                    out_txt =\
+                        "WARNING: " \
+                        "Empty closure amplitude data! " \
+                        "Skip drawing closure amplitude."
+                    print(out_txt)
                     continue
 
                 if model:
@@ -892,33 +1199,50 @@ class plotter:
                         else:
                             nax = nquad % 10
 
-                    fig_clamp, ax_clamp = plt.subplots(nax, 1, figsize=(fsize, fsize * (nax + 1)/10), sharex=True)
+                    fig_clamp, ax_clamp =\
+                        plt.subplots(
+                            nax, 1,
+                            figsize=(fsize, fsize * (nax + 1)/10),
+                            sharex=True
+                        )
 
                     for k in range(nax):
-                        clq_obs_2 = clq_obs_1[clq_obs_1["quadra"] == uquad[10 * j + k]]
+                        clq_obs_2 =\
+                            clq_obs_1[
+                                clq_obs_1["quadra"] == uquad[10 * j + k]
+                            ]
                         if model:
-                            clq_mod_2 = clq_mod_1[clq_obs_1["quadra"] == uquad[10 * j + k]]
+                            clq_mod_2 =\
+                                clq_mod_1[
+                                    clq_obs_1["quadra"] == uquad[10 * j + k]
+                                ]
                         if nax > 1:
                             plot_ax = ax_clamp[k]
                         else:
                             plot_ax = ax_clamp
                         plot_ax.set_rasterized(True)
                         plot_ax.errorbar(
-                            clq_obs_2["time"], np.log(clq_obs_2["clamp"]), clq_obs_2["sigma_clamp"],
-                            marker="o", markersize=6, c="black", ls="", mfc="black", mec="dimgray",
+                            clq_obs_2["time"],
+                            np.log(clq_obs_2["clamp"]),
+                            clq_obs_2["sigma_clamp"],
+                            marker="o", markersize=6, c="black", ls="",
+                            mfc="black", mec="dimgray",
                             capsize=6, capthick=1, zorder=1,
                             label=f"{uquad[10*j+k]} ({ufreq[i]:.1f} GHz)"
                         )
                         if model:
                             plot_ax.plot(
                                 clq_obs_2["time"], np.log(clq_mod_2),
-                                marker="o", markersize=4, c="red", ls=":", zorder=2
+                                marker="o", markersize=4, c="red", ls=":",
+                                zorder=2
                             )
                         plot_ax.xaxis.set_major_locator(MultipleLocator(2.0))
                         plot_ax.xaxis.set_minor_locator(MultipleLocator(1.0))
                         plot_ax.legend(fontsize=10)
                         if k != nax-1:
-                            plot_ax.tick_params("both", labelsize=10, labelbottom=False)
+                            plot_ax.tick_params(
+                                "both", labelsize=10, labelbottom=False
+                            )
                         else:
                             plot_ax.tick_params("both", labelsize=10)
                     fig_clamp.supylabel(r"${\rm ln}(A_{\rm C})$", fontsize=12)
@@ -927,12 +1251,21 @@ class plotter:
                     if save_img:
                         if save_path is not None and save_name is not None:
                             if nfreq == 1:
-                                save_name_ = save_name + f".{j + 1}"
+                                save_name_ =\
+                                    save_name + f".{j + 1}"
                             else:
-                                save_name_ = save_name + f".{ufreq[i]:.0f}.{j + 1}"
-                            fig_clamp.savefig(f"{save_path_}" + f"{save_name_}.{save_form}", format=save_form, dpi=200)
+                                save_name_ =\
+                                    save_name + f".{ufreq[i]:.0f}.{j + 1}"
+                            fig_clamp.savefig(
+                                f"{save_path_}{save_name_}.{save_form}",
+                                format=save_form,
+                                dpi=300
+                            )
                         else:
-                            raise Exception("'save_path' and/or 'save_name' not given (closure amplitude).")
+                            out_txt =\
+                                "'save_path' and/or 'save_name' " \
+                                "not given (closure amplitude)."
+                            raise Exception(out_txt)
                     if plotimg:
                         plt.show()
                     close_figure(fig_clamp)
@@ -947,7 +1280,11 @@ class plotter:
             for i in range(nfreq):
                 clq_obs_1 = clq_obs[clq_obs["freq"] == ufreq[i]]
                 if len(clq_obs_1) == 0:
-                    print("WARNING: Empty closure phase data! Skip drawing closure phase.")
+                    out_txt =\
+                        "WARNING:" \
+                        "Empty closure phase data! " \
+                        "Skip drawing closure phase."
+                    print(out_txt)
                     continue
 
                 if model:
@@ -966,42 +1303,70 @@ class plotter:
                             nax = 10
                         else:
                             nax = ntria % 10
-                    fig_clphs, ax_clphs = plt.subplots(nax, 1, figsize=(fsize, fsize * (nax + 1) / 10), sharex=True)
+                    fig_clphs, ax_clphs =\
+                        plt.subplots(
+                            nax, 1,
+                            figsize=(fsize, fsize * (nax + 1) / 10),
+                            sharex=True
+                        )
                     for k in range(nax):
-                        clq_obs_2 = clq_obs_1[clq_obs_1["triangle"] == utria[10 * j + k]]
+                        clq_obs_2 =\
+                            clq_obs_1[
+                                clq_obs_1["triangle"] == utria[10 * j + k]
+                            ]
                         if model:
-                            clq_mod_2 = clq_mod_1[clq_obs_1["triangle"] == utria[10 * j + k]]
+                            clq_mod_2 =\
+                                clq_mod_1[
+                                    clq_obs_1["triangle"] == utria[10 * j + k]
+                                ]
                         if nax > 1:
                             plot_ax = ax_clphs[k]
                         else:
                             plot_ax = ax_clphs
                         plot_ax.set_rasterized(True)
                         plot_ax.errorbar(
-                            clq_obs_2["time"], r2d * np.angle(np.exp(1j * clq_obs_2["clphs"])), r2d * clq_obs_2["sigma_clphs"],
-                            marker="o", markersize=6, c="black", ls="", mfc="black", mec="dimgray",
+                            clq_obs_2["time"],
+                            np.angle(np.exp(1j * clq_obs_2["clphs"])) * r2d,
+                            clq_obs_2["sigma_clphs"] * r2d,
+                            marker="o", markersize=6, c="black", ls="",
+                            mfc="black", mec="dimgray",
                             capsize=6, capthick=1, zorder=1,
-                            label=f"{utria[10 * j + k]} ({ufreq[i]:.1f} GHz)")
+                            label=f"{utria[10 * j + k]} ({ufreq[i]:.1f} GHz)"
+                        )
                         if model:
                             plot_ax.plot(
-                                clq_obs_2["time"], r2d * np.angle(np.exp(1j * clq_mod_2)),
-                                marker="o", markersize=4, c="red", ls=":", zorder=2
+                                clq_obs_2["time"],
+                                np.angle(np.exp(1j * clq_mod_2)) * r2d,
+                                marker="o", markersize=4, c="red", ls=":",
+                                zorder=2
                             )
                         plot_ax.xaxis.set_major_locator(MultipleLocator(2.0))
                         plot_ax.xaxis.set_minor_locator(MultipleLocator(1.0))
                         plot_ax.legend(fontsize=10)
                         if k != nax-1:
-                            plot_ax.tick_params("both", labelsize=10, labelbottom=False)
+                            plot_ax.tick_params(
+                                "both", labelsize=10, labelbottom=False
+                            )
                         else:
                             plot_ax.tick_params("both", labelsize=10)
-                    fig_clphs.supylabel(r"$\phi_{\rm C}~{\rm (deg)}$", fontsize=12)
+                    fig_clphs.supylabel(
+                        r"$\phi_{\rm C}~{\rm (deg)}$", fontsize=12
+                    )
                     fig_clphs.supxlabel("Time (hour)", fontsize=12)
                     fig_clphs.tight_layout()
                     if save_img:
                         if save_path is not None and save_name is not None:
                             save_name_ = save_name + f".{ufreq[i]:.0f}.{j + 1}"
-                            fig_clphs.savefig(f"{save_path_}" + f"{save_name_}.{save_form}", format=save_form, dpi=200)
+                            fig_clphs.savefig(
+                                f"{save_path_}{save_name_}.{save_form}",
+                                format=save_form,
+                                dpi=300
+                            )
                         else:
-                            raise Exception("'save_path' and/or 'save_name' not given (closure phase).")
+                            out_txt =\
+                                "'save_path' and/or 'save_name' " \
+                                "not given (closure phase)."
+                            raise Exception(out_txt)
                     if plotimg:
                         plt.show()
                     close_figure(fig_clphs)
@@ -1080,7 +1445,8 @@ class plotter:
 
 
     def generate_image(self,
-        uvf, pol=False, freq_ref=False, freq=False, prms=False, pprms=False, model="gaussian", ifsingle=True, set_spectrum=False, spectrum="spl"
+        uvf, pol=False, freq_ref=False, freq=False, prms=False, pprms=False,
+        model="gaussian", ifsingle=True, set_spectrum=False, spectrum="spl"
     ):
         """
         generate intensity image (Jy/beam)
@@ -1138,32 +1504,61 @@ class plotter:
                                 else:
                                     prm_l_ = prms[f"{i + 1}_l"]
                                     prm_m_ = prms[f"{i + 1}_m"]
-                                S = gamvas.functions.S_spl(freq_ref, freq, prm_S_, prm_i_)
+                                S =\
+                                    gamvas.functions.S_spl(
+                                        freq_ref, freq, prm_S_, prm_i_
+                                    )
                             elif spectrum in ["cpl", "ssa"]:
                                 prm_f_ = prms[f"{i + 1}_freq"]
                                 if i == 0:
                                     prm_l_ = 0
                                     prm_m_ = 0
                                 else:
-                                    mask_sindex = int(np.round(prms[f"{i + 1}_thick"])) == 0
+                                    mask_sindex =\
+                                        int(np.round(prms[f"{i + 1}_thick"])) \
+                                        == 0
                                     prm_l_ = prms[f"{i + 1}_l"]
                                     prm_m_ = prms[f"{i + 1}_m"]
                                 if spectrum in ["cpl"]:
                                     if i == 0:
-                                        S = gamvas.functions.S_cpl(freq, prm_S_, prm_f_, prm_i_)
+                                        S =\
+                                            gamvas.functions.S_cpl(
+                                                freq, prm_S_,
+                                                prm_f_, prm_i_
+                                            )
                                     else:
                                         if mask_sindex:
-                                            S = gamvas.functions.S_spl(freq_ref, freq, prm_S_, prm_i_)
+                                            S =\
+                                                gamvas.functions.S_spl(
+                                                    freq_ref, freq, prm_S_,
+                                                    prm_i_
+                                                )
                                         else:
-                                            S = gamvas.functions.S_cpl(freq, prm_S_, prm_f_, prm_i_)
+                                            S =\
+                                                gamvas.functions.S_cpl(
+                                                    freq, prm_S_,
+                                                    prm_f_, prm_i_
+                                                )
                                 elif spectrum in ["ssa"]:
                                     if i == 0:
-                                        S = gamvas.functions.SSA(freq, prm_S_, prm_f_, prm_i_)
+                                        S =\
+                                            gamvas.functions.SSA(
+                                                freq, prm_S_,
+                                                prm_f_, prm_i_
+                                            )
                                     else:
                                         if mask_sindex:
-                                            S = gamvas.functions.S_spl(freq_ref, freq, prm_S_, prm_i_)
+                                            S =\
+                                                gamvas.functions.S_spl(
+                                                    freq_ref, freq, prm_S_,
+                                                    prm_i_
+                                                )
                                         else:
-                                            S = gamvas.functions.SSA(freq, prm_S_, prm_f_, prm_i_)
+                                            S =\
+                                                gamvas.functions.SSA(
+                                                    freq, prm_S_,
+                                                    prm_f_, prm_i_
+                                                )
                         else:
                             if i == 0:
                                 prm_l_ = 0
@@ -1177,11 +1572,21 @@ class plotter:
                 ay = prm_a_ / np.sqrt(8 * np.log(2))
                 if ax > psize:
                     I = S / (2 * np.pi * ax * ay)
-                    gaussian_model = Gaussian2D(amplitude=I, x_mean=prm_l_, y_mean=prm_m_, x_stddev=ax, y_stddev=ay, theta=0)
+                    gaussian_model =\
+                        Gaussian2D(
+                            amplitude=I,
+                            x_mean=prm_l_, y_mean=prm_m_,
+                            x_stddev=ax, y_stddev=ay,
+                            theta=0
+                        )
                     addimg = gaussian_model(xgrid, ygrid)
                 elif ax <= psize:
                     I = S/psize**2
-                    loc = [int(np.round((-prm_l_ + mrng) / psize)), int(np.round((-prm_m_ + mrng) / psize))]
+                    loc =\
+                        [
+                            int(np.round((-prm_l_ + mrng) / psize)),
+                            int(np.round((-prm_m_ + mrng) / psize))
+                        ]
                     addimg = np.zeros(xgrid.shape)
                     addimg[loc[0], loc[1]] = I
                 image += addimg
@@ -1207,7 +1612,11 @@ class plotter:
                         S = prm_S_
 
                 I = S / psize**2
-                loc = [int(np.round((-prm_l_ + mrng) / psize)), int(np.round((-prm_m_ + mrng) / psize))]
+                loc =\
+                    [
+                        int(np.round((-prm_l_ + mrng) / psize)),
+                        int(np.round((-prm_m_ + mrng) / psize))
+                    ]
                 addimg = np.zeros(xgrid.shape)
                 addimg[loc[0], loc[1]] = I
                 image += addimg
@@ -1224,42 +1633,52 @@ class plotter:
             uvf (python class): opened-fits file in uvf-class
             npix (int): the number of pixels in the map
             image (2D-array): generated image
-            bprms (tuple): beam parameters (beam minor, beam major, beam position angle)
+            bprms (tuple): beam parameters (minor, major, position angle)
         Returns:
             conv_image (2D-array): convolved image (n by n)
         """
         if isinstance(bprms, bool) and not bprms:
             bprms = self.bprms
         bmin, bmaj, bpa = bprms
-        bsize = np.pi*bmin*bmaj/4/np.log(2)
+        bsize = np.pi * bmin * bmaj / 4 / np.log(2)
 
-        mrng, npix, psize = self.set_imgprms(uvf=uvf, npix=npix, mrng=uvf.mrng.value)
+        mrng, npix, psize =\
+            self.set_imgprms(uvf=uvf, npix=npix, mrng=uvf.mrng.value)
 
-        kmin = bmin/np.sqrt(8*np.log(2))/psize
-        kmaj = bmaj/np.sqrt(8*np.log(2))/psize
+        kmin = bmin / np.sqrt(8 * np.log(2)) / psize
+        kmaj = bmaj / np.sqrt(8 * np.log(2)) / psize
 
-        gauss_kernel = Gaussian2DKernel(x_stddev=kmin, y_stddev=kmaj, theta=(bpa+90)*u.deg)
+        gauss_kernel =\
+            Gaussian2DKernel(
+                x_stddev=kmin, y_stddev=kmaj,
+                theta=(bpa + 90) * u.deg
+            )
         conv_image = convolve(image, gauss_kernel, normalize_kernel=True)
         conv_image = bsize * conv_image
         return conv_image
 
 
     def draw_image(self,
-        uvf, pol=False, returned=False, bprms=None, freq_ref=None, freq=None, genlevels=False, npix=128, mindr=3, minlev=0.01, maxlev=0.99, step=2, fsize=8,
-        contourw=0.3, mintick_map=0.5, majtick_map=2.5, mintick_cb=0.2, majtick_cb=1.0, model="gaussian", ifsingle=True, set_spectrum=True, xlim=False, ylim=False,
+        uvf, pol=False, returned=False, bprms=None, freq_ref=None, freq=None,
+        genlevels=False, npix=128, mindr=3, minlev=0.01, maxlev=0.99, step=2,
+        fsize=8, contourw=0.3,
+        mintick_map=0.5, majtick_map=2.5, mintick_cb=0.2, majtick_cb=1.0,
+        model="gaussian", ifsingle=True, set_spectrum=True,
+        xlim=False, ylim=False,
         save_img=False, save_path=False, save_name=False, save_form="png",
-        plotimg=True, plot_resi=False, addnoise=False, outfig=False, title=None, show_title=False
+        plotimg=True, plot_resi=False, addnoise=False, outfig=False,
+        title=None, show_title=False
     ):
         """
         draw final image
         Arguments:
             uvf (python class): opened-fits file in uvf-class
-            bprms (tuple): beam parameters (beam minor, beam major, beam position angle)
+            bprms (tuple): beam parameters (minor, major, position angle)
             freq_ref (float): reference frequency
             freq (float): frequency to plot by considering estimated spectrum
             levels (list): contour levels to draw
-            minlev (float): starting contour level in fraction (0.01 == starting at 1% of the peak)
-            maxlev (float): final contour level in fraction (0.99 == starting at 99% of the peak)
+            minlev (float): starting contour level in fraction
+            maxlev (float): final contour level in fraction
             step (int): step size of the contour
             fsize (flaot): figure size
             mintick_map (flaot): size of minor tick label in the intensity map
@@ -1267,11 +1686,11 @@ class plotter:
             mintick_cb (flaot): size of minor tick label in the color bar
             majtick_cb (flaot): size of major tick label in the color bar
             save_img (bool): toggole option if save the final image
-            save_path (str or bool): if set, this will be the path of the saving image
-            save_name (str or bool): if set, this will be the name of saving image
-            plotimg (bool): if True, the final image will be plotted
+            save_path (str or bool): (if set) path of the saving image
+            save_name (str or bool): (if set) name of saving image
+            plotimg (bool): (if True) plot final image
             npix (int): the number of pixels in the map
-            addnoise (bool): if True, the noise in the residual map will be added to the final image
+            addnoise (bool): (if True) add the noise in the residual map
         """
         if save_path:
             gamvas.utils.mkdir(save_path)
@@ -1324,13 +1743,29 @@ class plotter:
                 self.img_count = 1
             # reconstruct residual-only map
             if self.img_count == 1:
-                self.draw_dirtymap(uvf=uvf, mrng=mrng, npix=npix, uvw=uvf.uvw, plot_resi=True, plotimg=False, save_path=save_path, save_name=save_name_, save_form=save_form)
+                self.draw_dirtymap(
+                    uvf=uvf, mrng=mrng, npix=npix, uvw=uvf.uvw,
+                    plot_resi=True, plotimg=False,
+                    save_path=save_path,
+                    save_name=save_name_,
+                    save_form=save_form
+                )
 
         # reconstruct model+residual map
-        self.draw_dirtymap(uvf=uvf, mrng=mrng, npix=npix, uvw=uvf.uvw, plot_resi=addnoise, plotimg=False)
-        self.generate_image(uvf=uvf, pol=pol, freq_ref=freq_ref, freq=freq, prms=prms, pprms=pprms, model=model, ifsingle=ifsingle, set_spectrum=set_spectrum, spectrum=self.spectrum)
+        self.draw_dirtymap(
+            uvf=uvf, mrng=mrng, npix=npix, uvw=uvf.uvw,
+            plot_resi=addnoise, plotimg=False
+        )
+        self.generate_image(
+            uvf=uvf, pol=pol, freq_ref=freq_ref, freq=freq, prms=prms,
+            pprms=pprms, model=model, ifsingle=ifsingle,
+            set_spectrum=set_spectrum, spectrum=self.spectrum
+        )
         image = self.image.copy()
-        image = self.convolve_image(uvf=uvf, npix=npix, image=image, bprms=bprms)
+        image =\
+            self.convolve_image(
+                uvf=uvf, npix=npix, image=image, bprms=bprms
+            )
         if addnoise:
             resim = uvf.resid
             image += resim
@@ -1375,15 +1810,40 @@ class plotter:
         if show_title and not title is None:
             fig_map.suptitle(title)
 
-        ax_map.contour (xgrid, ygrid, image, levels=levels, colors="lightgrey", linewidths=contourw)
+        ax_map.contour(
+            xgrid, ygrid, image,
+            levels=levels, colors="lightgrey",
+            linewidths=contourw
+        )
         if pol:
-            ax_map.contour (xgrid, ygrid, -image, levels=np.abs(levels_n), colors="red", linewidths=contourw, linestyles="--")
-        cb_map = ax_map.contourf(xgrid, ygrid, image, levels=101, vmin=0, vmax=np.max(image), cmap="gist_heat")
+            ax_map.contour(
+                xgrid, ygrid, -image,
+                levels=np.abs(levels_n), colors="red",
+                linewidths=contourw, linestyles="--"
+            )
+
+        if np.min(image) >= 0:
+            vmin = 0.0
+            vmax = np.max(image)
+        else:
+            vmin = np.min(image)
+            vmax = np.max(image)
+
+        cb_map =\
+            ax_map.contourf(
+                xgrid, ygrid, image,
+                levels=101, vmin=vmin, vmax=vmax, cmap="gist_heat"
+            )
         cb = fig_map.colorbar(cb_map, cax=ax_cba, orientation="horizontal")
         cb.set_label("Intensity (Jy/beam)", fontsize=15)
         ax_map.tick_params("both", labelsize=12)
         ax_cba.tick_params("x", labelsize=12)
-        if mrng >= 6:
+        if mrng >= 20:
+            ax_map.xaxis.set_major_locator(MultipleLocator(10))
+            ax_map.yaxis.set_major_locator(MultipleLocator(10))
+            ax_map.xaxis.set_minor_locator(MultipleLocator(2))
+            ax_map.yaxis.set_minor_locator(MultipleLocator(2))
+        elif mrng >= 6:
             ax_map.xaxis.set_major_locator(MultipleLocator(5.0))
             ax_map.yaxis.set_major_locator(MultipleLocator(5.0))
             ax_map.xaxis.set_minor_locator(MultipleLocator(1.0))
@@ -1413,8 +1873,12 @@ class plotter:
             ax_cba.xaxis.set_major_locator(MultipleLocator(0.10))
             ax_cba.xaxis.set_minor_locator(MultipleLocator(0.05))
         ax_map.invert_xaxis()
-        beam = patches.Ellipse((+0.9 * mrng - bmaj / 2, -0.9 * mrng + bmaj / 2),
-                                bmin, bmaj, angle=-bpa, fc="grey", ec="yellow", lw=1.0)
+        beam =\
+            patches.Ellipse(
+                (+0.9 * mrng - bmaj / 2, -0.9 * mrng + bmaj / 2),
+                bmin, bmaj, angle=-bpa,
+                fc="grey", ec="yellow", lw=1.0
+            )
         ax_map.add_patch(beam)
 
         psize = np.abs(xgrid[0, 0] - xgrid[1, 1])
@@ -1426,9 +1890,24 @@ class plotter:
             if model == "gaussian":
                 a = prms[f"{i + 1}_a"]
                 if a >= psize:
-                    Gmodel = patches.Ellipse((ra, dec), a, a, angle=0, fc="none", ec="cyan", lw=1.0)
-                    stick1 = patches.ConnectionPatch(xyA=(ra - a / 2, dec), xyB=(ra + a / 2, dec), coordsA="data", color="cyan", lw=1.0)
-                    stick2 = patches.ConnectionPatch(xyA=(ra, dec - a / 2), xyB=(ra, dec + a / 2), coordsA="data", color="cyan", lw=1.0)
+                    Gmodel =\
+                        patches.Ellipse(
+                            (ra, dec),
+                            a, a, angle=0,
+                            fc="none", ec="cyan", lw=1.0
+                        )
+                    stick1 =\
+                        patches.ConnectionPatch(
+                            xyA=(ra - a / 2, dec),
+                            xyB=(ra + a / 2, dec),
+                            coordsA="data", color="cyan", lw=1.0
+                        )
+                    stick2 =\
+                        patches.ConnectionPatch(
+                            xyA=(ra, dec - a / 2),
+                            xyB=(ra, dec + a / 2),
+                            coordsA="data", color="cyan", lw=1.0
+                        )
                     ax_map.add_patch(Gmodel)
                     ax_map.add_patch(stick1)
                     ax_map.add_patch(stick2)
@@ -1438,7 +1917,11 @@ class plotter:
                 ax_map.scatter(ra, dec, color="cyan", marker="+", s=50)
 
         if save_path and save_name:
-            fig_map.savefig(f"{save_path}" + f"{save_name}.{save_form}", format=save_form, dpi=300)
+            fig_map.savefig(
+                f"{save_path}{save_name}.{save_form}",
+                format=save_form,
+                dpi=300
+            )
         if plotimg:
             plt.show()
 
@@ -1452,9 +1935,9 @@ class plotter:
 
 
     def draw_fits_image(self,
-        uvf, select="i", rms=None, xlim=False, ylim=False, cmap_snr_i=3, cmap_snr_p=3,
-        fsize=6, contourw=0.3, pagap=30, plotimg=True, show_title=False,
-        save_path=False, save_name=False, save_form="png"
+        uvf, select="i", rms=None, xlim=False, ylim=False, cmap_snr_i=3,
+        cmap_snr_p=3, fsize=6, contourw=0.3, pagap=30, plotimg=True,
+        show_title=False, save_path=False, save_name=False, save_form="png"
     ):
         if select.lower() == "i":
             image = uvf.fits_image_vi
@@ -1546,40 +2029,76 @@ class plotter:
             ax_pmap = axes[0] ; ax_pmap.set_rasterized(True)
             ax_fmap = axes[1] ; ax_fmap.set_rasterized(True)
             cmap_p = polcba
-            norm_p = mpl.colors.LogNorm(vmin=np.abs(vmin_p), vmax=np.abs(vmax_p))
+            norm_p =\
+                mpl.colors.LogNorm(vmin=np.abs(vmin_p), vmax=np.abs(vmax_p))
             colormapping_p = cm.ScalarMappable(norm=norm_p, cmap=cmap_p)
             cmap_f = "terrain_r"
             cmap_f = "GnBu"
-            norm_f = mpl.colors.LogNorm(vmin=np.abs(vmin_f), vmax=np.abs(vmax_f))
+            norm_f =\
+                mpl.colors.LogNorm(vmin=np.abs(vmin_f), vmax=np.abs(vmax_f))
             colormapping_f = cm.ScalarMappable(norm=norm_f, cmap=cmap_f)
         if select.lower() == "p":
             ax_pmap.set_aspect("equal")
-            ax_pmap.contour(ra, dec, image, levels=cntr[0], colors="black", linewidths=contourw)
-            ax_pmap.pcolor (ra, dec, np.abs(image_p), norm=norm_p, cmap=cmap_p)
+            ax_pmap.contour(
+                ra, dec, image,
+                levels=cntr[0], colors="black",
+                linewidths=contourw
+            )
+            ax_pmap.pcolor (
+                ra, dec, np.abs(image_p),
+                norm=norm_p, cmap=cmap_p
+            )
             ax_pmap.tick_params(labelsize=15, right=True, top=True)
-            cbar_p = fig_fits.colorbar(colormapping_p, ax=ax_pmap, orientation="vertical")
+            cbar_p =\
+                fig_fits.colorbar(
+                    colormapping_p, ax=ax_pmap, orientation="vertical"
+                )
             cbar_p.set_label(r"$I_{\rm p}~{\rm (mJy/beam)}$", fontsize=15)
             ax_pmap.set_xlabel("Relative R.A (mas)", fontsize=20)
             ax_pmap.quiver(
                 ra[::pagap, ::pagap], dec [::pagap, ::pagap],
-                pa_x[::pagap, ::pagap], pa_y[::pagap, ::pagap], **pa_set, zorder=2)
+                pa_x[::pagap, ::pagap], pa_y[::pagap, ::pagap],
+                **pa_set, zorder=2
+            )
 
             ax_fmap.set_aspect("equal")
-            ax_fmap.contour(ra, dec, image, levels=cntr[0], colors="black", linewidths=contourw)
-            ax_fmap.pcolor (ra, dec, np.abs(image_f), norm=norm_f, cmap=cmap_f)
+            ax_fmap.contour(
+                ra, dec, image,
+                levels=cntr[0], colors="black",
+                linewidths=contourw
+            )
+            ax_fmap.pcolor (
+                ra, dec, np.abs(image_f),
+                norm=norm_f, cmap=cmap_f
+            )
             ax_fmap.tick_params(labelsize=15, right=True, top=True)
-            cbar_f = fig_fits.colorbar(colormapping_f, ax=ax_fmap, orientation="vertical")
+            cbar_f =\
+                fig_fits.colorbar(
+                    colormapping_f, ax=ax_fmap, orientation="vertical"
+                )
             cbar_f.set_label(r"$m_{\rm p}~{(\%)}$", fontsize=15)
             ax_fmap.set_xlabel("Relative R.A (mas)", fontsize=20)
             ax_fmap.quiver(
                 ra[::pagap, ::pagap], dec [::pagap, ::pagap],
-                pa_x[::pagap, ::pagap], pa_y[::pagap, ::pagap], **pa_set, zorder=2)
+                pa_x[::pagap, ::pagap], pa_y[::pagap, ::pagap],
+                **pa_set, zorder=2
+            )
         elif select.lower() in ["i", "rr", "ll"]:
             ax_imap.set_aspect("equal")
-            ax_imap.contour(ra, dec, image, levels=cntr[0], colors="lightgrey", linewidths=contourw)
-            ax_imap.pcolor (ra, dec, np.abs(image), norm=norm_i, cmap=cmap)
+            ax_imap.contour(
+                ra, dec, image,
+                levels=cntr[0], colors="lightgrey",
+                linewidths=contourw
+            )
+            ax_imap.pcolor (
+                ra, dec, np.abs(image),
+                norm=norm_i, cmap=cmap
+            )
             ax_imap.tick_params(labelsize=15, right=True, top=True)
-            cbar_i = fig_fits.colorbar(colormapping_i, ax=ax_imap, orientation="vertical")
+            cbar_i =\
+                fig_fits.colorbar(
+                    colormapping_i, ax=ax_imap, orientation="vertical"
+                )
             cbar_i.set_label(r"$I_{I}~{\rm (Jy/beam)}$", fontsize=15)
             ax_imap.set_xlabel("Relative R.A (mas)", fontsize=20)
 
@@ -1589,17 +2108,25 @@ class plotter:
             ec = "red"
 
         if show_title:
-            fig_fits.suptitle(f"{uvf.fits_source}  |  Intsru. : {uvf.fits_intrum}\nDate : {uvf.fits_date}  |  {uvf.fits_freq:.3f} GHz", fontsize=15)
+            fig_fits.suptitle(
+                f"{uvf.fits_source}  |  " \
+                f"Intsru. : {uvf.fits_intrum}\n" \
+                f"Date : {uvf.fits_date}  |  {uvf.fits_freq:.3f} GHz",
+                fontsize=15
+            )
 
-        if not type(xlim) in [type([]), type(())] or\
-            not type(ylim) in [type([]), type(())]:
+        if not isinstance(xlim, (list, tuple)) or\
+            not isinstance(ylim, (list, tuple)):
                 maxlim = np.abs(np.max(ra))
                 xlim = [-maxlim, +maxlim]
                 ylim = [-maxlim, +maxlim]
 
         beam =\
             patches.Ellipse(
-                (+0.9 * xlim[1] - uvf.fits_bmaj * d2m / 2, 0.9 * ylim[0] + uvf.fits_bmaj * d2m / 2),
+                (
+                    0.9 * xlim[1] - uvf.fits_bmaj * d2m / 2,
+                    0.9 * ylim[0] + uvf.fits_bmaj * d2m / 2
+                ),
                 uvf.fits_bmin * d2m,
                 uvf.fits_bmaj * d2m,
                 angle=-uvf.fits_bpa,
@@ -1625,7 +2152,11 @@ class plotter:
 
         fig_fits.tight_layout()
         if all([save_path, save_name]):
-            fig_fits.savefig(f"{save_path}" + f"{save_name}.{save_form}", format=save_form, dpi=500)
+            fig_fits.savefig(
+                f"{save_path}{save_name}.{save_form}",
+                format=save_form,
+                dpi=500
+            )
         if plotimg:
             plt.show()
         close_figure(fig_fits)
@@ -1636,8 +2167,8 @@ def close_figure(fig):
     close figure
     """
     plt.close(fig)
-    # plt.close("all")
-    # gc.collect()
+    plt.close("all")
+    gc.collect()
 
 colors = [
     cls.hsv_to_rgb((240/360,0.05,1.00)),    # whiteblue
