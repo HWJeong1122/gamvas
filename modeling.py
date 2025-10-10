@@ -88,7 +88,7 @@ class modeling:
     """
     def __init__(self,
         uvfs=None, select="i", x=None, y=None, yerr=None, args=None,
-        factor_sblf=1.0, sampler="rwalk", bound="multi", runfit_set="mf",
+        factor_sblf=1.0, sampler="slice", bound="multi", runfit_set="mf",
         runfit_sf=True, runfit_mf=True, runfit_pol=False, ftype=None,
         fwght=None, re_wamp_mf=None, re_ftype=None, re_fwght=None,
         boundset=False, width=5, bnds=None, bnd_l=None, bnd_m=None, bnd_f=None,
@@ -96,7 +96,7 @@ class modeling:
         model="gaussian", uvw=None, shift=None, fixnmod=False, maxn=None,
         npix=None, mindr=3, mrng=None, gacalerr=0, dognorm=True,
         dogscale=False, doampcal=True, dophscal=True, path_fig=None,
-        source=None, date=None, cgain_truth=None, ncpu=1
+        source=None, date=None, cgain_truth=None, save_uvfits=False, ncpu=1
     ):
         self.uvfs = uvfs
         self.select = select
@@ -157,6 +157,7 @@ class modeling:
         self.source = source
         self.date = date
         self.cgain_truth = cgain_truth
+        self.save_uvfits = save_uvfits
         self.ncpu = ncpu
 
         self.pol = gamvas.polarization.modeling.polarization(ncpu=self.ncpu)
@@ -562,9 +563,9 @@ class modeling:
                 fwght =\
                     gamvas.utils.get_fwght(
                         ftype,
-                        uvf.data,
-                        uvf.clamp["clamp"],
-                        uvf.clphs["clphs"]
+                        copy.deepcopy(uvf.data),
+                        copy.deepcopy(uvf.clamp["clamp"]),
+                        copy.deepcopy(uvf.clphs["clphs"])
                     )
             else:
                 fwght = self.fwght.copy()
@@ -671,8 +672,8 @@ class modeling:
                 np.ma.getdata(uvf.data["vis"]).astype(np.complex64),
                 np.ma.getdata(uvf.clamp["clamp"]),
                 np.ma.getdata(uvf.clphs["clphs"]),
-                clamp_uvcomb,
-                clphs_uvcomb
+                copy.deepcopy(clamp_uvcomb),
+                copy.deepcopy(clphs_uvcomb)
             )
 
             # set yerr parameters
@@ -958,11 +959,15 @@ class modeling:
             #   - reduced chi-square
             #   - Akaike information criterion
             #   - Bayesian information criterion
-            uvcomb = (
-                uvf.clamp["clamp"], uvf.clphs["clphs"],
-                uvf.clamp["sigma_clamp"], uvf.clphs["sigma_clphs"],
-                clamp_uvcomb, clphs_uvcomb
-            )
+            uvcomb =\
+                (
+                    copy.deepcopy(uvf.clamp["clamp"]),
+                    copy.deepcopy(uvf.clphs["clphs"]),
+                    copy.deepcopy(uvf.clamp["sigma_clamp"]),
+                    copy.deepcopy(uvf.clphs["sigma_clphs"]),
+                    copy.deepcopy(clamp_uvcomb),
+                    copy.deepcopy(clphs_uvcomb)
+                )
 
             fty, chi, aic, bic =\
                 gamvas.utils.print_stats(
@@ -979,7 +984,7 @@ class modeling:
             uvf.ploter.bprms = uvf.bprms
             uvf.ploter.prms = prms
 
-            uvf.ploter.clq_obs = (uvf.clamp, uvf.clphs)
+            # set clousre quantities
             uvf.ploter.clq_mod =\
                 gamvas.utils.set_closure(
                     data["u"], data["v"], uvf.data["vism"],
@@ -1086,6 +1091,20 @@ class modeling:
                     date=self.date
                 )
 
+            if self.save_uvfits:
+                outpath = f"{self.path_fig}/uvfs/"
+                outname =\
+                    f"out." \
+                    f"sf." \
+                    f"{uvf.freq:.0f}." \
+                    f"{uvf.source}." \
+                    f"{uvf.date}.uvf"
+                gamvas.utils.mkdir(outpath)
+                uvf.save_uvfits(
+                    save_path=outpath,
+                    save_name=outname
+                )
+
 
     def run_mf(self):
         """
@@ -1106,9 +1125,9 @@ class modeling:
             fwght =\
                 gamvas.utils.get_fwght(
                     ftype,
-                    uvf.data,
-                    uvf.clamp["clamp"],
-                    uvf.clphs["clphs"]
+                    copy.deepcopy(uvf.data),
+                    copy.deepcopy(uvf.clamp["clamp"]),
+                    copy.deepcopy(uvf.clphs["clphs"])
                 )
         else:
             fwght = self.fwght.copy()
@@ -1200,8 +1219,8 @@ class modeling:
                 uvf.tmpl_clamp,
                 uvf.tmpl_clphs
             )
-        self.clamp_uvcomb = clamp_uvcomb
-        self.clphs_uvcomb = clphs_uvcomb
+        self.clamp_uvcomb = copy.deepcopy(clamp_uvcomb)
+        self.clphs_uvcomb = copy.deepcopy(clphs_uvcomb)
 
         self.x =\
         (
@@ -1216,8 +1235,8 @@ class modeling:
             np.ma.getdata(uvf.data["vis"]).astype(np.complex64),
             np.ma.getdata(uvf.clamp["clamp"]),
             np.ma.getdata(uvf.clphs["clphs"]),
-            clamp_uvcomb,
-            clphs_uvcomb
+            copy.deepcopy(clamp_uvcomb),
+            copy.deepcopy(clphs_uvcomb)
         )
 
         self.yerr =\
@@ -1534,11 +1553,15 @@ class modeling:
         #   - reduced chi-square
         #   - Akaike information criterion
         #   - Bayesian information criterion
-        uvcomb = (
-            uvf.clamp["clamp"], uvf.clphs["clphs"],
-            uvf.clamp["sigma_clamp"], uvf.clphs["sigma_clphs"],
-            clamp_uvcomb, clphs_uvcomb
-        )
+        uvcomb =\
+            (
+                copy.deepcopy(uvf.clamp["clamp"]),
+                copy.deepcopy(uvf.clphs["clphs"]),
+                copy.deepcopy(uvf.clamp["sigma_clamp"]),
+                copy.deepcopy(uvf.clphs["sigma_clphs"]),
+                copy.deepcopy(clamp_uvcomb),
+                copy.deepcopy(clphs_uvcomb)
+            )
         fty, chi, aic, bic =\
             gamvas.utils.print_stats(
                 uvf, uvcomb, self.nmprms, logz_v, logz_d, ftype
@@ -1555,7 +1578,6 @@ class modeling:
         uvf.ploter.spectrum = self.spectrum
 
         # set clousre quantities
-        uvf.ploter.clq_obs = (uvf.clamp, uvf.clphs)
         uvf.ploter.clq_mod =\
             gamvas.utils.set_closure(
                 uvf.data["u"], uvf.data["v"], uvf.data["vism"],
@@ -1642,7 +1664,22 @@ class modeling:
             uvfs[i].drop_visibility_model()
         uvf.drop_visibility_model()
 
-        self.uvfs = uvfs
+        self.uvfs = copy.deepcopy(uvfs)
+
+        if self.save_uvfits:
+            for i in range(len(uvfs)):
+                outpath = f"{self.path_fig}/uvfs/"
+                outname =\
+                    f"out." \
+                    f"mf." \
+                    f"{uvfs[i].freq:.0f}." \
+                    f"{uvfs[i].source}." \
+                    f"{uvfs[i].date}.uvf"
+                gamvas.utils.mkdir(outpath)
+                uvfs[i].save_uvfits(
+                    save_path=outpath,
+                    save_name=outname
+                )
 
         gc.collect()
 
@@ -1654,9 +1691,19 @@ class modeling:
 
         uvfs = copy.deepcopy(self.uvfs)
         uvall = gamvas.utils.set_uvf(uvfs, type="mf")
+        uant =\
+            np.unique(
+                np.append(
+                    uvall.data["ant_name1"],
+                    uvall.data["ant_name2"]
+                )
+            )
 
         nvis  = uvall.data.shape[0]
-        ncamp = uvall.tmpl_clamp.shape[0]
+        if len(uant) >= 4:
+            ncamp = uvall.tmpl_clamp.shape[0]
+        else:
+            ncamp = 0
         ncphs = uvall.tmpl_clphs.shape[0]
 
         mrng = self.mrng
@@ -1729,7 +1776,7 @@ class modeling:
                 if self.runfit_pol:
                     uvfs_ = gamvas.utils.set_uvf(uvfs, type="mf")
                     self.pol.run_pol(
-                        uvfs=uvfs,
+                        uvfs=copy.deepcopy(self.uvfs),
                         uvw=self.uvw,
                         runmf=True,
                         iprms=self.mprms,
@@ -1771,7 +1818,7 @@ class modeling:
                         out_txt =\
                             f"Insufficient data ({uvf.freq:.1f} GHz): " \
                             f"{ndat} (data) & {dof} (allowed dof). " \
-                            f"Please check the number of visibility data " \
+                            f"Please check the number of visibility " \
                             f"or reduce either 'uvave' or 'snrflag'."
                         raise Exception(out_txt)
                     else:
@@ -1798,7 +1845,7 @@ class modeling:
                         f"Insufficient data: " \
                         f"{ndat} (data) & " \
                         f"{dof} (allowed dof). " \
-                        "Please check the number of visibility data " \
+                        "Please check the number of visibility " \
                         f"or reduce either 'uvave' or 'snrflag'."
                     raise Exception(out_txt)
                 else:

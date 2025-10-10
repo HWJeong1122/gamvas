@@ -2,6 +2,7 @@
 import os
 import sys
 import gc
+import copy
 import pandas as pd
 import numpy as np
 import numpy.lib.recfunctions as rfn

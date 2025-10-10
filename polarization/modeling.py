@@ -471,7 +471,7 @@ class polarization:
                 uvf_.fits_imgcntr_i_res = gamvas.utils.make_cntr(returned[0], rms=uvf_.fits_image_rms_i)
 
                 # load polarization uvf
-                uvf.load_uvf(select=stoke, uvw=uvf.uvw, snrflag=0, pinfo=False)
+                uvf.load_uvf(select=stoke, uvw=uvf.uvw, prt=False)
                 data = uvf.data
                 self.freq = uvf.freq
                 self.stoke = stoke
@@ -479,10 +479,18 @@ class polarization:
 
                 # set save_path
                 if runmf:
-                    save_path_ = save_path.replace(f"Pol_{iselect.upper()}/mf", f"Pol_{stoke.upper()}")
+                    save_path_ =\
+                        save_path.replace(
+                            f"Pol_{iselect.upper()}",
+                            f"Pol_{stoke.upper()}"
+                        )
                     gamvas.utils.mkdir(save_path_)
                 else:
-                    save_path_ = save_path.replace(f"Pol_{iselect.upper()}/{self.freq:.1f}", f"Pol_{stoke.upper()}")
+                    save_path_ =\
+                        save_path.replace(
+                            f"Pol_{iselect.upper()}/{self.freq:.1f}",
+                            f"Pol_{stoke.upper()}"
+                        )
                     gamvas.utils.mkdir(save_path_)
                 save_path_ = f"{save_path_}/{self.freq:.1f}/"
                 gamvas.utils.mkdir(save_path_)
@@ -658,7 +666,11 @@ class polarization:
                 uvf.ploter.prms = iprms
                 uvf.ploter.pprms = pprms
 
-                uvf.ploter.clq_obs = (uvf.clamp, uvf.clphs)
+                uvf.ploter.clq_obs =\
+                    (
+                        copy.deepcopy(uvf.clamp),
+                        copy.deepcopy(uvf.clphs)
+                    )
                 uvf.ploter.clq_mod =\
                     gamvas.utils.set_closure(
                         data["u"], data["v"], uvf.data["vism"],
@@ -806,9 +818,9 @@ class polarization:
 
             # set pol image saving path
             if runmf:
-                save_path_p = save_path
+                save_path_p = f"{save_path}/mf/"
             else:
-                save_path_p = save_path
+                save_path_p = f"{save_path}/"
 
 
             # draw nominal-beam image
@@ -819,6 +831,8 @@ class polarization:
 
             ## set image parameters
             fnpix = int(np.round(self.npix / 256))
+            if fnpix == 0:
+                fnpix = 1
             uvf_.fits_npix = self.npix
             uvf_.fits_psize = 24 * u.mas.to(u.deg) / self.npix
             uvf_.fits_grid_ra = uvf.xgrid/u.deg.to(u.mas)
@@ -839,7 +853,7 @@ class polarization:
                 cmap_snr_p=3,
                 fsize=6,
                 contourw=0.5,
-                pagap=5 * int(np.round(self.npix / 256)),
+                pagap=5 * fnpix,
                 plotimg=False,
                 show_title=False,
                 save_path=save_path_p,
@@ -890,7 +904,7 @@ class polarization:
                 cmap_snr_p=3,
                 fsize=6,
                 contourw=0.5,
-                pagap=5 * int(np.round(self.npix / 256)),
+                pagap=5 * fnpix,
                 plotimg=False,
                 show_title=False,
                 save_path=save_path_p,

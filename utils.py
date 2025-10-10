@@ -189,12 +189,20 @@ def cc2d(image1, image2, shift, psize, mrng,
     shift2 = np.arange(-delxy, +delxy, 1)
 
     ceff = np.zeros((shift1.shape[0], shift2.shape[0]))
-    image1_roi = image1_mask.copy()[center-maproi:center+maproi, center-maproi:center+maproi]
+    image1_roi =\
+        image1_mask.copy()[
+            center - maproi : center + maproi,
+            center - maproi : center + maproi
+        ]
     for i, x in enumerate(shift1):
         center1 = center+x
         for j, y in enumerate(shift2):
             center2 = center+y
-            image2_roi = image2_mask.copy()[center2-maproi:center2+maproi, center1-maproi:center1+maproi]
+            image2_roi =\
+                image2_mask.copy()[
+                    center2 - maproi : center2 + maproi,
+                    center1 - maproi : center1 + maproi
+                ]
 
             numer = np.nansum((image1_roi-mean1)*(image2_roi-mean2))
             denom1 = np.nansum((image1_roi-mean1)**2)
@@ -217,9 +225,16 @@ def cc2d(image1, image2, shift, psize, mrng,
     ax_2dcc.set_xlabel(r"$\rm \Delta R.A~(mas)$", fontsize=15)
     ax_2dcc.set_ylabel(r"$\rm \Delta Dec~(mas)$", fontsize=15)
     ax_2dcc.tick_params("both", labelsize=13)
-    ax_2dcc.set_title(f"RA={-peakra:+.3f} | Dec={-peakdec:+.3f} (@{f1:.3f} GHz)", fontsize=15)
+    ax_2dcc.set_title(
+        f"RA={-peakra:+.3f} | Dec={-peakdec:+.3f} (@{f1:.3f} GHz)",
+        fontsize=15
+    )
     if save_path and save_name:
-        fig_2dcc.savefig(f"{save_path}" + f"{save_name}.{save_form}", format=save_form, dpi=300)
+        fig_2dcc.savefig(
+            f"{save_path}" + f"{save_name}.{save_form}",
+            format=save_form,
+            dpi=300
+        )
     if plotimg:
         plt.show()
     close_figure(fig_2dcc)
@@ -255,8 +270,16 @@ def print_stats(uvf, uvcomb, k, logz, dlogz, ftype):
     sig = uvf.data["sigma"]
 
     chi = 0.5 * np.sum((np.abs(mod - obs) / sig)**2) / (len(obs) - k)
-    aic = np.sum((np.abs(mod - obs) / sig)**2 + np.log(2 * np.pi * sig**2)) + k * 2
-    bic = np.sum((np.abs(mod - obs) / sig)**2 + np.log(2 * np.pi * sig**2)) + k * np.log(nvis_)
+    aic =\
+        np.sum(
+            (np.abs(mod - obs) / sig)**2
+            + np.log(2 * np.pi * sig**2)
+        ) + k * 2
+    bic =\
+        np.sum(
+            (np.abs(mod - obs) / sig)**2
+            + np.log(2 * np.pi * sig**2)
+        ) + k * np.log(nvis_)
 
     out_fty.append("vis")
     out_chi.append(chi)
@@ -265,32 +288,65 @@ def print_stats(uvf, uvcomb, k, logz, dlogz, ftype):
 
     for nft, ft in enumerate(ftype):
         if ft == "vis":
-            print("# (vis)" + " "*(10-len("vis")) + f"| Chi2 : {chi:-10.2f} | AIC : {aic:-10.2f} | BIC : {bic:-10.2f}")
+            out_txt =\
+                f"# (vis){' ' * (10 - len('vis'))}" \
+                f"| Chi2 : {chi:-10.2f} " \
+                f"| AIC : {aic:-10.2f} " \
+                f"| BIC : {bic:-10.2f}"
+            print(out_txt)
             continue
 
         elif ft == "amp":
             obs = np.abs(uvf.data["vis"])
             mod = np.abs(uvf.data["vism"])
             sig = uvf.data["sigma"]
-            chi = np.sum((np.abs(mod - obs) / sig)**2) / (len(obs) - k)
-            aic = np.sum((np.abs(mod - obs) / sig)**2 + np.log(2 * np.pi * sig**2)) + k * 2
-            bic = np.sum((np.abs(mod - obs) / sig)**2 + np.log(2 * np.pi * sig**2)) + k * np.log(nvis_)
+            chi =\
+                np.sum(
+                    (np.abs(mod - obs) / sig)**2
+                ) / (len(obs) - k)
+            aic =\
+                np.sum(
+                    (np.abs(mod - obs) / sig)**2
+                    + np.log(2 * np.pi * sig**2)
+                ) + k * 2
+            bic =\
+                np.sum(
+                    (np.abs(mod - obs) / sig)**2
+                    + np.log(2 * np.pi * sig**2)
+                ) + k * np.log(nvis_)
 
         elif ft == "phs":
             obs = np.exp(1j * np.angle(uvf.data["vis"]))
             mod = np.exp(1j * np.angle(uvf.data["vism"]))
             sig = uvf.data["sigma"] / np.abs(uvf.data["vis"])
-            chi = np.sum((np.abs(mod - obs) / sig)**2) / (len(obs) - k)
-            aic = np.sum((np.abs(mod - obs) / sig)**2 + np.log(2 * np.pi * sig**2)) + k * 2
-            bic = np.sum((np.abs(mod - obs) / sig)**2 + np.log(2 * np.pi * sig**2)) + k * np.log(nvis_)
+            chi =\
+                np.sum(
+                    (np.abs(mod - obs) / sig)**2
+                ) / (len(obs) - k)
+            aic =\
+                np.sum(
+                    (np.abs(mod - obs) / sig)**2
+                    + np.log(2 * np.pi * sig**2)
+                ) + k * 2
+            bic =\
+                np.sum(
+                    (np.abs(mod - obs) / sig)**2
+                    + np.log(2 * np.pi * sig**2)
+                ) + k * np.log(nvis_)
 
         elif ft in ["clamp", "clphs"]:
-            clq_obs = (uvcomb[0], uvcomb[1])
-            clq_mod = set_closure(
-                uvf.data["u"], uvf.data["v"], uvf.data["vism"],
-                np.zeros(uvf.data["vism"].shape[0]), uvf.data["ant_name1"], uvf.data["ant_name2"],
-                uvcomb[4], uvcomb[5]
-            )
+            clq_obs =\
+                (
+                    copy.deepcopy(uvcomb[0]),
+                    copy.deepcopy(uvcomb[1])
+                )
+            clq_mod =\
+                set_closure(
+                    uvf.data["u"], uvf.data["v"], uvf.data["vism"],
+                    np.zeros(uvf.data["vism"].shape[0]),
+                    uvf.data["ant_name1"], uvf.data["ant_name2"],
+                    uvcomb[4], uvcomb[5]
+                )
             clq_sig = (uvcomb[2], uvcomb[3])
 
             if ft == "clamp":
@@ -300,9 +356,20 @@ def print_stats(uvf, uvcomb, k, logz, dlogz, ftype):
 
                 try:
                     nclq = obs.shape[0]
-                    chi = np.sum((np.abs(mod - obs) / sig)**2) / (len(obs) - k)
-                    aic = np.sum((np.abs(mod - obs) / sig)**2 + np.log(2 * np.pi * sig**2)) + k * 2
-                    bic = np.sum((np.abs(mod - obs) / sig)**2 + np.log(2 * np.pi * sig**2)) + k * np.log(nvis_)
+                    chi =\
+                        np.sum(
+                            (np.abs(mod - obs) / sig)**2
+                        ) / (len(obs) - k)
+                    aic =\
+                        np.sum(
+                            (np.abs(mod - obs) / sig)**2
+                            + np.log(2 * np.pi * sig**2)
+                        ) + k * 2
+                    bic =\
+                        np.sum(
+                            (np.abs(mod - obs) / sig)**2
+                            + np.log(2 * np.pi * sig**2)
+                        ) + k * np.log(nvis_)
                 except:
                     print("! Absence of closure amplitude data.")
                     print("! Replace with NaNs.")
@@ -317,9 +384,20 @@ def print_stats(uvf, uvcomb, k, logz, dlogz, ftype):
                 nclq = obs.shape[0]
 
                 try:
-                    chi = np.sum((np.abs(mod - obs) / sig)**2) / (len(obs) - k)
-                    aic = np.sum((np.abs(mod - obs) / sig)**2 + np.log(2 * np.pi * sig**2)) + k * 2
-                    bic = np.sum((np.abs(mod - obs) / sig)**2 + np.log(2 * np.pi * sig**2)) + k * np.log(nvis_)
+                    chi =\
+                        np.sum(
+                            (np.abs(mod - obs) / sig)**2
+                        ) / (len(obs) - k)
+                    aic =\
+                        np.sum(
+                            (np.abs(mod - obs) / sig)**2
+                            + np.log(2 * np.pi * sig**2)
+                        ) + k * 2
+                    bic =\
+                        np.sum(
+                            (np.abs(mod - obs) / sig)**2
+                            + np.log(2 * np.pi * sig**2)
+                        ) + k * np.log(nvis_)
                 except:
                     print("! Absence of closure phase data.")
                     print("! Replace with NaNs.")
@@ -331,7 +409,13 @@ def print_stats(uvf, uvcomb, k, logz, dlogz, ftype):
             outft = ft
         elif ft in ["clamp"]:
             outft = "log.clamp"
-        print(f"# ({outft:9s}) " + f"| Chi2 : {chi:-10.2f} | AIC : {aic:-10.2f} | BIC : {bic:-10.2f}")
+
+        out_txt =\
+            f"# ({outft:9s}) " \
+            f"| Chi2 : {chi:-10.2f} " \
+            f"| AIC : {aic:-10.2f} " \
+            f"| BIC : {bic:-10.2f}"
+        print(out_txt)
         out_fty.append(outft)
         out_chi.append(chi)
         out_aic.append(aic)
@@ -391,9 +475,27 @@ def fit_beam(uvc):
     """
     def fit_chisq(beamparams, db_coeff):
         (fwhm_maj2, fwhm_min2, theta) = beamparams
-        a = 4 * np.log(2) * (np.cos(theta)**2 / fwhm_min2 + np.sin(theta)**2 / fwhm_maj2)
-        b = 4 * np.log(2) * (np.cos(theta)**2 / fwhm_maj2 + np.sin(theta)**2 / fwhm_min2)
-        c = 8 * np.log(2) * np.cos(theta) * np.sin(theta) * (1.0 / fwhm_maj2 - 1.0 / fwhm_min2)
+        a =\
+            (
+                4 * np.log(2)
+                * (
+                    np.cos(theta)**2 / fwhm_min2
+                    + np.sin(theta)**2 / fwhm_maj2
+                )
+            )
+        b =\
+            (
+                4 * np.log(2)
+                * (
+                    np.cos(theta)**2 / fwhm_maj2
+                    + np.sin(theta)**2 / fwhm_min2
+                )
+            )
+        c =\
+            (
+                8 * np.log(2) * np.cos(theta) * np.sin(theta)
+                * (1.0 / fwhm_maj2 - 1.0 / fwhm_min2)
+            )
         gauss_coeff = np.array((a, b, c))
         chisq = np.sum((np.array(db_coeff) - gauss_coeff)**2)
         return chisq
@@ -434,7 +536,9 @@ def set_uvf(dataset, type="sf"):
     Set the uv-fits data for the input dataset
         Arguments:
             dataset (list): input dataset
-            type (str): type of the dataset ('sf': single-frequency, 'mf': multi-frequency)
+            type (str): type of the dataset
+                - 'sf': single-frequency
+                - 'mf': multi-frequency
         Returns:
             uvf: uv-fits data
     """
@@ -503,7 +607,11 @@ def set_uvf(dataset, type="sf"):
     out.tmpl_clamp = tmpl_clamp
     out.tmpl_clphs = tmpl_clphs
     out.fit_beam(uvw=dataset[0].uvw)
-    out.ploter.clq_obs = (clamp, clphs)
+    out.ploter.clq_obs =\
+        (
+            copy.deepcopy(clamp),
+            copy.deepcopy(clphs)
+        )
 
     if type == "sf":
         out.select = dataset[0].select
@@ -534,8 +642,8 @@ def set_uvf(dataset, type="sf"):
 
 
 def set_closure(
-    data_u, data_v, data_vis, data_sig, data_ant1, data_ant2, clamp_uvcomb, clphs_uvcomb
-):
+    data_u, data_v, data_vis, data_sig, data_ant1, data_ant2,
+    clamp_uvcomb, clphs_uvcomb):
     """
     Set the closure quantities for the input dataset
         Arguments:
@@ -566,10 +674,26 @@ def set_closure(
         mask_amp34 = clamp_uvcomb[2].reshape(len(clamp_uvcomb[2]), -1)
         mask_amp13 = clamp_uvcomb[3].reshape(len(clamp_uvcomb[3]), -1)
         mask_amp24 = clamp_uvcomb[4].reshape(len(clamp_uvcomb[4]), -1)
-        mask_amp12 = np.argmax((mask_amp12[:, None, :] == uv_coord[None, :, :]).all(axis=2), axis=1)
-        mask_amp34 = np.argmax((mask_amp34[:, None, :] == uv_coord[None, :, :]).all(axis=2), axis=1)
-        mask_amp13 = np.argmax((mask_amp13[:, None, :] == uv_coord[None, :, :]).all(axis=2), axis=1)
-        mask_amp24 = np.argmax((mask_amp24[:, None, :] == uv_coord[None, :, :]).all(axis=2), axis=1)
+        mask_amp12 =\
+            np.argmax(
+                (mask_amp12[:, None, :] == uv_coord[None, :, :]).all(axis=2),
+                axis=1
+            )
+        mask_amp34 =\
+            np.argmax(
+                (mask_amp34[:, None, :] == uv_coord[None, :, :]).all(axis=2),
+                axis=1
+            )
+        mask_amp13 =\
+            np.argmax(
+                (mask_amp13[:, None, :] == uv_coord[None, :, :]).all(axis=2),
+                axis=1
+            )
+        mask_amp24 =\
+            np.argmax(
+                (mask_amp24[:, None, :] == uv_coord[None, :, :]).all(axis=2),
+                axis=1
+            )
         amp12 = np.abs(data_vis[mask_amp12])
         amp34 = np.abs(data_vis[mask_amp34])
         amp13 = np.abs(data_vis[mask_amp13])
@@ -580,9 +704,21 @@ def set_closure(
         mask_phs12 = clphs_uvcomb[1].reshape(len(clphs_uvcomb[1]), -1)
         mask_phs23 = clphs_uvcomb[2].reshape(len(clphs_uvcomb[2]), -1)
         mask_phs31 = clphs_uvcomb[3].reshape(len(clphs_uvcomb[3]), -1)
-        mask_phs12 = np.argmax((mask_phs12[:, None, :] == uv_coord[None, :, :]).all(axis=2), axis=1)
-        mask_phs23 = np.argmax((mask_phs23[:, None, :] == uv_coord[None, :, :]).all(axis=2), axis=1)
-        mask_phs31 = np.argmax((mask_phs31[:, None, :] == uv_coord[None, :, :]).all(axis=2), axis=1)
+        mask_phs12 =\
+            np.argmax(
+                (mask_phs12[:, None, :] == uv_coord[None, :, :]).all(axis=2),
+                axis=1
+            )
+        mask_phs23 =\
+            np.argmax(
+                (mask_phs23[:, None, :] == uv_coord[None, :, :]).all(axis=2),
+                axis=1
+            )
+        mask_phs31 =\
+            np.argmax(
+                (mask_phs31[:, None, :] == uv_coord[None, :, :]).all(axis=2),
+                axis=1
+            )
         phs12 = np.angle(data_vis[mask_phs12])
         phs23 = np.angle(data_vis[mask_phs23])
         phs31 = np.angle(data_vis[mask_phs31].conj())
@@ -606,29 +742,125 @@ def set_uvcombination(vdat, tmpl_clamp, tmpl_clphs):
     """
     Nant = len(np.unique(np.append(vdat["ant_name1"], vdat["ant_name2"])))
     if Nant >= 4:
-        clamp_uv12 = np.array(list(zip(np.ma.getdata(tmpl_clamp["u12"]), np.ma.getdata(tmpl_clamp["v12"]))))
-        clamp_uv34 = np.array(list(zip(np.ma.getdata(tmpl_clamp["u34"]), np.ma.getdata(tmpl_clamp["v34"]))))
-        clamp_uv13 = np.array(list(zip(np.ma.getdata(tmpl_clamp["u13"]), np.ma.getdata(tmpl_clamp["v13"]))))
-        clamp_uv24 = np.array(list(zip(np.ma.getdata(tmpl_clamp["u24"]), np.ma.getdata(tmpl_clamp["v24"]))))
-        clphs_uv12 = np.array(list(zip(np.ma.getdata(tmpl_clphs["u12"]), np.ma.getdata(tmpl_clphs["v12"]))))
-        clphs_uv23 = np.array(list(zip(np.ma.getdata(tmpl_clphs["u23"]), np.ma.getdata(tmpl_clphs["v23"]))))
-        clphs_uv31 = np.array(list(zip(np.ma.getdata(tmpl_clphs["u31"]), np.ma.getdata(tmpl_clphs["v31"]))))
-        clamp_comb = (np.ma.getdata(tmpl_clamp["freq"]), clamp_uv12, clamp_uv34, clamp_uv13, clamp_uv24)
-        clphs_comb = (np.ma.getdata(tmpl_clphs["freq"]), clphs_uv12, clphs_uv23, clphs_uv31)
+        clamp_uv12 =\
+            np.array(
+                list(
+                    zip(
+                        np.ma.getdata(tmpl_clamp["u12"]),
+                        np.ma.getdata(tmpl_clamp["v12"])
+                    )
+                )
+            )
+        clamp_uv34 =\
+            np.array(
+                list(
+                    zip(
+                        np.ma.getdata(tmpl_clamp["u34"]),
+                        np.ma.getdata(tmpl_clamp["v34"])
+                    )
+                )
+            )
+        clamp_uv13 =\
+            np.array(
+                list(
+                    zip(
+                        np.ma.getdata(tmpl_clamp["u13"]),
+                        np.ma.getdata(tmpl_clamp["v13"])
+                    )
+                )
+            )
+        clamp_uv24 =\
+            np.array(
+                list(
+                    zip(
+                        np.ma.getdata(tmpl_clamp["u24"]),
+                        np.ma.getdata(tmpl_clamp["v24"])
+                    )
+                )
+            )
+        clphs_uv12 =\
+            np.array(
+                list(
+                    zip(
+                        np.ma.getdata(tmpl_clphs["u12"]),
+                        np.ma.getdata(tmpl_clphs["v12"])
+                    )
+                )
+            )
+        clphs_uv23 =\
+            np.array(
+                list(
+                    zip(
+                        np.ma.getdata(tmpl_clphs["u23"]),
+                        np.ma.getdata(tmpl_clphs["v23"])
+                    )
+                )
+            )
+        clphs_uv31 =\
+            np.array(
+                list(
+                    zip(
+                        np.ma.getdata(tmpl_clphs["u31"]),
+                        np.ma.getdata(tmpl_clphs["v31"])
+                    )
+                )
+            )
+        clamp_comb =\
+            (
+                np.ma.getdata(tmpl_clamp["freq"]),
+                clamp_uv12, clamp_uv34, clamp_uv13, clamp_uv24
+            )
+        clphs_comb =\
+            (
+                np.ma.getdata(tmpl_clphs["freq"]),
+                clphs_uv12, clphs_uv23, clphs_uv31
+            )
     if Nant == 3:
-        clphs_uv12 = np.array(list(zip(np.ma.getdata(tmpl_clphs["u12"]), np.ma.getdata(tmpl_clphs["v12"]))))
-        clphs_uv23 = np.array(list(zip(np.ma.getdata(tmpl_clphs["u23"]), np.ma.getdata(tmpl_clphs["v23"]))))
-        clphs_uv31 = np.array(list(zip(np.ma.getdata(tmpl_clphs["u31"]), np.ma.getdata(tmpl_clphs["v31"]))))
-        clamp_comb = (np.nan, np.nan, np.nan, np.nan, np.nan)
-        clphs_comb = (np.ma.getdata(tmpl_clphs["freq"]), clphs_uv12, clphs_uv23, clphs_uv31)
+        clphs_uv12 =\
+            np.array(
+                list(
+                    zip(
+                        np.ma.getdata(tmpl_clphs["u12"]),
+                        np.ma.getdata(tmpl_clphs["v12"])
+                    )
+                )
+            )
+        clphs_uv23 =\
+            np.array(
+                list(
+                    zip(
+                        np.ma.getdata(tmpl_clphs["u23"]),
+                        np.ma.getdata(tmpl_clphs["v23"])
+                    )
+                )
+            )
+        clphs_uv31 =\
+            np.array(
+                list(
+                    zip(
+                        np.ma.getdata(tmpl_clphs["u31"]),
+                        np.ma.getdata(tmpl_clphs["v31"])
+                    )
+                )
+            )
+        clamp_comb =\
+            (
+                np.nan,
+                np.nan, np.nan, np.nan, np.nan
+            )
+        clphs_comb =\
+            (
+                np.ma.getdata(tmpl_clphs["freq"]),
+                clphs_uv12, clphs_uv23, clphs_uv31
+            )
 
     return clamp_comb, clphs_comb
 
 
 def set_boundary(
     nmod=1, spectrum="single", select="I", sblf=1,
-    width=5, mrng=10, bnd_l=[-10, +10], bnd_m=[-10, +10], bnd_f=[13.5, 140], nflux=False
-):
+    width=5, mrng=10, bnd_l=[-10, +10], bnd_m=[-10, +10], bnd_f=[13.5, 140],
+    nflux=False):
     """
     Set the boundary for the a priori
         Arguments:
@@ -646,23 +878,17 @@ def set_boundary(
     """
 
     if select.upper() in ["I", "RR", "LL", "P"]:
-        # sblf (float): shortest-baseline flux
         if nflux:
             in_bnd_S = [[-sblf, +sblf]]
         else:
             in_bnd_S = [[+0.0, +sblf]]
 
-        # if spectrum == "single":
-        #     in_bnd_a = [[+0.00, +width]]
-        # else:
-        #     in_bnd_a = [[+0.00, +1.00]]
         in_bnd_a = [[+0.00, +width]]
         in_bnd_l = [[+0.00, +1.00]]
         in_bnd_m = [[+0.00, +1.00]]
         in_bnd_f = [bnd_f]
         if spectrum in ["single", "spl"]:
             in_bnd_i = [[-3.00, +3.00]]
-            # in_bnd_i = [[-3.00, -0.00]]
         else:
             in_bnd_i = [[-3.00, +0.00]]
 
@@ -679,7 +905,6 @@ def set_boundary(
                     in_bnd_m += [bnd_m]
                     in_bnd_f += [bnd_f]
                     in_bnd_i += [[-3.00, +3.00]]
-                    # in_bnd_i += [[-3.00, -0.00]]
                     in_bnd_a += [[+0.00, +width]]
             elif spectrum in ["cpl", "ssa"]:
                 for i in range(nmod_):
@@ -693,7 +918,10 @@ def set_boundary(
                     in_bnd_i += [[-3.00, +0.00]]
                     in_bnd_a += [[+0.00, +width]]
             else:
-                raise Exception(f"Given spectrum ({spectrum}) cannot be assigned. (available options are 'single', 'spl', 'cpl', 'ssa')")
+                out_txt =\
+                    f"Given spectrum ({spectrum}) cannot be assigned. " \
+                    f"(available options are 'single', 'spl', 'cpl', 'ssa')"
+                raise Exception(out_txt)
         return (in_bnd_S, in_bnd_a, in_bnd_l, in_bnd_m, in_bnd_f, in_bnd_i)
 
     elif select.upper() in ["Q", "U", "V"]:

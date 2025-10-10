@@ -2,6 +2,7 @@
 import os
 import sys
 import gc
+import copy
 import pandas as pd
 import numpy as np
 import numpy.lib.recfunctions as rfn
@@ -346,10 +347,11 @@ class plotter:
             gamvas.utils.mkdir(save_path)
         data = uvf.data
         if uvf.select == "mf":
-            clrs = [
-                "tab:blue", "tab:green", "tab:olive",
-                "tab:purple", "tab:orange", "tab:gray"
-            ]
+            clrs =\
+                [
+                    "tab:blue", "tab:orange", "tab:green", "tab:red",
+                    "tab:purple", "tab:brown", "tab:pink", "tab:gray"
+                ]
         uu = data["u"]
         vv = data["v"]
         uvd = np.sqrt(uu**2 + vv**2)
@@ -1162,7 +1164,7 @@ class plotter:
             gamvas.utils.mkdir(save_path_)
 
         if type in ["amp", "clamp"]:
-            clq_obs = self.clq_obs[0]
+            clq_obs = copy.deepcopy(self.clq_obs[0])
 
             if model:
                 clq_mod = self.clq_mod[0]
@@ -1170,7 +1172,13 @@ class plotter:
             nfreq = len(ufreq)
 
             for i in range(nfreq):
-                clq_obs_1 = clq_obs[clq_obs["freq"] == ufreq[i]]
+                clq_obs_1 =\
+                    copy.deepcopy(
+                        clq_obs[
+                            clq_obs["freq"]
+                            == ufreq[i]
+                        ]
+                    )
                 if len(clq_obs_1) == 0:
                     out_txt =\
                         "WARNING: " \
@@ -1180,7 +1188,13 @@ class plotter:
                     continue
 
                 if model:
-                    clq_mod_1 = clq_mod[clq_obs["freq"] == ufreq[i]]
+                    clq_mod_1 =\
+                        copy.deepcopy(
+                            clq_mod[
+                                clq_obs["freq"]
+                                == ufreq[i]
+                            ]
+                        )
 
                 uquad = np.unique(clq_obs_1["quadra"])
                 nquad = len(uquad)
@@ -1208,14 +1222,20 @@ class plotter:
 
                     for k in range(nax):
                         clq_obs_2 =\
-                            clq_obs_1[
-                                clq_obs_1["quadra"] == uquad[10 * j + k]
-                            ]
+                            copy.deepcopy(
+                                clq_obs_1[
+                                    clq_obs_1["quadra"]
+                                    == uquad[10 * j + k]
+                                ]
+                            )
                         if model:
                             clq_mod_2 =\
-                                clq_mod_1[
-                                    clq_obs_1["quadra"] == uquad[10 * j + k]
-                                ]
+                                copy.deepcopy(
+                                    clq_mod_1[
+                                        clq_obs_1["quadra"]
+                                        == uquad[10 * j + k]
+                                    ]
+                                )
                         if nax > 1:
                             plot_ax = ax_clamp[k]
                         else:
@@ -1272,13 +1292,19 @@ class plotter:
 
         if type in ["phs", "clphs"]:
             r2d = u.rad.to(u.deg)
-            clq_obs = self.clq_obs[1]
+            clq_obs = copy.deepcopy(self.clq_obs[1])
             if model:
                 clq_mod = self.clq_mod[1]
             ufreq = np.unique(clq_obs["freq"])
             nfreq = len(ufreq)
             for i in range(nfreq):
-                clq_obs_1 = clq_obs[clq_obs["freq"] == ufreq[i]]
+                clq_obs_1 =\
+                    copy.deepcopy(
+                        clq_obs[
+                            clq_obs["freq"]
+                            == ufreq[i]
+                        ]
+                    )
                 if len(clq_obs_1) == 0:
                     out_txt =\
                         "WARNING:" \
@@ -1288,7 +1314,13 @@ class plotter:
                     continue
 
                 if model:
-                    clq_mod_1 = clq_mod[clq_obs["freq"] == ufreq[i]]
+                    clq_mod_1 =\
+                        copy.deepcopy(
+                            clq_mod[
+                                clq_obs["freq"]
+                                == ufreq[i]
+                            ]
+                        )
                 utria = np.unique(clq_obs_1["triangle"])
                 ntria = len(utria)
                 nfig = ntria // 10
@@ -1311,14 +1343,20 @@ class plotter:
                         )
                     for k in range(nax):
                         clq_obs_2 =\
-                            clq_obs_1[
-                                clq_obs_1["triangle"] == utria[10 * j + k]
-                            ]
+                            copy.deepcopy(
+                                clq_obs_1[
+                                    clq_obs_1["triangle"]
+                                    == utria[10 * j + k]
+                                ]
+                            )
                         if model:
                             clq_mod_2 =\
-                                clq_mod_1[
-                                    clq_obs_1["triangle"] == utria[10 * j + k]
-                                ]
+                                copy.deepcopy(
+                                    clq_mod_1[
+                                        clq_obs_1["triangle"]
+                                        == utria[10 * j + k]
+                                    ]
+                                )
                         if nax > 1:
                             plot_ax = ax_clphs[k]
                         else:
