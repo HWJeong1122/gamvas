@@ -3,6 +3,7 @@ import gc
 import os
 import sys
 import copy
+from tqdm.auto import tqdm
 import pandas as pd
 import numpy as np
 import numpy.lib.recfunctions as rfn
@@ -837,6 +838,11 @@ class open_fits:
                 avgtime = scanlen
             else:
                 avgtime = uvave
+
+            out_txt =\
+                f"Averaging data in every {avgtime:.1f} sec."
+            print(out_txt)
+
             data = self.data
 
             tarr = self.tarr
@@ -1220,529 +1226,482 @@ class open_fits:
                 np.append(data["ant_name1"], data["ant_name2"])
             )
 
-        selects = []
-        for ns, select in enumerate(data.dtype.names):
-            if select in ["vis_i", "vis_q", "vis_u", "vis_v", "vis_p"]:
-                selects.append(select.split("_")[1])
-        selects.append("")
+        field_vis = f"vis"
+        field_sig = f"sigma"
+        field_cav = f"clamp"
+        field_cas = f"sigma_clamp"
+        field_cpv = f"clphs"
+        field_cps = f"sigma_clphs"
 
-        for ns, select in enumerate(selects):
-            if select in ["i", "q", "u", "v", "p"]:
-                field_vis = f"vis_{select}"
-                field_sig = f"sigma_{select}"
-                field_cav = f"clamp_{select}"
-                field_cas = f"sigma_clamp_{select}"
-                field_cpv = f"clphs_{select}"
-                field_cps = f"sigma_clphs_{select}"
-            if select == "":
-                field_vis = f"vis"
-                field_sig = f"sigma"
-                field_cav = f"clamp"
-                field_cas = f"sigma_clamp"
-                field_cpv = f"clphs"
-                field_cps = f"sigma_clphs"
+        uvvis =\
+            dict(zip(
+                tuple(zip(data["u"].tolist(), data["v"].tolist())),
+                data[field_vis]
+            ))
 
-            uvvis =\
-                dict(zip(
-                    tuple(zip(data["u"].tolist(), data["v"].tolist())),
-                    data[field_vis]
+        uvsig =\
+            dict(zip(
+                tuple(zip(data["u"].tolist(), data["v"].tolist())),
+                data[field_sig]
+            ))
+
+        utimes = np.unique(data["time"])
+
+        field_amp =\
+            [
+                "time", "freq", "quadra",
+                "u12", "v12", "u34", "v34", "u13", "v13", "u24", "v24",
+                "vis12", "vis34", "vis13", "vis24",
+                "sig12", "sig34", "sig13", "sig24",
+                field_cav, field_cas
+            ]
+
+        dtype_amp =\
+            [
+                "f8", "f8", "U32",
+                "f8", "f8", "f8", "f8", "f8", "f8", "f8", "f8",
+                "c8", "c8", "c8", "c8",
+                "f8", "f8", "f8", "f8",
+                "f8", "f8"
+            ]
+
+        field_phs =\
+            [
+                "time", "freq", "triangle",
+                "u12", "v12", "u23", "v23", "u31", "v31",
+                "vis12", "vis23", "vis31",
+                "sig12", "sig23", "sig31",
+                field_cpv, field_cps
+            ]
+
+        dtype_phs =\
+            [
+                "f8", "f8", "U32",
+                "f8", "f8", "f8", "f8", "f8", "f8",
+                "c8", "c8", "c8",
+                "f8", "f8", "f8",
+                "f8", "f8"
+            ]
+
+        outca_time, outca_freq, outca_quad = [], [], []
+        outca_u12, outca_v12 = [], []
+        outca_u34, outca_v34 = [], []
+        outca_u13, outca_v13 = [], []
+        outca_u24, outca_v24 = [], []
+
+        outcp_time, outcp_freq, outcp_tri = [], [], []
+        outcp_u12, outcp_v12 = [], []
+        outcp_u23, outcp_v23 = [], []
+        outcp_u31, outcp_v31 = [], []
+
+        flag_clamp = False
+        flag_clphs = False
+
+        for ut, time in enumerate(utimes):
+            mask_time = data["time"] == time
+            data_ = data[data["time"] == time]
+
+            ant_names_ =\
+                np.array(sorted(
+                    np.unique(
+                        np.append(data_["ant_name1"], data_["ant_name2"])
+                    ),
+                    key=lambda x: torder[x]
                 ))
 
-            uvsig =\
-                dict(zip(
-                    tuple(zip(data["u"].tolist(), data["v"].tolist())),
-                    data[field_sig]
-                ))
+            Nant = len(ant_names_)
+            if Nant >= 4:
+                crit = int(round(0.5 * Nant * (Nant - 3) / 2))
+                crit_count = 0
+                quadrangles = list(it.combinations(ant_names_.tolist(), 4))
 
-            utimes = np.unique(data["time"])
+                for quadrangle in quadrangles:
+                    if minclq and crit_count >= crit:
+                        continue
 
-            field_amp =\
-                [
-                    "time", "freq", "quadra",
-                    "u12", "v12", "u34", "v34", "u13", "v13", "u24", "v24",
-                    "vis12", "vis34", "vis13", "vis24",
-                    "sig12", "sig34", "sig13", "sig24",
-                    field_cav, field_cas
-                ]
+                    for nvert in range(2):
+                        if nvert == 0:
+                            quadra_ =\
+                                [
+                                    quadrangle[0], quadrangle[1],
+                                    quadrangle[2], quadrangle[3]
+                                ]
 
-            dtype_amp =\
-                [
-                    "f8", "f8", "U32",
-                    "f8", "f8", "f8", "f8", "f8", "f8", "f8", "f8",
-                    "c8", "c8", "c8", "c8",
-                    "f8", "f8", "f8", "f8",
-                    "f8", "f8"
-                ]
+                            mask_uv12 =\
+                                (mask_time) \
+                                & (data["ant_name1"] == quadrangle[0]) \
+                                & (data["ant_name2"] == quadrangle[1])
+                            mask_uv34 =\
+                                (mask_time) \
+                                & (data["ant_name1"] == quadrangle[2]) \
+                                & (data["ant_name2"] == quadrangle[3])
+                            mask_uv13 =\
+                                (mask_time) \
+                                & (data["ant_name1"] == quadrangle[0]) \
+                                & (data["ant_name2"] == quadrangle[2])
+                            mask_uv24 =\
+                                (mask_time) \
+                                & (data["ant_name1"] == quadrangle[1]) \
+                                & (data["ant_name2"] == quadrangle[3])
+                        else:
+                            quadra_ =\
+                                [
+                                    quadrangle[0], quadrangle[2],
+                                    quadrangle[1], quadrangle[3]
+                                ]
 
-            field_phs =\
-                [
-                    "time", "freq", "triangle",
-                    "u12", "v12", "u23", "v23", "u31", "v31",
-                    "vis12", "vis23", "vis31",
-                    "sig12", "sig23", "sig31",
-                    field_cpv, field_cps
-                ]
+                            mask_uv12 =\
+                                (mask_time) \
+                                & (data["ant_name1"] == quadrangle[0]) \
+                                & (data["ant_name2"] == quadrangle[2])
+                            mask_uv34 =\
+                                (mask_time) \
+                                & (data["ant_name1"] == quadrangle[1]) \
+                                & (data["ant_name2"] == quadrangle[3])
+                            mask_uv13 =\
+                                (mask_time) \
+                                & (data["ant_name1"] == quadrangle[0]) \
+                                & (data["ant_name2"] == quadrangle[3])
+                            mask_uv24 =\
+                                (mask_time) \
+                                & (data["ant_name1"] == quadrangle[1]) \
+                                & (data["ant_name2"] == quadrangle[2])
 
-            dtype_phs =\
-                [
-                    "f8", "f8", "U32",
-                    "f8", "f8", "f8", "f8", "f8", "f8",
-                    "c8", "c8", "c8",
-                    "f8", "f8", "f8",
-                    "f8", "f8"
-                ]
-
-            outca_time, outca_freq, outca_quad = [], [], []
-            outca_u12, outca_v12 = [], []
-            outca_u34, outca_v34 = [], []
-            outca_u13, outca_v13 = [], []
-            outca_u24, outca_v24 = [], []
-
-            outcp_time, outcp_freq, outcp_tri = [], [], []
-            outcp_u12, outcp_v12 = [], []
-            outcp_u23, outcp_v23 = [], []
-            outcp_u31, outcp_v31 = [], []
-
-            flag_clamp = False
-            flag_clphs = False
-
-            for ut, time in enumerate(utimes):
-                mask_time = data["time"] == time
-                data_ = data[data["time"] == time]
-
-                ant_names_ =\
-                    np.array(sorted(
-                        np.unique(
-                            np.append(data_["ant_name1"], data_["ant_name2"])
-                        ),
-                        key=lambda x: torder[x]
-                    ))
-
-                Nant = len(ant_names_)
-                if Nant >= 4:
-                    crit = int(round(0.5 * Nant * (Nant - 3) / 2))
-                    crit_count = 0
-                    quadrangles = list(it.combinations(ant_names_.tolist(), 4))
-
-                    for quadrangle in quadrangles:
-                        if minclq and crit_count >= crit:
-                            continue
-
-                        for nvert in range(2):
-                            if nvert == 0:
-                                quadra_ =\
-                                    [
-                                        quadrangle[0], quadrangle[1],
-                                        quadrangle[2], quadrangle[3]
-                                    ]
-
-                                mask_uv12 =\
-                                    (mask_time) \
-                                    & (data["ant_name1"] == quadrangle[0]) \
-                                    & (data["ant_name2"] == quadrangle[1])
-                                mask_uv34 =\
-                                    (mask_time) \
-                                    & (data["ant_name1"] == quadrangle[2]) \
-                                    & (data["ant_name2"] == quadrangle[3])
-                                mask_uv13 =\
-                                    (mask_time) \
-                                    & (data["ant_name1"] == quadrangle[0]) \
-                                    & (data["ant_name2"] == quadrangle[2])
-                                mask_uv24 =\
-                                    (mask_time) \
-                                    & (data["ant_name1"] == quadrangle[1]) \
-                                    & (data["ant_name2"] == quadrangle[3])
-                            else:
-                                quadra_ =\
-                                    [
-                                        quadrangle[0], quadrangle[2],
-                                        quadrangle[1], quadrangle[3]
-                                    ]
-
-                                mask_uv12 =\
-                                    (mask_time) \
-                                    & (data["ant_name1"] == quadrangle[0]) \
-                                    & (data["ant_name2"] == quadrangle[2])
-                                mask_uv34 =\
-                                    (mask_time) \
-                                    & (data["ant_name1"] == quadrangle[1]) \
-                                    & (data["ant_name2"] == quadrangle[3])
-                                mask_uv13 =\
-                                    (mask_time) \
-                                    & (data["ant_name1"] == quadrangle[0]) \
-                                    & (data["ant_name2"] == quadrangle[3])
-                                mask_uv24 =\
-                                    (mask_time) \
-                                    & (data["ant_name1"] == quadrangle[1]) \
-                                    & (data["ant_name2"] == quadrangle[2])
-
-                            mask_uv1234 =\
-                                np.sum(mask_uv12) \
-                                + np.sum(mask_uv34) \
-                                + np.sum(mask_uv13) \
-                                + np.sum(mask_uv24)
-
-                            if mask_uv1234 == 4:
-                                out_quadrangle = "-".join(quadra_)
-
-                                out_uv12 =\
-                                    (
-                                        data["u"][mask_uv12][0],
-                                        data["v"][mask_uv12][0]
-                                    )
-                                out_uv34 =\
-                                    (
-                                        data["u"][mask_uv34][0],
-                                        data["v"][mask_uv34][0]
-                                    )
-                                out_uv13 =\
-                                    (
-                                        data["u"][mask_uv13][0],
-                                        data["v"][mask_uv13][0]
-                                    )
-                                out_uv24 =\
-                                    (
-                                        data["u"][mask_uv24][0],
-                                        data["v"][mask_uv24][0]
-                                    )
-
-                                crit_count += 1
-                                outca_time.append(time)
-                                outca_freq.append(self.freq)
-                                outca_quad.append(out_quadrangle)
-                                outca_u12.append(out_uv12[0])
-                                outca_v12.append(out_uv12[1])
-                                outca_u34.append(out_uv34[0])
-                                outca_v34.append(out_uv34[1])
-                                outca_u13.append(out_uv13[0])
-                                outca_v13.append(out_uv13[1])
-                                outca_u24.append(out_uv24[0])
-                                outca_v24.append(out_uv24[1])
-                if Nant >= 3:
-                    crit = int(round(0.5 * (Nant - 1) * (Nant - 2)))
-                    crit_count = 0
-                    triangles = list(it.combinations(ant_names_.tolist(), 3))
-
-                    for triangle in triangles:
-                        if minclq and crit_count >= crit:
-                            continue
-
-                        mask_uv12 =\
-                            (mask_time) \
-                            & (data["ant_name1"] == triangle[0]) \
-                            & (data["ant_name2"] == triangle[1])
-                        mask_uv23 =\
-                            (mask_time) \
-                            & (data["ant_name1"] == triangle[1]) \
-                            & (data["ant_name2"] == triangle[2])
-                        mask_uv31 =\
-                            (mask_time) \
-                            & (data["ant_name1"] == triangle[0]) \
-                            & (data["ant_name2"] == triangle[2])
-
-                        mask_uv123 =\
+                        mask_uv1234 =\
                             np.sum(mask_uv12) \
-                            + np.sum(mask_uv23) \
-                            + np.sum(mask_uv31)
+                            + np.sum(mask_uv34) \
+                            + np.sum(mask_uv13) \
+                            + np.sum(mask_uv24)
 
-                        if mask_uv123 == 3:
-                            out_times = time
-                            out_frequency = self.freq
-                            out_triangle = "-".join(triangle)
+                        if mask_uv1234 == 4:
+                            out_quadrangle = "-".join(quadra_)
 
                             out_uv12 =\
                                 (
                                     data["u"][mask_uv12][0],
                                     data["v"][mask_uv12][0]
                                 )
-                            out_uv23 =\
+                            out_uv34 =\
                                 (
-                                    data["u"][mask_uv23][0],
-                                    data["v"][mask_uv23][0]
+                                    data["u"][mask_uv34][0],
+                                    data["v"][mask_uv34][0]
                                 )
-                            out_uv31 =\
+                            out_uv13 =\
                                 (
-                                    data["u"][mask_uv31][0],
-                                    data["v"][mask_uv31][0]
+                                    data["u"][mask_uv13][0],
+                                    data["v"][mask_uv13][0]
+                                )
+                            out_uv24 =\
+                                (
+                                    data["u"][mask_uv24][0],
+                                    data["v"][mask_uv24][0]
                                 )
 
                             crit_count += 1
-                            outcp_time.append(time)
-                            outcp_freq.append(self.freq)
-                            outcp_tri.append(out_triangle)
-                            outcp_u12.append(out_uv12[0])
-                            outcp_v12.append(out_uv12[1])
-                            outcp_u23.append(out_uv23[0])
-                            outcp_v23.append(out_uv23[1])
-                            outcp_u31.append(out_uv31[0])
-                            outcp_v31.append(out_uv31[1])
+                            outca_time.append(time)
+                            outca_freq.append(self.freq)
+                            outca_quad.append(out_quadrangle)
+                            outca_u12.append(out_uv12[0])
+                            outca_v12.append(out_uv12[1])
+                            outca_u34.append(out_uv34[0])
+                            outca_v34.append(out_uv34[1])
+                            outca_u13.append(out_uv13[0])
+                            outca_v13.append(out_uv13[1])
+                            outca_u24.append(out_uv24[0])
+                            outca_v24.append(out_uv24[1])
+            if Nant >= 3:
+                crit = int(round(0.5 * (Nant - 1) * (Nant - 2)))
+                crit_count = 0
+                triangles = list(it.combinations(ant_names_.tolist(), 3))
 
-            if len(outca_time) == 0:
-                tmpl_clamp =\
-                    gamvas.utils.sarray(
-                        [[np.nan] for i in range(len(field_amp))],
-                        field=field_amp,
-                        dtype=dtype_amp
-                    )
-                flag_clamp = True
-            else:
-                tmpl_clamp =\
-                    gamvas.utils.sarray(
-                        [
-                            outca_time, outca_freq, outca_quad,
-                            outca_u12, outca_v12, outca_u34, outca_v34,
-                            outca_u13, outca_v13, outca_u24, outca_v24,
-                            np.zeros(len(outca_time), dtype="c8"),
-                            np.zeros(len(outca_time), dtype="c8"),
-                            np.zeros(len(outca_time), dtype="c8"),
-                            np.zeros(len(outca_time), dtype="c8"),
-                            np.zeros(len(outca_time), dtype="f8"),
-                            np.zeros(len(outca_time), dtype="f8"),
-                            np.zeros(len(outca_time), dtype="f8"),
-                            np.zeros(len(outca_time), dtype="f8"),
-                            np.zeros(len(outca_time), dtype="f8"),
-                            np.zeros(len(outca_time), dtype="f8")
-                        ],
-                        field=field_amp,
-                        dtype=dtype_amp
-                    )
+                for triangle in triangles:
+                    if minclq and crit_count >= crit:
+                        continue
 
-            if len(outcp_time) == 0:
-                tmpl_clphs =\
-                    gamvas.utils.sarray(
-                        [[np.nan] for i in range(len(field_phs))],
-                        field=field_phs,
-                        dtype=dtype_phs
-                    )
-                flag_clphs = True
-            else:
-                tmpl_clphs =\
-                    gamvas.utils.sarray(
-                        [
-                            outcp_time, outcp_freq, outcp_tri,
-                            outcp_u12, outcp_v12, outcp_u23, outcp_v23,
-                            outcp_u31, outcp_v31,
-                            np.zeros(len(outcp_time), dtype="c8"),
-                            np.zeros(len(outcp_time), dtype="c8"),
-                            np.zeros(len(outcp_time), dtype="c8"),
-                            np.zeros(len(outcp_time), dtype="f8"),
-                            np.zeros(len(outcp_time), dtype="f8"),
-                            np.zeros(len(outcp_time), dtype="f8"),
-                            np.zeros(len(outcp_time), dtype="f8"),
-                            np.zeros(len(outcp_time), dtype="f8")
-                        ],
-                        field=field_phs,
-                        dtype=dtype_phs
-                    )
+                    mask_uv12 =\
+                        (mask_time) \
+                        & (data["ant_name1"] == triangle[0]) \
+                        & (data["ant_name2"] == triangle[1])
+                    mask_uv23 =\
+                        (mask_time) \
+                        & (data["ant_name1"] == triangle[1]) \
+                        & (data["ant_name2"] == triangle[2])
+                    mask_uv31 =\
+                        (mask_time) \
+                        & (data["ant_name1"] == triangle[0]) \
+                        & (data["ant_name2"] == triangle[2])
 
-            tmpl_clamp = tmpl_clamp.reshape(-1)
-            tmpl_clphs = tmpl_clphs.reshape(-1)
+                    mask_uv123 =\
+                        np.sum(mask_uv12) \
+                        + np.sum(mask_uv23) \
+                        + np.sum(mask_uv31)
 
-            if tmpl_clamp.size == 0:
-                tmpl_clamp = [np.nan] * len(field_amp)
-                tmpl_clamp =\
-                    gamvas.utils.sarray(
-                        tmpl_clamp,
-                        field=field_amp,
-                        dtype=dtype_amp
-                    )
-                flag_clamp = True
-            if tmpl_clphs.size == 0:
-                tmpl_clphs = [np.nan] * len(field_phs)
-                tmpl_clphs =\
-                    gamvas.utils.sarray(
-                        tmpl_clphs,
-                        field=field_phs,
-                        dtype=dtype_phs
-                    )
-                flag_clphs = True
-            self.tmpl_clamp = copy.deepcopy(tmpl_clamp)
-            self.tmpl_clphs = copy.deepcopy(tmpl_clphs)
-            if not flag_clamp:
-                clamp_ = tmpl_clamp
-                clamp_["vis12"] =\
-                    list(map(
-                        uvvis.get,
-                        tuple(zip(clamp_["u12"], clamp_["v12"]))
-                    ))
-                clamp_["vis34"] =\
-                    list(map(
-                        uvvis.get,
-                        tuple(zip(clamp_["u34"], clamp_["v34"]))
-                    ))
-                clamp_["vis13"] =\
-                    list(map(
-                        uvvis.get,
-                        tuple(zip(clamp_["u13"], clamp_["v13"]))
-                    ))
-                clamp_["vis24"] =\
-                    list(map(
-                        uvvis.get,
-                        tuple(zip(clamp_["u24"], clamp_["v24"]))
-                    ))
-                clamp_["sig12"] =\
-                    list(map(
-                        uvsig.get,
-                        tuple(zip(clamp_["u12"], clamp_["v12"]))
-                    ))
-                clamp_["sig34"] =\
-                    list(map(
-                        uvsig.get,
-                        tuple(zip(clamp_["u34"], clamp_["v34"]))
-                    ))
-                clamp_["sig13"] =\
-                    list(map(
-                        uvsig.get,
-                        tuple(zip(clamp_["u13"], clamp_["v13"]))
-                    ))
-                clamp_["sig24"] =\
-                    list(map(
-                        uvsig.get,
-                        tuple(zip(clamp_["u24"], clamp_["v24"]))
-                    ))
-                amp12 = np.abs(clamp_["vis12"])
-                amp34 = np.abs(clamp_["vis34"])
-                amp13 = np.abs(clamp_["vis13"])
-                amp24 = np.abs(clamp_["vis24"])
-                amp12 =\
-                    np.where(
-                        amp12 < clamp_["sig12"],
-                        0,
-                        np.sqrt(np.abs(clamp_["vis12"])**2 - clamp_["sig12"]**2)
-                    )
-                amp34 =\
-                    np.where(
-                        amp34 < clamp_["sig34"],
-                        0,
-                        np.sqrt(np.abs(clamp_["vis34"])**2 - clamp_["sig34"]**2)
-                    )
-                amp13 =\
-                    np.where(
-                        amp13 < clamp_["sig13"],
-                        0,
-                        np.sqrt(np.abs(clamp_["vis13"])**2 - clamp_["sig13"]**2)
-                    )
-                amp24 =\
-                    np.where(
-                        amp24 < clamp_["sig24"],
-                        0,
-                        np.sqrt(np.abs(clamp_["vis24"])**2 - clamp_["sig24"]**2)
-                    )
-                snr12 = amp12 / np.abs(clamp_["sig12"])
-                snr34 = amp34 / np.abs(clamp_["sig34"])
-                snr13 = amp13 / np.abs(clamp_["sig13"])
-                snr24 = amp24 / np.abs(clamp_["sig24"])
-                clamp_[field_cav] = (amp12 * amp34) / (amp13 * amp24)
-                clamp_[field_cas] =\
-                    np.sqrt(snr12**-2 + snr34**-2 + snr13**-2 + snr24**-2)
+                    if mask_uv123 == 3:
+                        out_times = time
+                        out_frequency = self.freq
+                        out_triangle = "-".join(triangle)
 
-            if not flag_clphs:
-                clphs_ = tmpl_clphs
-                clphs_["vis12"] =\
-                    list(map(
-                        uvvis.get,
-                        tuple(zip(clphs_["u12"], clphs_["v12"]))
-                    ))
-                clphs_["vis23"] =\
-                    list(map(
-                        uvvis.get,
-                        tuple(zip(clphs_["u23"], clphs_["v23"]))
-                    ))
-                clphs_["vis31"] =\
-                    list(map(
-                        uvvis.get,
-                        tuple(zip(clphs_["u31"], clphs_["v31"]))
-                    ))
-                clphs_["sig12"] =\
-                    list(map(
-                        uvsig.get,
-                        tuple(zip(clphs_["u12"], clphs_["v12"]))
-                    ))
-                clphs_["sig23"] =\
-                    list(map(
-                        uvsig.get,
-                        tuple(zip(clphs_["u23"], clphs_["v23"]))
-                    ))
-                clphs_["sig31"] =\
-                    list(map(
-                        uvsig.get,
-                        tuple(zip(clphs_["u31"], clphs_["v31"]))
-                    ))
-                phs12 = np.angle(clphs_["vis12"])
-                phs23 = np.angle(clphs_["vis23"])
-                phs31 = np.angle(clphs_["vis31"].conj())
-                snr12 = np.abs(clphs_["vis12"]) / np.abs(clphs_["sig12"])
-                snr23 = np.abs(clphs_["vis23"]) / np.abs(clphs_["sig23"])
-                snr31 = np.abs(clphs_["vis31"]) / np.abs(clphs_["sig31"])
+                        out_uv12 =\
+                            (
+                                data["u"][mask_uv12][0],
+                                data["v"][mask_uv12][0]
+                            )
+                        out_uv23 =\
+                            (
+                                data["u"][mask_uv23][0],
+                                data["v"][mask_uv23][0]
+                            )
+                        out_uv31 =\
+                            (
+                                data["u"][mask_uv31][0],
+                                data["v"][mask_uv31][0]
+                            )
 
-                clphs_v = phs12 + phs23 + phs31
-                clphs_[field_cpv] = clphs_v
-                clphs_[field_cps] = np.sqrt(snr12**-2 + snr23**-2 + snr31**-2)
+                        crit_count += 1
+                        outcp_time.append(time)
+                        outcp_freq.append(self.freq)
+                        outcp_tri.append(out_triangle)
+                        outcp_u12.append(out_uv12[0])
+                        outcp_v12.append(out_uv12[1])
+                        outcp_u23.append(out_uv23[0])
+                        outcp_v23.append(out_uv23[1])
+                        outcp_u31.append(out_uv31[0])
+                        outcp_v31.append(out_uv31[1])
 
-            if not flag_clamp:
-                fields = ["time", "quadra", "freq", field_cav, field_cas]
-                dtypes = ["f8", "U32", "f8", "f8", "f8"]
-                datas = [clamp_[fields[nf]] for nf in range(len(fields))]
-                clamp_ = gamvas.utils.sarray(datas, fields, dtypes)
-            else:
-                fields = ["time", "quadra", "freq", field_cav, field_cas]
-                dtypes = ["f8", "U32", "f8", "f8", "f8"]
-                clamp_ =\
-                    gamvas.utils.sarray(
-                        [np.nan for i in range(len(fields))],
-                        fields,
-                        dtypes
-                    )
+        if len(outca_time) == 0:
+            tmpl_clamp =\
+                gamvas.utils.sarray(
+                    [[np.nan] for i in range(len(field_amp))],
+                    field=field_amp,
+                    dtype=dtype_amp
+                )
+            flag_clamp = True
+        else:
+            tmpl_clamp =\
+                gamvas.utils.sarray(
+                    [
+                        outca_time, outca_freq, outca_quad,
+                        outca_u12, outca_v12, outca_u34, outca_v34,
+                        outca_u13, outca_v13, outca_u24, outca_v24,
+                        np.zeros(len(outca_time), dtype="c8"),
+                        np.zeros(len(outca_time), dtype="c8"),
+                        np.zeros(len(outca_time), dtype="c8"),
+                        np.zeros(len(outca_time), dtype="c8"),
+                        np.zeros(len(outca_time), dtype="f8"),
+                        np.zeros(len(outca_time), dtype="f8"),
+                        np.zeros(len(outca_time), dtype="f8"),
+                        np.zeros(len(outca_time), dtype="f8"),
+                        np.zeros(len(outca_time), dtype="f8"),
+                        np.zeros(len(outca_time), dtype="f8")
+                    ],
+                    field=field_amp,
+                    dtype=dtype_amp
+                )
 
-            if not flag_clphs:
-                fields = ["time", "triangle", "freq", field_cpv, field_cps]
-                dtypes = ["f8", "U32", "f8", "f8", "f8"]
-                datas = [clphs_[fields[nf]] for nf in range(len(fields))]
-                clphs_ = gamvas.utils.sarray(datas, fields, dtypes)
-            else:
-                fields = ["time", "triangle", "freq", field_cpv, field_cps]
-                dtypes = ["f8", "U32", "f8", "f8", "f8"]
-                clphs_ =\
-                    gamvas.utils.sarray(
-                        [np.nan for i in range(len(fields))],
-                        fields,
-                        dtypes
-                    )
+        if len(outcp_time) == 0:
+            tmpl_clphs =\
+                gamvas.utils.sarray(
+                    [[np.nan] for i in range(len(field_phs))],
+                    field=field_phs,
+                    dtype=dtype_phs
+                )
+            flag_clphs = True
+        else:
+            tmpl_clphs =\
+                gamvas.utils.sarray(
+                    [
+                        outcp_time, outcp_freq, outcp_tri,
+                        outcp_u12, outcp_v12, outcp_u23, outcp_v23,
+                        outcp_u31, outcp_v31,
+                        np.zeros(len(outcp_time), dtype="c8"),
+                        np.zeros(len(outcp_time), dtype="c8"),
+                        np.zeros(len(outcp_time), dtype="c8"),
+                        np.zeros(len(outcp_time), dtype="f8"),
+                        np.zeros(len(outcp_time), dtype="f8"),
+                        np.zeros(len(outcp_time), dtype="f8"),
+                        np.zeros(len(outcp_time), dtype="f8"),
+                        np.zeros(len(outcp_time), dtype="f8")
+                    ],
+                    field=field_phs,
+                    dtype=dtype_phs
+                )
 
-            if ns == 0:
-                clamp = clamp_
-                clphs = clphs_
-            else:
-                if not flag_clamp:
-                    clamp =\
-                        rfn.append_fields(
-                            clamp,
-                            field_cav,
-                            clamp_[field_cav],
-                            usemask=False
-                        )
-                    clamp =\
-                        rfn.append_fields(
-                            clamp,
-                            field_cas,
-                            clamp_[field_cas],
-                            usemask=False
-                        )
-                if not flag_clphs:
-                    clphs =\
-                        rfn.append_fields(
-                            clphs,
-                            field_cpv,
-                            clphs_[field_cpv],
-                            usemask=False
-                        )
-                    clphs =\
-                        rfn.append_fields(
-                            clphs,
-                            field_cps,
-                            clphs_[field_cps],
-                            usemask=False
-                        )
+        tmpl_clamp = tmpl_clamp.reshape(-1)
+        tmpl_clphs = tmpl_clphs.reshape(-1)
+
+        if tmpl_clamp.size == 0:
+            tmpl_clamp = [np.nan] * len(field_amp)
+            tmpl_clamp =\
+                gamvas.utils.sarray(
+                    tmpl_clamp,
+                    field=field_amp,
+                    dtype=dtype_amp
+                )
+            flag_clamp = True
+        if tmpl_clphs.size == 0:
+            tmpl_clphs = [np.nan] * len(field_phs)
+            tmpl_clphs =\
+                gamvas.utils.sarray(
+                    tmpl_clphs,
+                    field=field_phs,
+                    dtype=dtype_phs
+                )
+            flag_clphs = True
+        self.tmpl_clamp = copy.deepcopy(tmpl_clamp)
+        self.tmpl_clphs = copy.deepcopy(tmpl_clphs)
+        if not flag_clamp:
+            clamp_ = tmpl_clamp
+            clamp_["vis12"] =\
+                list(map(
+                    uvvis.get,
+                    tuple(zip(clamp_["u12"], clamp_["v12"]))
+                ))
+            clamp_["vis34"] =\
+                list(map(
+                    uvvis.get,
+                    tuple(zip(clamp_["u34"], clamp_["v34"]))
+                ))
+            clamp_["vis13"] =\
+                list(map(
+                    uvvis.get,
+                    tuple(zip(clamp_["u13"], clamp_["v13"]))
+                ))
+            clamp_["vis24"] =\
+                list(map(
+                    uvvis.get,
+                    tuple(zip(clamp_["u24"], clamp_["v24"]))
+                ))
+            clamp_["sig12"] =\
+                list(map(
+                    uvsig.get,
+                    tuple(zip(clamp_["u12"], clamp_["v12"]))
+                ))
+            clamp_["sig34"] =\
+                list(map(
+                    uvsig.get,
+                    tuple(zip(clamp_["u34"], clamp_["v34"]))
+                ))
+            clamp_["sig13"] =\
+                list(map(
+                    uvsig.get,
+                    tuple(zip(clamp_["u13"], clamp_["v13"]))
+                ))
+            clamp_["sig24"] =\
+                list(map(
+                    uvsig.get,
+                    tuple(zip(clamp_["u24"], clamp_["v24"]))
+                ))
+            amp12 = np.abs(clamp_["vis12"])
+            amp34 = np.abs(clamp_["vis34"])
+            amp13 = np.abs(clamp_["vis13"])
+            amp24 = np.abs(clamp_["vis24"])
+            amp12 =\
+                np.where(
+                    amp12 < clamp_["sig12"],
+                    0,
+                    np.sqrt(np.abs(clamp_["vis12"])**2 - clamp_["sig12"]**2)
+                )
+            amp34 =\
+                np.where(
+                    amp34 < clamp_["sig34"],
+                    0,
+                    np.sqrt(np.abs(clamp_["vis34"])**2 - clamp_["sig34"]**2)
+                )
+            amp13 =\
+                np.where(
+                    amp13 < clamp_["sig13"],
+                    0,
+                    np.sqrt(np.abs(clamp_["vis13"])**2 - clamp_["sig13"]**2)
+                )
+            amp24 =\
+                np.where(
+                    amp24 < clamp_["sig24"],
+                    0,
+                    np.sqrt(np.abs(clamp_["vis24"])**2 - clamp_["sig24"]**2)
+                )
+            snr12 = amp12 / np.abs(clamp_["sig12"])
+            snr34 = amp34 / np.abs(clamp_["sig34"])
+            snr13 = amp13 / np.abs(clamp_["sig13"])
+            snr24 = amp24 / np.abs(clamp_["sig24"])
+            clamp_[field_cav] = (amp12 * amp34) / (amp13 * amp24)
+            clamp_[field_cas] =\
+                np.sqrt(snr12**-2 + snr34**-2 + snr13**-2 + snr24**-2)
+
+        if not flag_clphs:
+            clphs_ = tmpl_clphs
+            clphs_["vis12"] =\
+                list(map(
+                    uvvis.get,
+                    tuple(zip(clphs_["u12"], clphs_["v12"]))
+                ))
+            clphs_["vis23"] =\
+                list(map(
+                    uvvis.get,
+                    tuple(zip(clphs_["u23"], clphs_["v23"]))
+                ))
+            clphs_["vis31"] =\
+                list(map(
+                    uvvis.get,
+                    tuple(zip(clphs_["u31"], clphs_["v31"]))
+                ))
+            clphs_["sig12"] =\
+                list(map(
+                    uvsig.get,
+                    tuple(zip(clphs_["u12"], clphs_["v12"]))
+                ))
+            clphs_["sig23"] =\
+                list(map(
+                    uvsig.get,
+                    tuple(zip(clphs_["u23"], clphs_["v23"]))
+                ))
+            clphs_["sig31"] =\
+                list(map(
+                    uvsig.get,
+                    tuple(zip(clphs_["u31"], clphs_["v31"]))
+                ))
+            phs12 = np.angle(clphs_["vis12"])
+            phs23 = np.angle(clphs_["vis23"])
+            phs31 = np.angle(clphs_["vis31"].conj())
+            snr12 = np.abs(clphs_["vis12"]) / np.abs(clphs_["sig12"])
+            snr23 = np.abs(clphs_["vis23"]) / np.abs(clphs_["sig23"])
+            snr31 = np.abs(clphs_["vis31"]) / np.abs(clphs_["sig31"])
+
+            clphs_v = phs12 + phs23 + phs31
+            clphs_[field_cpv] = clphs_v
+            clphs_[field_cps] = np.sqrt(snr12**-2 + snr23**-2 + snr31**-2)
+
+        if not flag_clamp:
+            fields = ["time", "quadra", "freq", field_cav, field_cas]
+            dtypes = ["f8", "U32", "f8", "f8", "f8"]
+            datas = [clamp_[fields[nf]] for nf in range(len(fields))]
+            clamp_ = gamvas.utils.sarray(datas, fields, dtypes)
+        else:
+            fields = ["time", "quadra", "freq", field_cav, field_cas]
+            dtypes = ["f8", "U32", "f8", "f8", "f8"]
+            clamp_ =\
+                gamvas.utils.sarray(
+                    [np.nan for i in range(len(fields))],
+                    fields,
+                    dtypes
+                )
+
+        if not flag_clphs:
+            fields = ["time", "triangle", "freq", field_cpv, field_cps]
+            dtypes = ["f8", "U32", "f8", "f8", "f8"]
+            datas = [clphs_[fields[nf]] for nf in range(len(fields))]
+            clphs_ = gamvas.utils.sarray(datas, fields, dtypes)
+        else:
+            fields = ["time", "triangle", "freq", field_cpv, field_cps]
+            dtypes = ["f8", "U32", "f8", "f8", "f8"]
+            clphs_ =\
+                gamvas.utils.sarray(
+                    [np.nan for i in range(len(fields))],
+                    fields,
+                    dtypes
+                )
+
+        clamp = clamp_
+        clphs = clphs_
 
         if not flag_clamp:
             self.clamp = clamp
@@ -1837,545 +1796,503 @@ class open_fits:
                     key=lambda x: torder[x]
                 ))
 
-            selects = []
-            for ns, select in enumerate(data.dtype.names):
-                if select in ["vis_i", "vis_q", "vis_u", "vis_v", "vis_p"]:
-                    selects.append(select.split("_")[1])
-            selects.append("")
+            field_vis = f"vis"
+            field_sig = f"sigma"
+            field_cav = f"clamp"
+            field_cas = f"sigma_clamp"
+            field_cpv = f"clphs"
+            field_cps = f"sigma_clphs"
 
-            for ns, select in enumerate(selects):
-                if select in ["i", "q", "u", "v", "p"]:
-                    field_vis = f"vis_{select}"
-                    field_sig = f"sigma_{select}"
-                    field_cav = f"clamp_{select}"
-                    field_cas = f"sigma_clamp_{select}"
-                    field_cpv = f"clphs_{select}"
-                    field_cps = f"sigma_clphs_{select}"
-                if select == "":
-                    field_vis = f"vis"
-                    field_sig = f"sigma"
-                    field_cav = f"clamp"
-                    field_cas = f"sigma_clamp"
-                    field_cpv = f"clphs"
-                    field_cps = f"sigma_clphs"
+            uvvis =\
+                dict(zip(
+                    tuple(zip(data["u"].tolist(), data["v"].tolist())),
+                    data[field_vis]
+                ))
 
-                uvvis =\
-                    dict(zip(
-                        tuple(zip(data["u"].tolist(), data["v"].tolist())),
-                        data[field_vis]
-                    ))
+            uvsig =\
+                dict(zip(
+                    tuple(zip(data["u"].tolist(), data["v"].tolist())),
+                    data[field_sig]
+                ))
 
-                uvsig =\
-                    dict(zip(
-                        tuple(zip(data["u"].tolist(), data["v"].tolist())),
-                        data[field_sig]
-                    ))
+            utimes = np.unique(data["time"])
 
-                utimes = np.unique(data["time"])
+            field_amp =\
+                [
+                    "time", "freq", "quadra",
+                    "u12", "v12", "u34", "v34", "u13", "v13", "u24", "v24",
+                    "vis12", "vis34", "vis13", "vis24",
+                    "sig12", "sig34", "sig13", "sig24",
+                    field_cav, field_cas
+                ]
 
-                field_amp =\
-                    [
-                        "time", "freq", "quadra",
-                        "u12", "v12", "u34", "v34", "u13", "v13", "u24", "v24",
-                        "vis12", "vis34", "vis13", "vis24",
-                        "sig12", "sig34", "sig13", "sig24",
-                        field_cav, field_cas
-                    ]
+            dtype_amp =\
+                [
+                    "f8", "f8", "U32",
+                    "f8", "f8", "f8", "f8", "f8", "f8", "f8", "f8",
+                    "c16", "c16", "c16", "c16",
+                    "f8", "f8", "f8", "f8",
+                    "f8", "f8"
+                ]
 
-                dtype_amp =\
-                    [
-                        "f8", "f8", "U32",
-                        "f8", "f8", "f8", "f8", "f8", "f8", "f8", "f8",
-                        "c16", "c16", "c16", "c16",
-                        "f8", "f8", "f8", "f8",
-                        "f8", "f8"
-                    ]
+            field_phs =\
+                [
+                    "time", "freq", "triangle",
+                    "u12", "v12", "u23", "v23", "u31", "v31",
+                    "vis12", "vis23", "vis31",
+                    "sig12", "sig23", "sig31",
+                    field_cpv, field_cps
+                ]
 
-                field_phs =\
-                    [
-                        "time", "freq", "triangle",
-                        "u12", "v12", "u23", "v23", "u31", "v31",
-                        "vis12", "vis23", "vis31",
-                        "sig12", "sig23", "sig31",
-                        field_cpv, field_cps
-                    ]
+            dtype_phs =\
+                [
+                    "f8", "f8", "U32",
+                    "f8", "f8", "f8", "f8", "f8", "f8",
+                    "c16", "c16", "c16",
+                    "f8", "f8", "f8",
+                    "f8", "f8"
+                ]
 
-                dtype_phs =\
-                    [
-                        "f8", "f8", "U32",
-                        "f8", "f8", "f8", "f8", "f8", "f8",
-                        "c16", "c16", "c16",
-                        "f8", "f8", "f8",
-                        "f8", "f8"
-                    ]
+            tmpl_clamp = np.array([])
+            tmpl_clphs = np.array([])
+            # for ut, time in enumerate(utimes):
+            for ut, time in enumerate(
+                tqdm(
+                    utimes,
+                    desc="Setting Closures",
+                    leave=False,
+                    bar_format="{l_bar}{bar} {n_fmt}/{total_fmt}")
+                )):
+                data_ = data[data["time"] == time]
 
-                tmpl_clamp = np.array([])
-                tmpl_clphs = np.array([])
-                for ut, time in enumerate(utimes):
-                    data_ = data[data["time"] == time]
+                ant_nums_ =\
+                    np.unique(
+                        np.append(data_["ant_num1"], data_["ant_num2"])
+                    )
 
-                    ant_nums_ =\
-                        np.unique(
-                            np.append(data_["ant_num1"], data_["ant_num2"])
-                        )
+                ant_names_ =\
+                    np.unique(
+                        np.append(data_["ant_name1"], data_["ant_name2"])
+                    )
 
-                    ant_names_ =\
-                        np.unique(
-                            np.append(data_["ant_name1"], data_["ant_name2"])
-                        )
+                Nant = len(ant_names_)
+                if Nant >= 4:
+                    pairs_obs =\
+                        np.array(list(map(
+                            ",".join,
+                            tuple(zip(
+                                data_["ant_num1"].astype(str),
+                                data_["ant_num2"].astype(str)
+                            ))
+                        )))
 
-                    Nant = len(ant_names_)
-                    if Nant >= 4:
-                        pairs_obs =\
-                            np.array(list(map(
-                                ",".join,
-                                tuple(zip(
-                                    data_["ant_num1"].astype(str),
-                                    data_["ant_num2"].astype(str)
-                                ))
-                            )))
+                    pairs_obs = np.sort(pairs_obs)
+                    matrix_clamp, pairs_full =\
+                        set_min_matrix_clamp(Nant, ant_nums_.astype(str))
 
-                        pairs_obs = np.sort(pairs_obs)
-                        matrix_clamp, pairs_full =\
-                            set_min_matrix_clamp(Nant, ant_nums_.astype(str))
+                    row = matrix_clamp.shape[0]
+                    for i in range(row):
+                        mask_add = matrix_clamp[i] == +1
+                        mask_sub = matrix_clamp[i] == -1
+                        pair_add = pairs_full[mask_add]
+                        pair_sub = pairs_full[mask_sub]
+                        mask_tot =\
+                            (pair_add[0] in pairs_obs) \
+                            & (pair_add[1] in pairs_obs) \
+                            & (pair_sub[0] in pairs_obs) \
+                            & (pair_sub[1] in pairs_obs)
 
-                        row = matrix_clamp.shape[0]
-                        for i in range(row):
-                            mask_add = matrix_clamp[i] == +1
-                            mask_sub = matrix_clamp[i] == -1
-                            pair_add = pairs_full[mask_add]
-                            pair_sub = pairs_full[mask_sub]
-                            mask_tot =\
-                                (pair_add[0] in pairs_obs) \
-                                & (pair_add[1] in pairs_obs) \
-                                & (pair_sub[0] in pairs_obs) \
-                                & (pair_sub[1] in pairs_obs)
+                        pair_add = [val.split(",") for val in pair_add]
+                        pair_sub = [val.split(",") for val in pair_sub]
+                        if mask_tot:
+                            pair_ants =\
+                                np.array([
+                                    int(pair_add[0][0]),
+                                    int(pair_add[0][1]),
+                                    int(pair_add[1][0]),
+                                    int(pair_add[1][1])
+                                ])
+                            out_times = time
+                            out_frequency = self.freq
+                            out_quadrangle =\
+                                "-".join(list(map(
+                                    self.ant_dict_num2name.get, pair_ants
+                                )))
 
-                            pair_add = [val.split(",") for val in pair_add]
-                            pair_sub = [val.split(",") for val in pair_sub]
-                            if mask_tot:
-                                pair_ants =\
-                                    np.array([
-                                        int(pair_add[0][0]),
-                                        int(pair_add[0][1]),
-                                        int(pair_add[1][0]),
-                                        int(pair_add[1][1])
-                                    ])
-                                out_times = time
-                                out_frequency = self.freq
-                                out_quadrangle =\
-                                    "-".join(list(map(
-                                        self.ant_dict_num2name.get, pair_ants
-                                    )))
+                            loc_uv1 =\
+                                (data_["ant_num1"] == int(pair_add[0][0])) \
+                                & (data_["ant_num2"] == int(pair_add[0][1]))
 
-                                loc_uv1 =\
-                                    (data_["ant_num1"] == int(pair_add[0][0])) \
-                                    & (data_["ant_num2"] == int(pair_add[0][1]))
+                            loc_uv2 =\
+                                (data_["ant_num1"] == int(pair_add[1][0])) \
+                                & (data_["ant_num2"] == int(pair_add[1][1]))
 
-                                loc_uv2 =\
-                                    (data_["ant_num1"] == int(pair_add[1][0])) \
-                                    & (data_["ant_num2"] == int(pair_add[1][1]))
+                            loc_uv3 =\
+                                (data_["ant_num1"] == int(pair_sub[0][0])) \
+                                & (data_["ant_num2"] == int(pair_sub[0][1]))
 
-                                loc_uv3 =\
-                                    (data_["ant_num1"] == int(pair_sub[0][0])) \
-                                    & (data_["ant_num2"] == int(pair_sub[0][1]))
+                            loc_uv4 =\
+                                (data_["ant_num1"] == int(pair_sub[1][0])) \
+                                & (data_["ant_num2"] == int(pair_sub[1][1]))
 
-                                loc_uv4 =\
-                                    (data_["ant_num1"] == int(pair_sub[1][0])) \
-                                    & (data_["ant_num2"] == int(pair_sub[1][1]))
-
-                                out_uv1 =\
-                                    (
-                                        data_["u"][loc_uv1][0],
-                                        data_["v"][loc_uv1][0]
-                                    )
-
-                                out_uv2 =\
-                                    (
-                                        data_["u"][loc_uv2][0],
-                                        data_["v"][loc_uv2][0]
-                                    )
-
-                                out_uv3 =\
-                                    (
-                                        data_["u"][loc_uv3][0],
-                                        data_["v"][loc_uv3][0]
-                                    )
-
-                                out_uv4 =\
-                                    (
-                                        data_["u"][loc_uv4][0],
-                                        data_["v"][loc_uv4][0]
-                                    )
-
-                                tmpl_clamp_ = gamvas.utils.sarray(
-                                    [
-                                        out_times,
-                                        out_frequency,
-                                        out_quadrangle,
-                                        out_uv1[0], out_uv1[1],
-                                        out_uv2[0], out_uv2[1],
-                                        out_uv3[0], out_uv3[1],
-                                        out_uv4[0], out_uv4[1],
-                                        0, 0, 0, 0, 0,
-                                        0, 0, 0, 0, 0
-                                    ],
-                                    field=field_amp,
-                                    dtype=dtype_amp
+                            out_uv1 =\
+                                (
+                                    data_["u"][loc_uv1][0],
+                                    data_["v"][loc_uv1][0]
                                 )
 
-                                if tmpl_clamp.size == 0:
-                                    tmpl_clamp = tmpl_clamp_
-                                else:
-                                    tmpl_clamp =\
-                                        rfn.stack_arrays((
-                                            tmpl_clamp, tmpl_clamp_
-                                        ))
-                    if Nant >= 3:
-                        pairs_obs =\
-                            np.array(list(map(
-                                ",".join,
-                                tuple(zip(
-                                    data_["ant_num1"].astype(str),
-                                    data_["ant_num2"].astype(str)
-                                ))
-                            )))
-
-                        matrix_clphs, pairs_full =\
-                            set_min_matrix_clphs(Nant, ant_nums_.astype(str))
-
-                        row = matrix_clphs.shape[0]
-                        for i in range(row):
-                            mask_add = matrix_clphs[i] == +1
-                            mask_sub = matrix_clphs[i] == -1
-                            pair_add = pairs_full[mask_add]
-                            pair_sub = pairs_full[mask_sub]
-                            mask_tot =\
-                                (pair_add[0] in pairs_obs) \
-                                & (pair_add[1] in pairs_obs) \
-                                & (pair_sub[0] in pairs_obs)
-
-                            pair_add = [val.split(",") for val in pair_add]
-                            pair_sub = [val.split(",") for val in pair_sub]
-                            if mask_tot:
-                                pair_ants =\
-                                    np.array([
-                                        int(pair_add[0][0]),
-                                        int(pair_add[0][1]),
-                                        int(pair_sub[0][1])
-                                    ])
-
-                                out_times = time
-                                out_frequency = self.freq
-                                out_triangle =\
-                                    "-".join(list(map(
-                                        self.ant_dict_num2name.get, pair_ants
-                                    )))
-
-                                loc_uv1 =\
-                                    (data_["ant_num1"] == int(pair_add[0][0])) \
-                                    & (data_["ant_num2"] == int(pair_add[0][1]))
-
-                                loc_uv2 =\
-                                    (data_["ant_num1"] == int(pair_add[1][0])) \
-                                    & (data_["ant_num2"] == int(pair_add[1][1]))
-
-                                loc_uv3 =\
-                                    (data_["ant_num1"] == int(pair_sub[0][0])) \
-                                    & (data_["ant_num2"] == int(pair_sub[0][1]))
-
-                                out_uv1 =\
-                                    (
-                                        data_["u"][loc_uv1][0],
-                                        data_["v"][loc_uv1][0]
-                                    )
-
-                                out_uv2 =\
-                                    (
-                                        data_["u"][loc_uv2][0],
-                                        data_["v"][loc_uv2][0]
-                                    )
-
-                                out_uv3 =\
-                                    (
-                                        data_["u"][loc_uv3][0],
-                                        data_["v"][loc_uv3][0]
-                                    )
-
-                                tmpl_clphs_ = gamvas.utils.sarray(
-                                    [
-                                        out_times,
-                                        out_frequency,
-                                        out_triangle,
-                                        out_uv1[0], out_uv1[1],
-                                        out_uv2[0], out_uv2[1],
-                                        out_uv3[0], out_uv3[1],
-                                        0, 0, 0, 0, 0,
-                                        0, 0, 0, 0, 0
-                                    ],
-                                    field=field_phs,
-                                    dtype=dtype_phs
+                            out_uv2 =\
+                                (
+                                    data_["u"][loc_uv2][0],
+                                    data_["v"][loc_uv2][0]
                                 )
-                                if tmpl_clphs.size == 0:
-                                    tmpl_clphs = tmpl_clphs_
-                                else:
-                                    tmpl_clphs =\
-                                        rfn.stack_arrays(
-                                            (tmpl_clphs, tmpl_clphs_)
-                                        )
 
-                flag_clamp = False
-                flag_clphs = False
+                            out_uv3 =\
+                                (
+                                    data_["u"][loc_uv3][0],
+                                    data_["v"][loc_uv3][0]
+                                )
 
-                tmpl_clamp = tmpl_clamp.reshape(-1)
-                tmpl_clphs = tmpl_clphs.reshape(-1)
+                            out_uv4 =\
+                                (
+                                    data_["u"][loc_uv4][0],
+                                    data_["v"][loc_uv4][0]
+                                )
 
-                if tmpl_clamp.size == 0:
-                    tmpl_clamp = [np.nan] * len(field_amp)
-                    tmpl_clamp =\
-                        gamvas.utils.sarray(
-                            tmpl_clamp,
-                            field=field_amp,
-                            dtype=dtype_amp
-                        )
-
-                    flag_clamp = True
-                if tmpl_clphs.size == 0:
-                    tmpl_clphs = [np.nan] * len(field_phs)
-                    tmpl_clphs =\
-                        gamvas.utils.sarray(
-                            tmpl_clphs,
-                            field=field_phs,
-                            dtype=dtype_phs
-                        )
-
-                    flag_clphs = True
-                self.tmpl_clamp = copy.deepcopy(tmpl_clamp)
-                self.tmpl_clphs = copy.deepcopy(tmpl_clphs)
-                if not flag_clamp:
-                    clamp_ = tmpl_clamp
-                    clamp_["vis12"] =\
-                        list(map(
-                            uvvis.get,
-                            tuple(zip(clamp_["u12"], clamp_["v12"]))
-                        ))
-
-                    clamp_["vis34"] =\
-                        list(map(
-                            uvvis.get,
-                            tuple(zip(clamp_["u34"], clamp_["v34"]))
-                        ))
-
-                    clamp_["vis13"] =\
-                        list(map(
-                            uvvis.get,
-                            tuple(zip(clamp_["u13"], clamp_["v13"]))
-                        ))
-
-                    clamp_["vis24"] =\
-                        list(map(
-                            uvvis.get,
-                            tuple(zip(clamp_["u24"], clamp_["v24"]))
-                        ))
-
-                    clamp_["sig12"] =\
-                        list(map(
-                            uvsig.get,
-                            tuple(zip(clamp_["u12"], clamp_["v12"]))
-                        ))
-
-                    clamp_["sig34"] =\
-                        list(map(
-                            uvsig.get,
-                            tuple(zip(clamp_["u34"], clamp_["v34"]))
-                        ))
-
-                    clamp_["sig13"] =\
-                        list(map(
-                            uvsig.get,
-                            tuple(zip(clamp_["u13"], clamp_["v13"]))
-                        ))
-
-                    clamp_["sig24"] =\
-                        list(map(
-                            uvsig.get,
-                            tuple(zip(clamp_["u24"], clamp_["v24"]))
-                        ))
-
-                    amp12 = np.abs(clamp_["vis12"])
-                    amp34 = np.abs(clamp_["vis34"])
-                    amp13 = np.abs(clamp_["vis13"])
-                    amp24 = np.abs(clamp_["vis24"])
-
-                    # debiasing visibility amplitude
-                    #  (Eq. 19 in EHTC+2019, III)
-                    amp12 =\
-                        np.where(
-                            amp12 < clamp_["sig12"],
-                            0,
-                            np.sqrt(
-                                np.abs(clamp_["vis12"])**2 - clamp_["sig12"]**2
-                            )
-                        )
-
-                    amp34 =\
-                        np.where(
-                            amp34 < clamp_["sig34"],
-                            0,
-                            np.sqrt(
-                                np.abs(clamp_["vis34"])**2 - clamp_["sig34"]**2
-                            )
-                        )
-
-                    amp13 =\
-                        np.where(
-                            amp13 < clamp_["sig13"],
-                            0,
-                            np.sqrt(
-                                np.abs(clamp_["vis13"])**2 - clamp_["sig13"]**2
-                            )
-                        )
-
-                    amp24 =\
-                        np.where(
-                            amp24 < clamp_["sig24"],
-                            0,
-                            np.sqrt(
-                                np.abs(clamp_["vis24"])**2 - clamp_["sig24"]**2
-                            )
-                        )
-
-                    snr12 = amp12 / np.abs(clamp_["sig12"])
-                    snr34 = amp34 / np.abs(clamp_["sig34"])
-                    snr13 = amp13 / np.abs(clamp_["sig13"])
-                    snr24 = amp24 / np.abs(clamp_["sig24"])
-                    clamp_[field_cav] = (amp12 * amp34) / (amp13 * amp24)
-                    clamp_[field_cas] =\
-                        np.sqrt(snr12**-2 + snr34**-2 + snr13**-2 + snr24**-2)
-
-                if not flag_clphs:
-                    clphs_ = tmpl_clphs
-                    clphs_["vis12"] =\
-                        list(
-                            map(uvvis.get,
-                                tuple(zip(clphs_["u12"], clphs_["v12"]))
-                            )
-                        )
-
-                    clphs_["vis23"] =\
-                        list(
-                            map(uvvis.get,
-                                tuple(zip(clphs_["u23"], clphs_["v23"]))
-                            )
-                        )
-
-                    clphs_["vis31"] =\
-                        list(
-                            map(uvvis.get,
-                                tuple(zip(clphs_["u31"], clphs_["v31"]))
-                            )
-                        )
-
-                    clphs_["sig12"] =\
-                        list(
-                            map(uvsig.get,
-                                tuple(zip(clphs_["u12"], clphs_["v12"]))
-                            )
-                        )
-
-                    clphs_["sig23"] =\
-                        list(
-                            map(uvsig.get,
-                                tuple(zip(clphs_["u23"], clphs_["v23"]))
-                            )
-                        )
-
-                    clphs_["sig31"] =\
-                        list(
-                            map(uvsig.get,
-                                tuple(zip(clphs_["u31"], clphs_["v31"]))
-                            )
-                        )
-
-                    phs12 = np.angle(clphs_["vis12"])
-                    phs23 = np.angle(clphs_["vis23"])
-                    phs31 = np.angle(clphs_["vis31"].conj())
-                    snr12 = np.abs(clphs_["vis12"]) / np.abs(clphs_["sig12"])
-                    snr23 = np.abs(clphs_["vis23"]) / np.abs(clphs_["sig23"])
-                    snr31 = np.abs(clphs_["vis31"]) / np.abs(clphs_["sig31"])
-
-                    clphs_v = phs12 + phs23 + phs31
-                    clphs_[field_cpv] = clphs_v
-                    clphs_[field_cps] =\
-                        np.sqrt(snr12**-2 + snr23**-2 + snr31**-2)
-
-                if not flag_clamp:
-                    fields = ["time", "quadra", "freq", field_cav, field_cas]
-                    dtypes = ["f8", "U32", "f8", "f8", "f8"]
-                    datas = [clamp_[fields[nf]] for nf in range(len(fields))]
-                    clamp_ = gamvas.utils.sarray(datas, fields, dtypes)
-                else:
-                    fields = ["time", "quadra", "freq", field_cav, field_cas]
-                    dtypes = ["f8", "U32", "f8", "f8", "f8"]
-                    clamp_ =\
-                        gamvas.utils.sarray(
-                            [np.nan for i in range(len(fields))],
-                            fields,
-                            dtypes
-                        )
-
-                if not flag_clphs:
-                    fields = ["time", "triangle", "freq", field_cpv, field_cps]
-                    dtypes = ["f8", "U32", "f8", "f8", "f8"]
-                    datas = [clphs_[fields[nf]] for nf in range(len(fields))]
-                    clphs_ = gamvas.utils.sarray(datas, fields, dtypes)
-                else:
-                    fields = ["time", "triangle", "freq", field_cpv, field_cps]
-                    dtypes = ["f8", "U32", "f8", "f8", "f8"]
-                    clphs_ =\
-                        gamvas.utils.sarray(
-                            [np.nan for i in range(len(fields))],
-                            fields,
-                            dtypes
-                        )
-
-                if ns == 0:
-                    clamp = clamp_
-                    clphs = clphs_
-                else:
-                    if not flag_clamp:
-                        clamp =\
-                            rfn.append_fields(
-                                clamp,
-                                field_cav,
-                                clamp_[field_cav],
-                                usemask=False
+                            tmpl_clamp_ = gamvas.utils.sarray(
+                                [
+                                    out_times,
+                                    out_frequency,
+                                    out_quadrangle,
+                                    out_uv1[0], out_uv1[1],
+                                    out_uv2[0], out_uv2[1],
+                                    out_uv3[0], out_uv3[1],
+                                    out_uv4[0], out_uv4[1],
+                                    0, 0, 0, 0, 0,
+                                    0, 0, 0, 0, 0
+                                ],
+                                field=field_amp,
+                                dtype=dtype_amp
                             )
 
-                        clamp =\
-                            rfn.append_fields(
-                                clamp,
-                                field_cas,
-                                clamp_[field_cas],
-                                usemask=False
-                            )
+                            if tmpl_clamp.size == 0:
+                                tmpl_clamp = tmpl_clamp_
+                            else:
+                                tmpl_clamp =\
+                                    rfn.stack_arrays((
+                                        tmpl_clamp, tmpl_clamp_
+                                    ))
+                if Nant >= 3:
+                    pairs_obs =\
+                        np.array(list(map(
+                            ",".join,
+                            tuple(zip(
+                                data_["ant_num1"].astype(str),
+                                data_["ant_num2"].astype(str)
+                            ))
+                        )))
 
-                    if not flag_clphs:
-                        clphs =\
-                            rfn.append_fields(
-                                clphs,
-                                field_cpv,
-                                clphs_[field_cpv],
-                                usemask=False
-                            )
+                    matrix_clphs, pairs_full =\
+                        set_min_matrix_clphs(Nant, ant_nums_.astype(str))
 
-                        clphs =\
-                            rfn.append_fields(
-                                clphs,
-                                field_cps,
-                                clphs_[field_cps],
-                                usemask=False
+                    row = matrix_clphs.shape[0]
+                    for i in range(row):
+                        mask_add = matrix_clphs[i] == +1
+                        mask_sub = matrix_clphs[i] == -1
+                        pair_add = pairs_full[mask_add]
+                        pair_sub = pairs_full[mask_sub]
+                        mask_tot =\
+                            (pair_add[0] in pairs_obs) \
+                            & (pair_add[1] in pairs_obs) \
+                            & (pair_sub[0] in pairs_obs)
+
+                        pair_add = [val.split(",") for val in pair_add]
+                        pair_sub = [val.split(",") for val in pair_sub]
+                        if mask_tot:
+                            pair_ants =\
+                                np.array([
+                                    int(pair_add[0][0]),
+                                    int(pair_add[0][1]),
+                                    int(pair_sub[0][1])
+                                ])
+
+                            out_times = time
+                            out_frequency = self.freq
+                            out_triangle =\
+                                "-".join(list(map(
+                                    self.ant_dict_num2name.get, pair_ants
+                                )))
+
+                            loc_uv1 =\
+                                (data_["ant_num1"] == int(pair_add[0][0])) \
+                                & (data_["ant_num2"] == int(pair_add[0][1]))
+
+                            loc_uv2 =\
+                                (data_["ant_num1"] == int(pair_add[1][0])) \
+                                & (data_["ant_num2"] == int(pair_add[1][1]))
+
+                            loc_uv3 =\
+                                (data_["ant_num1"] == int(pair_sub[0][0])) \
+                                & (data_["ant_num2"] == int(pair_sub[0][1]))
+
+                            out_uv1 =\
+                                (
+                                    data_["u"][loc_uv1][0],
+                                    data_["v"][loc_uv1][0]
+                                )
+
+                            out_uv2 =\
+                                (
+                                    data_["u"][loc_uv2][0],
+                                    data_["v"][loc_uv2][0]
+                                )
+
+                            out_uv3 =\
+                                (
+                                    data_["u"][loc_uv3][0],
+                                    data_["v"][loc_uv3][0]
+                                )
+
+                            tmpl_clphs_ = gamvas.utils.sarray(
+                                [
+                                    out_times,
+                                    out_frequency,
+                                    out_triangle,
+                                    out_uv1[0], out_uv1[1],
+                                    out_uv2[0], out_uv2[1],
+                                    out_uv3[0], out_uv3[1],
+                                    0, 0, 0, 0, 0,
+                                    0, 0, 0, 0, 0
+                                ],
+                                field=field_phs,
+                                dtype=dtype_phs
                             )
+                            if tmpl_clphs.size == 0:
+                                tmpl_clphs = tmpl_clphs_
+                            else:
+                                tmpl_clphs =\
+                                    rfn.stack_arrays(
+                                        (tmpl_clphs, tmpl_clphs_)
+                                    )
+                gc.collect()
+
+            flag_clamp = False
+            flag_clphs = False
+
+            tmpl_clamp = tmpl_clamp.reshape(-1)
+            tmpl_clphs = tmpl_clphs.reshape(-1)
+
+            if tmpl_clamp.size == 0:
+                tmpl_clamp = [np.nan] * len(field_amp)
+                tmpl_clamp =\
+                    gamvas.utils.sarray(
+                        tmpl_clamp,
+                        field=field_amp,
+                        dtype=dtype_amp
+                    )
+
+                flag_clamp = True
+            if tmpl_clphs.size == 0:
+                tmpl_clphs = [np.nan] * len(field_phs)
+                tmpl_clphs =\
+                    gamvas.utils.sarray(
+                        tmpl_clphs,
+                        field=field_phs,
+                        dtype=dtype_phs
+                    )
+
+                flag_clphs = True
+            self.tmpl_clamp = copy.deepcopy(tmpl_clamp)
+            self.tmpl_clphs = copy.deepcopy(tmpl_clphs)
+            if not flag_clamp:
+                clamp_ = tmpl_clamp
+                clamp_["vis12"] =\
+                    list(map(
+                        uvvis.get,
+                        tuple(zip(clamp_["u12"], clamp_["v12"]))
+                    ))
+
+                clamp_["vis34"] =\
+                    list(map(
+                        uvvis.get,
+                        tuple(zip(clamp_["u34"], clamp_["v34"]))
+                    ))
+
+                clamp_["vis13"] =\
+                    list(map(
+                        uvvis.get,
+                        tuple(zip(clamp_["u13"], clamp_["v13"]))
+                    ))
+
+                clamp_["vis24"] =\
+                    list(map(
+                        uvvis.get,
+                        tuple(zip(clamp_["u24"], clamp_["v24"]))
+                    ))
+
+                clamp_["sig12"] =\
+                    list(map(
+                        uvsig.get,
+                        tuple(zip(clamp_["u12"], clamp_["v12"]))
+                    ))
+
+                clamp_["sig34"] =\
+                    list(map(
+                        uvsig.get,
+                        tuple(zip(clamp_["u34"], clamp_["v34"]))
+                    ))
+
+                clamp_["sig13"] =\
+                    list(map(
+                        uvsig.get,
+                        tuple(zip(clamp_["u13"], clamp_["v13"]))
+                    ))
+
+                clamp_["sig24"] =\
+                    list(map(
+                        uvsig.get,
+                        tuple(zip(clamp_["u24"], clamp_["v24"]))
+                    ))
+
+                amp12 = np.abs(clamp_["vis12"])
+                amp34 = np.abs(clamp_["vis34"])
+                amp13 = np.abs(clamp_["vis13"])
+                amp24 = np.abs(clamp_["vis24"])
+
+                # debiasing visibility amplitude
+                #  (Eq. 19 in EHTC+2019, III)
+                amp12 =\
+                    np.where(
+                        amp12 < clamp_["sig12"],
+                        0,
+                        np.sqrt(
+                            np.abs(clamp_["vis12"])**2 - clamp_["sig12"]**2
+                        )
+                    )
+
+                amp34 =\
+                    np.where(
+                        amp34 < clamp_["sig34"],
+                        0,
+                        np.sqrt(
+                            np.abs(clamp_["vis34"])**2 - clamp_["sig34"]**2
+                        )
+                    )
+
+                amp13 =\
+                    np.where(
+                        amp13 < clamp_["sig13"],
+                        0,
+                        np.sqrt(
+                            np.abs(clamp_["vis13"])**2 - clamp_["sig13"]**2
+                        )
+                    )
+
+                amp24 =\
+                    np.where(
+                        amp24 < clamp_["sig24"],
+                        0,
+                        np.sqrt(
+                            np.abs(clamp_["vis24"])**2 - clamp_["sig24"]**2
+                        )
+                    )
+
+                snr12 = amp12 / np.abs(clamp_["sig12"])
+                snr34 = amp34 / np.abs(clamp_["sig34"])
+                snr13 = amp13 / np.abs(clamp_["sig13"])
+                snr24 = amp24 / np.abs(clamp_["sig24"])
+                clamp_[field_cav] = (amp12 * amp34) / (amp13 * amp24)
+                clamp_[field_cas] =\
+                    np.sqrt(snr12**-2 + snr34**-2 + snr13**-2 + snr24**-2)
+
+            if not flag_clphs:
+                clphs_ = tmpl_clphs
+                clphs_["vis12"] =\
+                    list(
+                        map(uvvis.get,
+                            tuple(zip(clphs_["u12"], clphs_["v12"]))
+                        )
+                    )
+
+                clphs_["vis23"] =\
+                    list(
+                        map(uvvis.get,
+                            tuple(zip(clphs_["u23"], clphs_["v23"]))
+                        )
+                    )
+
+                clphs_["vis31"] =\
+                    list(
+                        map(uvvis.get,
+                            tuple(zip(clphs_["u31"], clphs_["v31"]))
+                        )
+                    )
+
+                clphs_["sig12"] =\
+                    list(
+                        map(uvsig.get,
+                            tuple(zip(clphs_["u12"], clphs_["v12"]))
+                        )
+                    )
+
+                clphs_["sig23"] =\
+                    list(
+                        map(uvsig.get,
+                            tuple(zip(clphs_["u23"], clphs_["v23"]))
+                        )
+                    )
+
+                clphs_["sig31"] =\
+                    list(
+                        map(uvsig.get,
+                            tuple(zip(clphs_["u31"], clphs_["v31"]))
+                        )
+                    )
+
+                phs12 = np.angle(clphs_["vis12"])
+                phs23 = np.angle(clphs_["vis23"])
+                phs31 = np.angle(clphs_["vis31"].conj())
+                snr12 = np.abs(clphs_["vis12"]) / np.abs(clphs_["sig12"])
+                snr23 = np.abs(clphs_["vis23"]) / np.abs(clphs_["sig23"])
+                snr31 = np.abs(clphs_["vis31"]) / np.abs(clphs_["sig31"])
+
+                clphs_v = phs12 + phs23 + phs31
+                clphs_[field_cpv] = clphs_v
+                clphs_[field_cps] =\
+                    np.sqrt(snr12**-2 + snr23**-2 + snr31**-2)
+
+            if not flag_clamp:
+                fields = ["time", "quadra", "freq", field_cav, field_cas]
+                dtypes = ["f8", "U32", "f8", "f8", "f8"]
+                datas = [clamp_[fields[nf]] for nf in range(len(fields))]
+                clamp_ = gamvas.utils.sarray(datas, fields, dtypes)
+            else:
+                fields = ["time", "quadra", "freq", field_cav, field_cas]
+                dtypes = ["f8", "U32", "f8", "f8", "f8"]
+                clamp_ =\
+                    gamvas.utils.sarray(
+                        [np.nan for i in range(len(fields))],
+                        fields,
+                        dtypes
+                    )
+
+            if not flag_clphs:
+                fields = ["time", "triangle", "freq", field_cpv, field_cps]
+                dtypes = ["f8", "U32", "f8", "f8", "f8"]
+                datas = [clphs_[fields[nf]] for nf in range(len(fields))]
+                clphs_ = gamvas.utils.sarray(datas, fields, dtypes)
+            else:
+                fields = ["time", "triangle", "freq", field_cpv, field_cps]
+                dtypes = ["f8", "U32", "f8", "f8", "f8"]
+                clphs_ =\
+                    gamvas.utils.sarray(
+                        [np.nan for i in range(len(fields))],
+                        fields,
+                        dtypes
+                    )
+
+            clamp = clamp_
+            clphs = clphs_
 
             if not flag_clamp:
                 self.clamp = clamp
