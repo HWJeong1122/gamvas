@@ -2799,15 +2799,14 @@ class open_fits:
         self.fit_beam(uvw=self.uvw)
 
     def selfcal(self,
-                type="phs", gnorm=False, tint=False, scanlen=300,
-                startmod=False, lm=(0, 0), prt=True):
+                type="phs", gnorm=False, tint=False,
+                startmod=False, lm=(0, 0), selfflag=True, prt=True):
         """
         Do self-calibration based on model visibility
             Arguments:
                 type (str): self-calibration type // amp, phs, a&p, gscale
                 gnorm (bool): if True, normalize gain amplitude solutions
                 tint (list, float): interval times [s]
-                scanlen (float): scan length [s]
                 startmod (bool): if True, do phase self-calibration
                                  using 1 Jy point-like source
                 lm (tuple): position of the point source
@@ -2899,7 +2898,7 @@ class open_fits:
             if not isinstance(self.avgtime, str):
                 tint = list(filter(lambda x: x >= self.avgtime / 60, tint))
         if type == "gscale":
-            tint = [2880]
+            tint = [2880, 1920, 1280, 850, 570, 380, 250, 180]
         tint = np.repeat(np.array(tint), 1).tolist()
 
         if not isinstance(tint, list):
@@ -2946,7 +2945,7 @@ class open_fits:
                     if len(ants) < 3:
                         gain1 = np.ones(len(data_)) * np.exp(1j * 0)
                         gain2 = np.ones(len(data_)) * np.exp(1j * 0)
-                    elif len(ants) == 3 and type in ["amp", "a&p", "gscale"]:
+                    elif len(ants) == 3 and selfflag and type in ["amp", "a&p"]:
                         gain1 = np.ones(len(data_)) * np.exp(1j * 0)
                         gain2 = np.ones(len(data_)) * np.exp(1j * 0)
                     else:
@@ -2962,76 +2961,84 @@ class open_fits:
                             sig = data_["sigma"]
                             mod = data_["vism"]
 
-                        init =\
-                            np.append(
-                                np.ones(len(ants)),
-                                np.zeros(len(ants))
-                            )
-
-                        bound1 = [[+0.5, +1.5] for i in range(len(ants))]
-                        bound2 = [[-np.pi, +np.pi] for i in range(len(ants))]
-                        bounds = bound1 + bound2
-
-                        def nll(*args):
-                            return cal_nll(*args)
-
-                        soln =\
-                            optimize.minimize(
-                                nll, init, args=(data_, obs, mod, ants),
-                                bounds=bounds, method="Powell"
-                            )
-
-                        gamp =\
-                            dict(map(
-                                lambda i, j: (i, j), ants, [*soln.x[:len(ants)]]
-                            ))
-
-                        gphs =\
-                            dict(map(
-                                lambda i, j: (i, j), ants, [*soln.x[len(ants):]]
-                            ))
-
-                        ant1 = data_["ant_name1"]
-                        ant2 = data_["ant_name2"]
-                        gain1 =\
-                            (
-                                np.array(list(map(gamp.get, ant1)))
-                                * np.exp(1j *
-                                    np.array(list(map(gphs.get, ant1)))
+                        if len(ants) == 3 and t < self.scanlen / 60:
+                            gain1 = np.ones(len(data_)) * np.exp(1j * 0)
+                            gain2 = np.ones(len(data_)) * np.exp(1j * 0)
+                        else:
+                            init =\
+                                np.append(
+                                    np.ones(len(ants)),
+                                    np.zeros(len(ants))
                                 )
-                            )
 
-                        gain2 =\
-                            (
-                                np.array(list(map(gamp.get, ant2)))
-                                * np.exp(1j *
-                                    np.array(list(map(gphs.get, ant2)))
+                            bound1 = [[+0.5, +1.5] for i in range(len(ants))]
+                            bound2 =\
+                                [[-np.pi, +np.pi] for i in range(len(ants))]
+                            bounds = bound1 + bound2
+
+                            def nll(*args):
+                                return cal_nll(*args)
+
+                            soln =\
+                                optimize.minimize(
+                                    nll, init, args=(data_, obs, mod, ants),
+                                    bounds=bounds, method="Powell"
                                 )
-                            ).conj()
 
-                        if type in ["phs"] or startmod:
-                            gain1 = gain1 / np.abs(gain1)
-                            gain2 = gain2 / np.abs(gain2)
-                        elif type in ["amp", "gscale"]:
-                            if type == "gscale" and gnorm:
-                                gains =\
-                                    np.unique(
-                                        np.append(np.abs(gain1), np.abs(gain2))
+                            gamp =\
+                                dict(map(
+                                    lambda i, j: \
+                                        (i, j), ants, [*soln.x[:len(ants)]]
+                                ))
+
+                            gphs =\
+                                dict(map(
+                                    lambda i, j: \
+                                        (i, j), ants, [*soln.x[len(ants):]]
+                                ))
+
+                            ant1 = data_["ant_name1"]
+                            ant2 = data_["ant_name2"]
+                            gain1 =\
+                                (
+                                    np.array(list(map(gamp.get, ant1)))
+                                    * np.exp(1j *
+                                        np.array(list(map(gphs.get, ant1)))
                                     )
+                                )
 
-                                gain1 =\
-                                    np.abs(gain1) \
-                                    / np.prod(gains)**(1/len(gains))
+                            gain2 =\
+                                (
+                                    np.array(list(map(gamp.get, ant2)))
+                                    * np.exp(1j *
+                                        np.array(list(map(gphs.get, ant2)))
+                                    )
+                                ).conj()
 
-                                gain2 =\
-                                    np.abs(gain2) \
-                                    / np.prod(gains)**(1/len(gains))
+                            if type in ["phs"] or startmod:
+                                gain1 = gain1 / np.abs(gain1)
+                                gain2 = gain2 / np.abs(gain2)
+                            elif type in ["amp", "gscale"]:
+                                if type == "gscale" and gnorm:
+                                    gains =\
+                                        np.unique(
+                                            np.append(
+                                                np.abs(gain1), np.abs(gain2))
+                                        )
 
-                            gain1 = np.abs(gain1) * np.exp(1j * 0)
-                            gain2 = np.abs(gain2) * np.exp(1j * 0)
-                        elif type in ["a&p"]:
-                            gain1 = gain1
-                            gain2 = gain2
+                                    gain1 =\
+                                        np.abs(gain1) \
+                                        / np.prod(gains)**(1/len(gains))
+
+                                    gain2 =\
+                                        np.abs(gain2) \
+                                        / np.prod(gains)**(1/len(gains))
+
+                                gain1 = np.abs(gain1) * np.exp(1j * 0)
+                                gain2 = np.abs(gain2) * np.exp(1j * 0)
+                            elif type in ["a&p"]:
+                                gain1 = gain1
+                                gain2 = gain2
 
                     if cgain1 is None and cgain2 is None:
                         cgain1 = gain1
@@ -3259,6 +3266,15 @@ class open_fits:
                     np.sqrt(self.sig_2**2 + out**2) \
                     + np.abs(self.data["vis"]) * np.sqrt(2 * 2) * d * m
 
+                if self.nstokes == 4:
+                    self.sig_3 =\
+                        np.sqrt(self.sig_3**2 + out**2) \
+                        + np.abs(self.data["vis"]) * np.sqrt(2 * 2) * d * m
+
+                    self.sig_4 =\
+                        np.sqrt(self.sig_4**2 + out**2) \
+                        + np.abs(self.data["vis"]) * np.sqrt(2 * 2) * d * m
+
             elif systype == "clamp":
                 self.clamp["sigma_clamp"] =\
                     np.sqrt(self.clamp["sigma_clamp"]**2 + out**2) \
@@ -3292,6 +3308,11 @@ class open_fits:
                                 - ssa: synchrotron self-absorption
                 args (tuple): arguments for the model
         """
+        if "1_l" in theta.dtype.names:
+            relmod = False
+        else:
+            relmod = True
+
         uvdat = self.data
         nvis = uvdat.size
         vism = np.zeros(nvis, dtype="c8")
@@ -3327,12 +3348,22 @@ class open_fits:
                     if fitset == "sf":
                         if i == 0:
                             args = (uvdat["u"], uvdat["v"])
-                            vism =\
-                                vism + gamvas.functions.gvis0(
-                                    args,
-                                    theta[f"{i+1}_S"],
-                                    theta[f"{i+1}_a"]
-                                )
+                            if relmod:
+                                vism =\
+                                    vism + gamvas.functions.gvis0(
+                                        args,
+                                        theta[f"{i+1}_S"],
+                                        theta[f"{i+1}_a"]
+                                    )
+                            else:
+                                vism =\
+                                    vism + gamvas.functions.gvis(
+                                        args,
+                                        theta[f"{i+1}_S"],
+                                        theta[f"{i+1}_a"],
+                                        theta[f"{i+1}_l"],
+                                        theta[f"{i+1}_m"]
+                                    )
                         else:
                             args = (uvdat["u"], uvdat["v"])
                             vism =\
@@ -3356,36 +3387,74 @@ class open_fits:
                                             uvdat["v"]
                                         )
 
-                                    vism =\
-                                        vism \
-                                        + gamvas.functions.gvis_spl0(
-                                            args,
-                                            theta[f"{i+1}_S"],
-                                            theta[f"{i+1}_a"],
-                                            theta[f"{i+1}_alpha"]
-                                        )
+                                    if relmod:
+                                        vism =\
+                                            vism \
+                                            + gamvas.functions.gvis_spl0(
+                                                args,
+                                                theta[f"{i+1}_S"],
+                                                theta[f"{i+1}_a"],
+                                                theta[f"{i+1}_alpha"]
+                                            )
+                                    else:
+                                        vism =\
+                                            vism \
+                                            + gamvas.functions.gvis_spl(
+                                                args,
+                                                theta[f"{i+1}_S"],
+                                                theta[f"{i+1}_a"],
+                                                theta[f"{i+1}_l"],
+                                                theta[f"{i+1}_m"],
+                                                theta[f"{i+1}_alpha"]
+                                            )
                                 elif spectrum == "cpl":
                                     args = (freq, uvdat["u"], uvdat["v"])
-                                    vism =\
-                                        vism \
-                                        + gamvas.functions.gvis_cpl0(
-                                            args,
-                                            theta[f"{i+1}_S"],
-                                            theta[f"{i+1}_a"],
-                                            theta[f"{i+1}_alpha"],
-                                            theta[f"{i+1}_freq"]
-                                        )
+                                    if relmod:
+                                        vism =\
+                                            vism \
+                                            + gamvas.functions.gvis_cpl0(
+                                                args,
+                                                theta[f"{i+1}_S"],
+                                                theta[f"{i+1}_a"],
+                                                theta[f"{i+1}_alpha"],
+                                                theta[f"{i+1}_freq"]
+                                            )
+                                    else:
+                                        vism =\
+                                            vism \
+                                            + gamvas.functions.gvis_cpl(
+                                                args,
+                                                theta[f"{i+1}_S"],
+                                                theta[f"{i+1}_a"],
+                                                theta[f"{i+1}_l"],
+                                                theta[f"{i+1}_m"],
+                                                theta[f"{i+1}_alpha"],
+                                                theta[f"{i+1}_freq"]
+                                            )
                                 elif spectrum == "ssa":
                                     args = (freq, uvdat["u"], uvdat["v"])
-                                    vism =\
-                                        vism \
-                                        + gamvas.functions.gvis_ssa0(
-                                            args,
-                                            theta[f"{i+1}_S"],
-                                            theta[f"{i+1}_a"],
-                                            theta[f"{i+1}_alpha"],
-                                            theta[f"{i+1}_freq"]
-                                        )
+                                    if relmod:
+                                        vism =\
+                                            vism \
+                                            + gamvas.functions.gvis_ssa0(
+                                                args,
+                                                theta[f"{i+1}_S"],
+                                                theta[f"{i+1}_a"],
+                                                theta[f"{i+1}_alpha"],
+                                                theta[f"{i+1}_freq"]
+                                            )
+                                    else:
+                                        vism =\
+                                            vism \
+                                            + gamvas.functions.gvis_ssa(
+                                                args,
+                                                theta[f"{i+1}_S"],
+                                                theta[f"{i+1}_a"],
+                                                theta[f"{i+1}_l"],
+                                                theta[f"{i+1}_m"],
+                                                theta[f"{i+1}_alpha"],
+                                                theta[f"{i+1}_freq"]
+                                            )
                             else:
                                 if spectrum == "spl":
                                     args =\
@@ -3455,13 +3524,24 @@ class open_fits:
                         else:
                             if i == 0:
                                 args = (uvdat["u"], uvdat["v"])
-                                vism =\
-                                    vism \
-                                    + gamvas.functions.gvis0(
-                                        args,
-                                        theta[f"{i+1}_S"],
-                                        theta[f"{i+1}_a"]
-                                    )
+                                if relmod:
+                                    vism =\
+                                        vism \
+                                        + gamvas.functions.gvis0(
+                                            args,
+                                            theta[f"{i+1}_S"],
+                                            theta[f"{i+1}_a"]
+                                        )
+                                else:
+                                    vism =\
+                                        vism \
+                                        + gamvas.functions.gvis(
+                                            args,
+                                            theta[f"{i+1}_S"],
+                                            theta[f"{i+1}_a"],
+                                            theta[f"{i+1}_l"],
+                                            theta[f"{i+1}_m"]
+                                        )
                             else:
                                 args = (uvdat["u"], uvdat["v"])
                                 vism =\
@@ -3478,33 +3558,22 @@ class open_fits:
                     if fitset == "sf":
                         if i == 0:
                             args = (uvdat["u"], uvdat["v"])
-                            vism =\
-                                vism \
-                                + gamvas.functions.dvis0(
-                                    args,
-                                    theta[f"{i+1}_S"]
-                                )
-                        else:
-                            args = (uvdat["u"], uvdat["v"])
-                            vism =\
-                                vism \
-                                + gamvas.functions.dvis(
-                                    args,
-                                    theta[f"{i+1}_S"],
-                                    theta[f"{i+1}_l"],
-                                    theta[f"{i+1}_m"]
-                                )
-            elif model == "ring":
-                for i in range(nmod):
-                    if fitset == "sf":
-                        if i == 0:
-                            args = (uvdat["u"], uvdat["v"])
-                            vism =\
-                                vism \
-                                + gamvas.functions.dvis0(
-                                    args,
-                                    theta[f"{i+1}_S"]
-                                )
+                            if relmod:
+                                vism =\
+                                    vism \
+                                    + gamvas.functions.dvis0(
+                                        args,
+                                        theta[f"{i+1}_S"]
+                                    )
+                            else:
+                                vism =\
+                                    vism \
+                                    + gamvas.functions.dvis(
+                                        args,
+                                        theta[f"{i+1}_S"],
+                                        theta[f"{i+1}_l"],
+                                        theta[f"{i+1}_m"]
+                                    )
                         else:
                             args = (uvdat["u"], uvdat["v"])
                             vism =\
@@ -4101,7 +4170,6 @@ class open_fits:
                                 - cpl: curved power-law
                                 - ssa: synchrotron self-absorption
         """
-
         if select is None:
             out_txt =\
                 "Please assign polarization type into 'select'."\
@@ -4477,28 +4545,41 @@ class open_fits:
             overwrite=True, output_verify="warn")
 
     def uvshift(self,
-                deltal=0, deltam=0, data=None, index=None):
+                deltal=0, deltam=0):
         """
         Shift the uv-visibility data
             Arguments:
                 deltal (float, mas): shift in the RA-direction
                 deltam (float, mas): shift in the DEC-direction
         """
-        if data is None or index is None:
-            out_txt = "Both 'data' and 'index' should be given."
-            raise Exception(out_txt)
         deltal = deltal * m2r
         deltam = deltam * m2r
-        indata = data[index]
-        uvu = data["u"]
-        uvv = data["v"]
 
-        outdata =\
-            indata \
+        uvu = self.data["u"]
+        uvv = self.data["v"]
+
+        self.vis_1 =\
+            self.vis_1 \
             * np.exp(+2j * np.pi * uvu * deltal) \
             * np.exp(+2j * np.pi * uvv * deltam)
 
-        return outdata
+        self.vis_2 =\
+            self.vis_2 \
+            * np.exp(+2j * np.pi * uvu * deltal) \
+            * np.exp(+2j * np.pi * uvv * deltam)
+
+        self.vis_3 =\
+            self.vis_3 \
+            * np.exp(+2j * np.pi * uvu * deltal) \
+            * np.exp(+2j * np.pi * uvv * deltam)
+
+        self.vis_4 =\
+            self.vis_4 \
+            * np.exp(+2j * np.pi * uvu * deltal) \
+            * np.exp(+2j * np.pi * uvv * deltam)
+
+        self.set_uvvis()
+
 
     def get_data(self, type=None, query=None):
         out_txt =\

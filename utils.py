@@ -6,6 +6,7 @@ import copy
 import numpy as np
 import numpy.lib.recfunctions as rfn
 import matplotlib.pyplot as plt
+import pandas as pd
 from scipy import optimize
 from astropy.convolution import convolve
 from astropy.convolution import Gaussian2DKernel
@@ -858,7 +859,7 @@ def set_uvcombination(vdat, tmpl_clamp, tmpl_clphs):
 
 
 def set_boundary(
-    nmod=1, spectrum="single", select="I", sblf=1,
+    nmod=1, spectrum="single", select="I", sblf=1, relmod=True,
     width=5, mrng=10, bnd_l=[-10, +10], bnd_m=[-10, +10], bnd_f=[13.5, 140],
     nflux=False):
     """
@@ -884,9 +885,16 @@ def set_boundary(
             in_bnd_S = [[+0.0, +sblf]]
 
         in_bnd_a = [[+0.00, +width]]
-        in_bnd_l = [[+0.00, +1.00]]
-        in_bnd_m = [[+0.00, +1.00]]
+
+        if relmod:
+            in_bnd_l = [[+0.00, +1.00]]
+            in_bnd_m = [[+0.00, +1.00]]
+        else:
+            in_bnd_l = [bnd_l]
+            in_bnd_m = [bnd_m]
+
         in_bnd_f = [bnd_f]
+
         if spectrum in ["single", "spl"]:
             in_bnd_i = [[-3.00, +3.00]]
         else:
@@ -929,3 +937,48 @@ def set_boundary(
         nmod = len(sblf)
         in_bnd_S = [[-sblf[i], +sblf[i]] for i in range(nmod)]
         return in_bnd_S
+
+def rd_mprms(file, cid=1):
+    mprms = pd.read_excel(file, index_col=[0])
+
+    data = mprms["value"]
+    field = mprms["idx"]
+    dtype = ["f8" for a in range(len(mprms))]
+
+    vprms = gamvas.utils.sarray(data, field, dtype)
+    elims = np.stack((mprms["lolim"], mprms["uplim"]))
+    eprms = gamvas.utils.sarray(np.mean(elims, axis=0), field, dtype)
+    nmod = int(np.round(vprms["nmod"]))
+    if cid != 1:
+        core_vra = vprms[f"{cid}_l"].copy()
+        core_vdec = vprms[f"{cid}_m"].copy()
+        core_era = eprms[f"{cid}_l"].copy()
+        core_edec = eprms[f"{cid}_m"].copy()
+        for a in range(nmod):
+            if a != 0:
+                if a + 1 == cid:
+                    vprms[f"{a + 1}_l"] = -core_vra
+                    vprms[f"{a + 1}_m"] = -core_vdec
+                    eprms[f"{a + 1}_l"] = -core_era
+                    eprms[f"{a + 1}_m"] = -core_edec
+                else:
+                    vprms[f"{a + 1}_l"] = vprms[f"{a + 1}_l"] - core_vra
+                    vprms[f"{a + 1}_m"] = vprms[f"{a + 1}_m"] - core_vdec
+                    eprms[f"{a + 1}_l"] = eprms[f"{a + 1}_l"] - core_era
+                    eprms[f"{a + 1}_m"] = eprms[f"{a + 1}_m"] - core_edec
+
+        core_vs = vprms[f"{cid}_S"].copy()
+        core_va = vprms[f"{cid}_a"].copy()
+        core_ss = eprms[f"{cid}_S"].copy()
+        core_sa = eprms[f"{cid}_a"].copy()
+
+        vprms[f"{cid}_S"] = vprms[f"1_S"].copy()
+        vprms[f"{cid}_a"] = vprms[f"1_a"].copy()
+        eprms[f"{cid}_S"] = eprms[f"1_S"].copy()
+        eprms[f"{cid}_a"] = eprms[f"1_a"].copy()
+
+        vprms["1_S"] = core_vs
+        vprms["1_a"] = core_va
+        eprms["1_S"] = core_ss
+        eprms["1_a"] = core_sa
+    return vprms, eprms

@@ -251,16 +251,13 @@ class plotter:
 
         fsize = 10
         for nfreq, freq in enumerate(ufreq):
+            plabel = False
             yticks = []
             ytick_valid = []
             fig_tplot, ax_tplot =\
                 plt.subplots(1,1, figsize=(fsize, fsize * 0.5))
             ax_tplot.set_rasterized(True)
             for nant, ant in enumerate(uants):
-                if nant == 0:
-                    label = f"{freq:.1f} GHz"
-                else:
-                    label = None
                 mask_freq = freqs == freq
                 mask_ants =\
                     (data["ant_name1"] == ant) | (data["ant_name2"] == ant)
@@ -268,6 +265,11 @@ class plotter:
 
                 if np.sum(mask) == 0:
                     continue
+
+                if not plabel:
+                    label = f"{freq:.1f} GHz"
+                else:
+                    label = None
 
                 data_ = data[mask]
                 ndat_ = len(data_)
@@ -281,6 +283,10 @@ class plotter:
 
                 yticks.append(ant)
                 ytick_valid.append(addidx)
+
+                if not plabel:
+                    plabel = True
+
             ax_tplot.scatter(
                 data["time"],
                 np.zeros(len(data)) + addidx + 1,
@@ -349,8 +355,8 @@ class plotter:
         if uvf.select == "mf":
             clrs =\
                 [
-                    "tab:blue", "tab:orange", "tab:green", "tab:red",
-                    "tab:purple", "tab:brown", "tab:pink", "tab:gray"
+                    "tab:blue", "tab:orange", "tab:green", "tab:purple",
+                    "tab:brown", "tab:pink", "tab:gray" , "tab:olive"
                 ]
         uu = data["u"]
         vv = data["v"]
@@ -614,7 +620,7 @@ class plotter:
 
 
     def draw_dirtymap(self,
-        uvf, mrng=10, npix=128, uvw="natural",
+        uvf, select=None, npix=128, uvw="natural",
         plot_resi=False, plotimg=True, show_title=False,
         save_path=False, save_name=False, save_form="png",
         returned_beam=False, returned_dirim=False
@@ -624,11 +630,19 @@ class plotter:
         data = uvf.data
         uu = data["u"]
         vv = data["v"]
-        if plot_resi:
-            vis = data["vis"] - data["vism"]
+
+        if select is None:
+            idx_vis = "vis"
+            idx_sig = "sigma"
         else:
-            vis = data["vis"]
-        sig = data["sigma"]
+            idx_vis = f"vis_{select.lower()}"
+            idx_sig = f"sigma_{select.lower()}"
+
+        if plot_resi:
+            vis = data[idx_vis] - data["vism"]
+        else:
+            vis = data[idx_vis]
+        sig = data[idx_sig]
 
         if uvw in ["n", "natural"]:
             wfn = 1 / sig**2
@@ -747,7 +761,16 @@ class plotter:
         cbar_bim.ax.xaxis.set_major_locator(MultipleLocator(0.2))
         cbar_bim.ax.xaxis.set_minor_locator(MultipleLocator(0.1))
 
-        if mrng >= 20:
+        if uvf.mrng.value >= 40:
+            ax_bim.xaxis.set_major_locator(MultipleLocator(20))
+            ax_bim.yaxis.set_major_locator(MultipleLocator(20))
+            ax_bim.xaxis.set_minor_locator(MultipleLocator(4))
+            ax_bim.yaxis.set_minor_locator(MultipleLocator(4))
+            ax_dir.xaxis.set_major_locator(MultipleLocator(20))
+            ax_dir.yaxis.set_major_locator(MultipleLocator(20))
+            ax_dir.xaxis.set_minor_locator(MultipleLocator(4))
+            ax_dir.yaxis.set_minor_locator(MultipleLocator(4))
+        elif 20 <= uvf.mrng.value < 40:
             ax_bim.xaxis.set_major_locator(MultipleLocator(10))
             ax_bim.yaxis.set_major_locator(MultipleLocator(10))
             ax_bim.xaxis.set_minor_locator(MultipleLocator(2))
@@ -756,7 +779,7 @@ class plotter:
             ax_dir.yaxis.set_major_locator(MultipleLocator(10))
             ax_dir.xaxis.set_minor_locator(MultipleLocator(2))
             ax_dir.yaxis.set_minor_locator(MultipleLocator(2))
-        elif mrng >= 6:
+        elif 6 <= uvf.mrng.value < 20:
             ax_bim.xaxis.set_major_locator(MultipleLocator(5.0))
             ax_bim.yaxis.set_major_locator(MultipleLocator(5.0))
             ax_bim.xaxis.set_minor_locator(MultipleLocator(1.0))
@@ -765,7 +788,7 @@ class plotter:
             ax_dir.yaxis.set_major_locator(MultipleLocator(5.0))
             ax_dir.xaxis.set_minor_locator(MultipleLocator(1.0))
             ax_dir.yaxis.set_minor_locator(MultipleLocator(1.0))
-        elif 1 <= mrng < 6:
+        elif 1 <= uvf.mrng.value < 6:
             ax_bim.xaxis.set_major_locator(MultipleLocator(1.0))
             ax_bim.yaxis.set_major_locator(MultipleLocator(1.0))
             ax_bim.xaxis.set_minor_locator(MultipleLocator(0.2))
@@ -819,8 +842,8 @@ class plotter:
 
 
     def draw_trplot(self,
-        result=None, pol=False, weight=None, nmod=None, ifsingle=True,
-        spectrum="spl", set_spectrum=True, model="gaussian",
+        result=None, pol=False, nmod=None, ifsingle=True,
+        relmod=True, spectrum="spl", set_spectrum=True, model="gaussian",
         fontsize=15, save_path=False, save_name=False, save_form="png"
     ):
         """
@@ -854,6 +877,13 @@ class plotter:
                         if n == 1:
                             field = [r"$S_{%s}$"%(n), r"$a_{%s}$"%(n)]
                             nidx_ = 2
+                            if not relmod:
+                                field =\
+                                    [
+                                        r"$S_{%s}$"%(n), r"$a_{%s}$"%(n),
+                                        r"$l_{%s}$"%(n), r"$m_{%s}$"%(n)
+                                    ]
+                                nidx_ = 4
                         else:
                             field =\
                                 [
@@ -872,6 +902,16 @@ class plotter:
                                             r"$\alpha_{%s}$"%(n)
                                         ]
                                     nidx_ = 3
+                                    if not relmod:
+                                        field =\
+                                            [
+                                                r"$S_{%s}$"%(n),
+                                                r"$a_{%s}$"%(n),
+                                                r"$l_{%s}$"%(n),
+                                                r"$m_{%s}$"%(n),
+                                                r"$\alpha_{%s}$"%(n)
+                                            ]
+                                        nidx_ = 5
                                 else:
                                     field =\
                                         [
@@ -890,6 +930,17 @@ class plotter:
                                             r"$\nu_{\rm m,%s}$"%(n)
                                         ]
                                     nidx_ = 4
+                                    if not relmod:
+                                        field =\
+                                            [
+                                                r"$S_{%s}$"%(n),
+                                                r"$a_{%s}$"%(n),
+                                                r"$l_{%s}$"%(n),
+                                                r"$m_{%s}$"%(n),
+                                                r"$\alpha_{%s}$"%(n),
+                                                r"$\nu_{\rm m,%s}$"%(n)
+                                            ]
+                                        nidx_ = 6
                                 else:
                                     field =\
                                         [
@@ -903,6 +954,13 @@ class plotter:
                             if n == 1:
                                 field = [r"$S_{%s}$"%(n), r"$a_{%s}$"%(n)]
                                 nidx_ = 2
+                                if not relmod:
+                                    field =\
+                                        [
+                                            r"$S_{%s}$"%(n), r"$a_{%s}$"%(n),
+                                            r"$l_{%s}$"%(n), r"$m_{%s}$"%(n)
+                                        ]
+                                    nidx_ = 4
                             else:
                                 field =\
                                     [
@@ -915,6 +973,13 @@ class plotter:
                         if n == 1:
                             field = [r"$S_{%s}$"%(n)]
                             nidx_ = 1
+                            if not relmod:
+                                field =\
+                                    [
+                                        r"$S_{%s}$"%(n),
+                                        r"$l_{%s}$"%(n), r"$m_{%s}$"%(n)
+                                    ]
+                                nidx_ = 3
                         else:
                             field =\
                                 [
@@ -986,8 +1051,8 @@ class plotter:
 
 
     def draw_cnplot(self,
-        result=None, pol=False, nmod=None, ifsingle=True, spectrum="spl",
-        set_spectrum=True, model="gaussian",
+        result=None, pol=False, nmod=None, ifsingle=True,
+        relmod=True, spectrum="spl", set_spectrum=True, model="gaussian",
         fontsize=15, save_path=False, save_name=False, save_form="png"
     ):
         """
@@ -1023,6 +1088,13 @@ class plotter:
                         if n == 1:
                             field = [r"$S_{%s}$"%(n), r"$a_{%s}$"%(n)]
                             nidx_ = 2
+                            if not relmod:
+                                field =\
+                                    [
+                                        r"$S_{%s}$"%(n), r"$a_{%s}$"%(n),
+                                        r"$l_{%s}$"%(n), r"$m_{%s}$"%(n)
+                                    ]
+                                nidx_ = 4
                         else:
                             field =\
                                 [
@@ -1030,7 +1102,6 @@ class plotter:
                                     r"$l_{%s}$"%(n), r"$m_{%s}$"%(n)
                                 ]
                             nidx_ = 4
-
                     else:
                         if set_spectrum:
                             if spectrum in ["spl"]:
@@ -1041,6 +1112,16 @@ class plotter:
                                             r"$\alpha_{%s}$"%(n)
                                         ]
                                     nidx_ = 3
+                                    if not relmod:
+                                        field =\
+                                            [
+                                                r"$S_{%s}$"%(n),
+                                                r"$a_{%s}$"%(n),
+                                                r"$l_{%s}$"%(n),
+                                                r"$m_{%s}$"%(n),
+                                                r"$\alpha_{%s}$"%(n)
+                                            ]
+                                        nidx_ = 5
                                 else:
                                     field =\
                                         [
@@ -1059,6 +1140,17 @@ class plotter:
                                             r"$\nu_{\rm m,%s}$"%(n)
                                         ]
                                     nidx_ = 4
+                                    if not relmod:
+                                        field =\
+                                            [
+                                                r"$S_{%s}$"%(n),
+                                                r"$a_{%s}$"%(n),
+                                                r"$l_{%s}$"%(n),
+                                                r"$m_{%s}$"%(n),
+                                                r"$\alpha_{%s}$"%(n),
+                                                r"$\nu_{\rm m,%s}$"%(n)
+                                            ]
+                                        nidx_ = 6
                                 else:
                                     field =\
                                         [
@@ -1073,6 +1165,13 @@ class plotter:
                                 field = [r"$S_{%s}$"%(n), r"$a_{%s}$"%(n)]
                                 nidx_ = 2
                             else:
+                                if not relmod:
+                                    field =\
+                                        [
+                                            r"$S_{%s}$"%(n), r"$a_{%s}$"%(n),
+                                            r"$l_{%s}$"%(n), r"$m_{%s}$"%(n)
+                                        ]
+                                    nidx_ = 4
                                 field =\
                                     [
                                         r"$S_{%s}$"%(n), r"$a_{%s}$"%(n),
@@ -1084,6 +1183,13 @@ class plotter:
                         if n == 1:
                             field = [r"$S_{%s}$"%(n)]
                             nidx_ = 1
+                            if not relmod:
+                                field =\
+                                    [
+                                        r"$S_{%s}$"%(n),
+                                        r"$l_{%s}$"%(n), r"$m_{%s}$"%(n)
+                                    ]
+                                nidx_ = 3
                         else:
                             field =\
                                 [
@@ -1782,16 +1888,15 @@ class plotter:
             # reconstruct residual-only map
             if self.img_count == 1:
                 self.draw_dirtymap(
-                    uvf=uvf, mrng=mrng, npix=npix, uvw=uvf.uvw,
+                    uvf=uvf, npix=npix, uvw=uvf.uvw,
                     plot_resi=True, plotimg=False,
-                    save_path=save_path,
-                    save_name=save_name_,
+                    save_path=save_path, save_name=save_name_,
                     save_form=save_form
                 )
 
         # reconstruct model+residual map
         self.draw_dirtymap(
-            uvf=uvf, mrng=mrng, npix=npix, uvw=uvf.uvw,
+            uvf=uvf, npix=npix, uvw=uvf.uvw,
             plot_resi=addnoise, plotimg=False
         )
         self.generate_image(
@@ -2092,7 +2197,7 @@ class plotter:
                     colormapping_p, ax=ax_pmap, orientation="vertical"
                 )
             cbar_p.set_label(r"$I_{\rm p}~{\rm (mJy/beam)}$", fontsize=15)
-            ax_pmap.set_xlabel("Relative R.A (mas)", fontsize=20)
+            ax_pmap.set_xlabel("Relative R.A (mas)", fontsize=15)
             ax_pmap.quiver(
                 ra[::pagap, ::pagap], dec [::pagap, ::pagap],
                 pa_x[::pagap, ::pagap], pa_y[::pagap, ::pagap],
@@ -2115,7 +2220,7 @@ class plotter:
                     colormapping_f, ax=ax_fmap, orientation="vertical"
                 )
             cbar_f.set_label(r"$m_{\rm p}~{(\%)}$", fontsize=15)
-            ax_fmap.set_xlabel("Relative R.A (mas)", fontsize=20)
+            ax_fmap.set_xlabel("Relative R.A (mas)", fontsize=15)
             ax_fmap.quiver(
                 ra[::pagap, ::pagap], dec [::pagap, ::pagap],
                 pa_x[::pagap, ::pagap], pa_y[::pagap, ::pagap],
@@ -2138,7 +2243,7 @@ class plotter:
                     colormapping_i, ax=ax_imap, orientation="vertical"
                 )
             cbar_i.set_label(r"$I_{I}~{\rm (Jy/beam)}$", fontsize=15)
-            ax_imap.set_xlabel("Relative R.A (mas)", fontsize=20)
+            ax_imap.set_xlabel("Relative R.A (mas)", fontsize=15)
 
         if select.lower() != "p":
             ec = "yellow"
@@ -2186,7 +2291,7 @@ class plotter:
             ax_pmap.invert_xaxis()
             ax_fmap.invert_xaxis()
             ax_pmap.add_patch(beam)
-        fig_fits.supylabel("Relative Dec (mas)", fontsize=20)
+        fig_fits.supylabel("Relative Dec (mas)", fontsize=15)
 
         fig_fits.tight_layout()
         if all([save_path, save_name]):

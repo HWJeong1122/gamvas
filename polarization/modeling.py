@@ -16,7 +16,6 @@ from dynesty.pool import Pool
 from dynesty import plotting as dyplot
 from dynesty import utils as dyfunc
 from dynesty.utils import quantile as dyquan
-
 from uncertainties import ufloat
 from uncertainties import unumpy as unp
 
@@ -265,9 +264,9 @@ class polarization:
 
 
     def run_pol(self,
-        uvfs=None, uvw=None, runmf=False, iprms=None, ierrors=None, ftype=None, fwght=None, bands=None,
-        sampler=None, bound=None, stokes=["q", "u"], spectrum=None, freq_ref=None,
-        npix=128, mindr=3, bprms=None,
+        uvfs=None, uvw=None, runmf=False, iprms=None, ierrors=None, ftype=None,
+        fwght=None, bands=None, sampler=None, bound=None, stokes=["q", "u"],
+        spectrum=None, freq_ref=None, npix=128, mindr=3, bprms=None,
         save_path=None, source=None, date=None
     ):
         self.source = source
