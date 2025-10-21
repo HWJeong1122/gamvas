@@ -133,7 +133,7 @@ bnds = None
 
 # or, you may want to adjust boundary conditions individually,
 # rather than a global setting, then, refer to the below.
-# (NOTE: these are an example)
+#   (NOTE: these are an example, assuming three components)
 # sblf = uvall.get_sblf()[0]      # extract short-baseline flux
 # bnd_S = [[0.5 * sblf, 1.5 * sblf], [0, sblf], [0, sblf]]    # flux density
 # bnd_a = [[0, width], [0, width], [0, width]]                # width
