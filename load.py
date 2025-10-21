@@ -359,9 +359,9 @@ class open_fits:
 
     def load_uvf(self,
                  select="i", select_if="all", uvw="natural", mrng=None,
-                 uvave="none", scanlen=600, d=0.0, m=0.0, dosyscal=True,
-                 doscatter=False, set_clq=True, set_pang=True, minclq=True,
-                 prt=True):
+                 uvave="none", scanlen=600, gaptime=60, d=0.0, m=0.0,
+                 dosyscal=True, doscatter=False, set_clq=True, set_pang=True,
+                 minclq=True, prt=True):
         """
         Load uv-fits file and extract the information
             Arguments:
@@ -770,6 +770,7 @@ class open_fits:
         self.uvave(
             uvave=uvave,
             scanlen=scanlen,
+            gaptime=gaptime,
             doscatter=doscatter,
             set_clq=set_clq,
             set_pang=set_pang
@@ -812,7 +813,7 @@ class open_fits:
         self.bpa = bpa
 
     def uvave(self,
-              uvave="none", scanlen=300, doscatter=False,
+              uvave="none", scanlen=300, doscatter=False, gaptime=60,
               set_clq=True, set_pang=True):
         """
         Average the uv-visibility data
@@ -838,9 +839,13 @@ class open_fits:
                 avgtime = uvave
             data = self.data
 
+            tarr = self.tarr
+
             time_ = data["time"]
             tint_ = data["tint"]
             mjd_ = data["mjd"]
+            ant_num1_ = data["ant_num1"]
+            ant_num2_ = data["ant_num2"]
             ant_name1_ = data["ant_name1"]
             ant_name2_ = data["ant_name2"]
             uvu_ = data["u"]
@@ -851,7 +856,7 @@ class open_fits:
             utime_sec = np.unique(time_sec)
             select = self.select.lower()
 
-            db = dbs(eps=avgtime, min_samples=2).fit(time_sec.reshape(-1, 1))
+            db = dbs(eps=gaptime, min_samples=2).fit(time_sec.reshape(-1, 1))
             scannum = db.labels_
 
             scannum =\
@@ -862,6 +867,7 @@ class open_fits:
                 )
 
             uscan = np.unique(scannum)
+
             uant_name1 = np.unique(ant_name1_)
             uant_name2 = np.unique(ant_name2_)
 
@@ -885,6 +891,8 @@ class open_fits:
             time = []
             mjd = []
             tint = []
+            ant_num1 = []
+            ant_num2 = []
             ant_name1 = []
             ant_name2 = []
             uvu = []
@@ -912,70 +920,74 @@ class open_fits:
                             & (time_scan < timer[ntime + 1] + 1)
 
                         data_mask1 = data[mask_scan & mask_time]
-                        for uant_name1_ in uant_name1:
-                            for uant_name2_ in uant_name2:
-                                mask_ant_name1 = ant_name1_ == uant_name1_
-                                mask_ant_name2 = ant_name2_ == uant_name2_
+                        uant_num1 = np.unique(data_mask1["ant_num1"])
+                        uant_num2 = np.unique(data_mask1["ant_num2"])
+                        uant_nums = np.unique(np.append(uant_num1, uant_num2))
+                        upair = list(it.combinations(uant_nums.tolist(), 2))
+                        for upair_ in upair:
+                            mask_ant_num1 = ant_num1_ == upair_[0]
+                            mask_ant_num2 = ant_num2_ == upair_[1]
 
-                                mask_tot =\
-                                    mask_scan \
-                                    & mask_time \
-                                    & mask_ant_name1 \
-                                    & mask_ant_name2
+                            mask_tot =\
+                                mask_scan \
+                                & mask_time \
+                                & mask_ant_num1 \
+                                & mask_ant_num2
 
-                                mask_vis =\
-                                    len(data[f"vis_{pol}"][mask_tot]) == 0
+                            mask_vis =\
+                                len(data[f"vis_{pol}"][mask_tot]) == 0
 
-                                if mask_vis:
-                                    continue
-                                if uant_name1_ == uant_name2_:
-                                    continue
-                                data_mask2 = data[mask_tot]
-                                getvis = data_mask2[f"vis_{pol}"]
-                                getsig = data_mask2[f"sigma_{pol}"]
-                                nvis = len(getvis)
+                            if mask_vis:
+                                continue
 
-                                if nvis <= 1:
-                                    continue
+                            data_mask2 = data[mask_tot]
+                            getvis = data_mask2[f"vis_{pol}"]
+                            getsig = data_mask2[f"sigma_{pol}"]
+                            nvis = len(getvis)
 
-                                weight = 1 / getsig**2
+                            if nvis <= 1:
+                                continue
 
-                                mask_w =\
-                                    np.any(np.isnan(weight)) \
-                                    | np.any(np.isinf(weight))
-                                if mask_w:
-                                    avg_vis = np.mean(getvis)
-                                else:
-                                    avg_vis =\
-                                        np.average(getvis, weights=weight)
+                            weight = 1 / getsig**2
 
-                                if doscatter:
-                                    outsig_ =\
-                                        np.std(np.abs(getvis)) / np.sqrt(nvis)
-                                    outsig.append(outsig_)
+                            mask_w =\
+                                np.any(np.isnan(weight)) \
+                                | np.any(np.isinf(weight))
+                            if mask_w:
+                                avg_vis = np.mean(getvis)
+                            else:
+                                avg_vis =\
+                                    np.average(getvis, weights=weight)
+
+                            if doscatter:
+                                outsig_ =\
+                                    np.std(np.abs(getvis)) / np.sqrt(nvis)
+                                outsig.append(outsig_)
+                                outvis.append(avg_vis)
+                            else:
+                                if np.sum(getsig) == 0:
+                                    outsig.append(0.0)
                                     outvis.append(avg_vis)
                                 else:
-                                    if np.sum(getsig) == 0:
-                                        outsig.append(0.0)
-                                        outvis.append(avg_vis)
-                                    else:
-                                        weight = 1 / getsig**2
-                                        outsig.append(
-                                            np.sqrt(
-                                                (np.sum(getsig**2) / nvis**2)
-                                            )
+                                    weight = 1 / getsig**2
+                                    outsig.append(
+                                        np.sqrt(
+                                            (np.sum(getsig**2) / nvis**2)
                                         )
-                                        outvis.append(avg_vis)
+                                    )
+                                    outvis.append(avg_vis)
 
-                                if nstoke == 0:
-                                    time.append(np.mean(data_mask1["time"]))
-                                    tint.append(np.sum(data_mask2["tint"]))
-                                    mjd.append(np.mean(mjd_[mask_tot]))
-                                    ant_name1.append(uant_name1_)
-                                    ant_name2.append(uant_name2_)
-                                    uvu.append(np.mean(uvu_[mask_tot]))
-                                    uvv.append(np.mean(uvv_[mask_tot]))
-                                    ww.append(np.mean(ww_[mask_tot]))
+                            if nstoke == 0:
+                                time.append(np.mean(data_mask1["time"]))
+                                tint.append(np.sum(data_mask2["tint"]))
+                                mjd.append(np.mean(mjd_[mask_tot]))
+                                ant_num1.append(upair_[0])
+                                ant_num2.append(upair_[1])
+                                ant_name1.append(tarr["name"][upair_[0] - 1])
+                                ant_name2.append(tarr["name"][upair_[1] - 1])
+                                uvu.append(np.mean(uvu_[mask_tot]))
+                                uvv.append(np.mean(uvv_[mask_tot]))
+                                ww.append(np.mean(ww_[mask_tot]))
 
                 if nstoke == 0:
                     vis_1, sig_1 = outvis, outsig
