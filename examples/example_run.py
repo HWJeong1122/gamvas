@@ -42,6 +42,7 @@ snrflag    = 3          # (float): snr-flagging value
 uvave      = 10         # (float) [sec]: uv-averaging
                         #   - 'scan': scan-average
                         #   - 'none': skip averaging
+gaptime    = 60         # (float) [sec]: gap time between scans
 
 # NOTE: it is recommended to set snrflag >= 3 (at least),
 #       otherwise closure quantities significantly devidate
@@ -87,10 +88,18 @@ uvf4 = gv.load.open_fits(path=path_uvf, file=file4, mrng=mrng*gv.mas)
 # NOTE: closure relations are constructed for an optimal minimum set.
 #           (Blackburn+2020; DOI: 10.3847/1538-4357/ab8469)
 #       if you want to use full closures, then use 'minclq=False'
-uvf1.load_uvf(select=select, uvw=uvw, scanlen=scanlen, uvave=uvave) # minclq=False)
-uvf2.load_uvf(select=select, uvw=uvw, scanlen=scanlen, uvave=uvave) # minclq=False)
-uvf3.load_uvf(select=select, uvw=uvw, scanlen=scanlen, uvave=uvave) # minclq=False)
-uvf4.load_uvf(select=select, uvw=uvw, scanlen=scanlen, uvave=uvave) # minclq=False)
+uvf1.load_uvf(
+    select=select, uvw=uvw, scanlen=scanlen, uvave=uvave, gaptime=gaptime,
+) # minclq=False)
+uvf2.load_uvf(
+    select=select, uvw=uvw, scanlen=scanlen, uvave=uvave, gaptime=gaptime,
+) # minclq=False)
+uvf3.load_uvf(
+    select=select, uvw=uvw, scanlen=scanlen, uvave=uvave, gaptime=gaptime,
+) # minclq=False)
+uvf4.load_uvf(
+    select=select, uvw=uvw, scanlen=scanlen, uvave=uvave, gaptime=gaptime,
+) # minclq=False)
 
 # flag uv-visibility data by SNR
 uvf1.flag_uvvis(type="snr", value=snrflag)
