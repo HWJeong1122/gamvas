@@ -1861,7 +1861,7 @@ class open_fits:
                     utimes,
                     desc="Setting Closures",
                     leave=False,
-                    bar_format="{l_bar}{bar} {n_fmt}/{total_fmt}")
+                    bar_format="{l_bar}{bar} {n_fmt}/{total_fmt}"
                 )):
                 data_ = data[data["time"] == time]
 
