@@ -111,24 +111,24 @@ class polarization:
                 phs_res = np.abs(np.exp(1j * phs_mod) - np.exp(1j * phs_obs))
                 objective -= self.fdict["phs"] * compute_bic(phs_res, phs_sig2, "phs", nobs, nmprm)
 
-            if "clamp" in ftypes or "clphs" in ftypes:
-                clqm = gamvas.utils.set_closure(x[0], x[1], model, np.zeros(model.shape[0]), args[0], args[1], y[3], y[4])
+            # if "clamp" in ftypes or "clphs" in ftypes:
+            #     clqm = gamvas.utils.set_closure(x[0], x[1], model, np.zeros(model.shape[0]), args[0], args[1], y[3], y[4])
 
-                if "clamp" in ftypes:
-                    nobs = len(y[2])
-                    clamp_obs = y[1]
-                    clamp_mod = clqm[0]
-                    clamp_sig2 = yerr[1]**2
-                    clamp_res = np.abs( np.log(clamp_mod) - np.log(clamp_obs) )
-                    objective -= self.fdict["clamp"] * compute_bic(clamp_res, clamp_sig2, "clamp", nobs, nmprm)
+            #     if "clamp" in ftypes:
+            #         nobs = len(y[2])
+            #         clamp_obs = y[1]
+            #         clamp_mod = clqm[0]
+            #         clamp_sig2 = yerr[1]**2
+            #         clamp_res = np.abs( np.log(clamp_mod) - np.log(clamp_obs) )
+            #         objective -= self.fdict["clamp"] * compute_bic(clamp_res, clamp_sig2, "clamp", nobs, nmprm)
 
-                if "clphs" in ftypes:
-                    nobs = len(y[2])
-                    clphs_obs = y[2]
-                    clphs_mod = clqm[1]
-                    clphs_sig2 = yerr[2]**2
-                    clphs_res = np.abs( np.exp(1j * clphs_mod) - np.exp(1j * clphs_obs) )
-                    objective -= self.fdict["clphs"] * compute_bic(clphs_res, clphs_sig2, "clphs", nobs, nmprm)
+            #     if "clphs" in ftypes:
+            #         nobs = len(y[2])
+            #         clphs_obs = y[2]
+            #         clphs_mod = clqm[1]
+            #         clphs_sig2 = yerr[2]**2
+            #         clphs_res = np.abs( np.exp(1j * clphs_mod) - np.exp(1j * clphs_obs) )
+            #         objective -= self.fdict["clphs"] * compute_bic(clphs_res, clphs_sig2, "clphs", nobs, nmprm)
         else:
             objective = -np.inf
         return objective
@@ -479,17 +479,11 @@ class polarization:
                 # set save_path
                 if runmf:
                     save_path_ =\
-                        save_path.replace(
-                            f"Pol_{iselect.upper()}",
-                            f"Pol_{stoke.upper()}"
-                        )
+                        f"{save_path}/../Pol_{stoke.upper()}/"
                     gamvas.utils.mkdir(save_path_)
                 else:
                     save_path_ =\
-                        save_path.replace(
-                            f"Pol_{iselect.upper()}/{self.freq:.1f}",
-                            f"Pol_{stoke.upper()}"
-                        )
+                        f"{save_path}/../../Pol_{stoke.upper()}/"
                     gamvas.utils.mkdir(save_path_)
                 save_path_ = f"{save_path_}/{self.freq:.1f}/"
                 gamvas.utils.mkdir(save_path_)
@@ -528,10 +522,10 @@ class polarization:
                 self.fdict = dict(zip(ftype, fwght))
 
                 # set uv-combinations
-                clamp_uvcomb, clphs_uvcomb =\
-                    gamvas.utils.set_uvcombination(
-                        uvf.data, uvf.tmpl_clamp, uvf.tmpl_clphs
-                    )
+                # clamp_uvcomb, clphs_uvcomb =\
+                #     gamvas.utils.set_uvcombination(
+                #         uvf.data, uvf.tmpl_clamp, uvf.tmpl_clphs
+                #     )
 
                 # set x parameters
                 self.x =\
@@ -547,18 +541,18 @@ class polarization:
                 self.y =\
                 (
                     np.ma.getdata(uvf.data[f"vis_{stoke}"]),
-                    np.ma.getdata(uvf.clamp[f"clamp_{stoke}"]),
-                    np.ma.getdata(uvf.clphs[f"clphs_{stoke}"]),
-                    clamp_uvcomb,
-                    clphs_uvcomb
+                    # np.ma.getdata(uvf.clamp[f"clamp_{stoke}"]),
+                    # np.ma.getdata(uvf.clphs[f"clphs_{stoke}"]),
+                    # clamp_uvcomb,
+                    # clphs_uvcomb
                 )
 
                 # set yerr parameters
                 self.yerr =\
                 (
                     np.ma.getdata(uvf.data[f"sigma_{stoke}"]),
-                    np.ma.getdata(uvf.clamp[f"sigma_clamp_{stoke}"]),
-                    np.ma.getdata(uvf.clphs[f"sigma_clphs_{stoke}"])
+                    # np.ma.getdata(uvf.clamp[f"sigma_clamp_{stoke}"]),
+                    # np.ma.getdata(uvf.clphs[f"sigma_clphs_{stoke}"])
                 )
 
                 self.args =\
@@ -574,10 +568,10 @@ class polarization:
 
                 # count the number of visibility data
                 self.nvis = uvf.data["vis"].shape[0]
-                if uvf.clamp_check:
-                    self.ncamp = uvf.clamp["clamp"].shape[0]
-                if uvf.clphs_check:
-                    self.ncphs = uvf.clphs["clphs"].shape[0]
+                # if uvf.clamp_check:
+                #     self.ncamp = uvf.clamp["clamp"].shape[0]
+                # if uvf.clphs_check:
+                #     self.ncphs = uvf.clphs["clphs"].shape[0]
 
                 # set the number of free parameters
                 self.nmod = nmod
@@ -637,11 +631,12 @@ class polarization:
                 )
 
                 # print statistical values : reduced chi-square, Akaike information criterion, Bayesian information criterion
-                uvcomb = (
-                    uvf.clamp["clamp"], uvf.clphs["clphs"],
-                    uvf.clamp["sigma_clamp"], uvf.clphs["sigma_clphs"],
-                    clamp_uvcomb, clphs_uvcomb
-                )
+                # uvcomb = (
+                #     uvf.clamp["clamp"], uvf.clphs["clphs"],
+                #     uvf.clamp["sigma_clamp"], uvf.clphs["sigma_clphs"],
+                #     clamp_uvcomb, clphs_uvcomb
+                # )
+                uvcomb = None
                 fty, chi, aic, bic =\
                     gamvas.utils.print_stats(
                         uvf,
@@ -665,17 +660,17 @@ class polarization:
                 uvf.ploter.prms = iprms
                 uvf.ploter.pprms = pprms
 
-                uvf.ploter.clq_obs =\
-                    (
-                        copy.deepcopy(uvf.clamp),
-                        copy.deepcopy(uvf.clphs)
-                    )
-                uvf.ploter.clq_mod =\
-                    gamvas.utils.set_closure(
-                        data["u"], data["v"], uvf.data["vism"],
-                        np.zeros(uvf.data["vism"].shape[0]), data["ant_name1"], data["ant_name2"],
-                        self.y[3], self.y[4]
-                    )
+                # uvf.ploter.clq_obs =\
+                #     (
+                #         copy.deepcopy(uvf.clamp),
+                #         copy.deepcopy(uvf.clphs)
+                #     )
+                # uvf.ploter.clq_mod =\
+                #     gamvas.utils.set_closure(
+                #         data["u"], data["v"], uvf.data["vism"],
+                #         np.zeros(uvf.data["vism"].shape[0]), data["ant_name1"], data["ant_name2"],
+                #         self.y[3], self.y[4]
+                #     )
 
                 # plot and save figures
                 uvf.ploter.draw_trplot(
@@ -713,27 +708,27 @@ class polarization:
                     save_form="pdf"
                 )
 
-                if "clamp" in ftype:
-                    uvf.ploter.draw_closure(
-                        type="clamp",
-                        model=True,
-                        plotimg=False,
-                        save_img=True,
-                        save_path=save_path_,
-                        save_name=f"{self.source}.{self.date}.clphs.{fitset}",
-                        save_form="pdf"
-                    )
+                # if "clamp" in ftype:
+                #     uvf.ploter.draw_closure(
+                #         type="clamp",
+                #         model=True,
+                #         plotimg=False,
+                #         save_img=True,
+                #         save_path=save_path_,
+                #         save_name=f"{self.source}.{self.date}.clphs.{fitset}",
+                #         save_form="pdf"
+                #     )
 
-                if "clphs" in ftype:
-                    uvf.ploter.draw_closure(
-                        type="clphs",
-                        model=True,
-                        plotimg=False,
-                        save_img=True,
-                        save_path=save_path_,
-                        save_name=f"{self.source}.{self.date}.clphs.{fitset}",
-                        save_form="pdf"
-                    )
+                # if "clphs" in ftype:
+                #     uvf.ploter.draw_closure(
+                #         type="clphs",
+                #         model=True,
+                #         plotimg=False,
+                #         save_img=True,
+                #         save_path=save_path_,
+                #         save_name=f"{self.source}.{self.date}.clphs.{fitset}",
+                #         save_form="pdf"
+                #     )
 
                 returned =\
                     uvf.ploter.draw_image(

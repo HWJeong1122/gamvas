@@ -361,7 +361,7 @@ class open_fits:
     def load_uvf(self,
                  select="i", select_if="all", uvw="natural", mrng=None,
                  uvave="none", scanlen=600, gaptime=60, d=0.0, m=0.0,
-                 dosyscal=True, doscatter=False, set_clq=True, set_pang=True,
+                 dosyscal=True, doscatter=False, set_clq=True, set_pang=False,
                  minclq=True, prt=True):
         """
         Load uv-fits file and extract the information
@@ -378,6 +378,7 @@ class open_fits:
                 prt (bool): toggle option if to print the information
         """
         self.avgtime = uvave
+        self.gaptime = gaptime
         self.scanlen = scanlen
         self.uvw = uvw
         self.uvinfo = True
@@ -753,6 +754,7 @@ class open_fits:
         )
 
         self.set_uvvis(set_pang=set_pang)
+        self.set_clq = set_clq
         if set_clq:
             self.set_closure(minclq=self.minclq)
 
@@ -762,6 +764,7 @@ class open_fits:
             binning = self.avgtime
 
         if dosyscal:
+            self.systype = []
             self.cal_systematics(binning=binning, type="vis")
             if len(uant) >= 4 and set_clq:
                 self.cal_systematics(binning=binning, type="clamp")
@@ -771,7 +774,6 @@ class open_fits:
         self.uvave(
             uvave=uvave,
             scanlen=scanlen,
-            gaptime=gaptime,
             doscatter=doscatter,
             set_clq=set_clq,
             set_pang=set_pang
@@ -814,7 +816,7 @@ class open_fits:
         self.bpa = bpa
 
     def uvave(self,
-              uvave="none", scanlen=300, doscatter=False, gaptime=60,
+              uvave="none", scanlen=300, doscatter=False,
               set_clq=True, set_pang=True):
         """
         Average the uv-visibility data
@@ -862,7 +864,9 @@ class open_fits:
             utime_sec = np.unique(time_sec)
             select = self.select.lower()
 
-            db = dbs(eps=gaptime, min_samples=2).fit(time_sec.reshape(-1, 1))
+            db =\
+                dbs(eps=self.gaptime, min_samples=1) \
+                .fit(time_sec.reshape(-1, 1))
             scannum = db.labels_
 
             scannum =\
@@ -1297,7 +1301,13 @@ class open_fits:
         flag_clamp = False
         flag_clphs = False
 
-        for ut, time in enumerate(utimes):
+        for ut, time in enumerate(
+            tqdm(
+                utimes,
+                desc="Setting closure relations",
+                leave=False,
+                bar_format="{l_bar}{bar} {n_fmt}/{total_fmt}"
+            )):
             mask_time = data["time"] == time
             data_ = data[data["time"] == time]
 
@@ -1855,11 +1865,10 @@ class open_fits:
 
             tmpl_clamp = np.array([])
             tmpl_clphs = np.array([])
-            # for ut, time in enumerate(utimes):
             for ut, time in enumerate(
                 tqdm(
                     utimes,
-                    desc="Setting Closures",
+                    desc="Setting closure relations",
                     leave=False,
                     bar_format="{l_bar}{bar} {n_fmt}/{total_fmt}"
                 )):
@@ -2723,9 +2732,11 @@ class open_fits:
         self.sig_3 = sig_3[~mask]
         self.sig_4 = sig_4[~mask]
 
-        self.set_uvvis()
-        self.set_closure(minclq=self.minclq)
-        self.fit_beam(uvw=self.uvw)
+        if np.sum(mask) != 0:
+            self.set_uvvis()
+            if self.set_clq:
+                self.set_closure(minclq=self.minclq)
+            self.fit_beam(uvw=self.uvw)
 
     def selfcal(self,
                 type="phs", gnorm=False, tint=False,
@@ -2843,7 +2854,7 @@ class open_fits:
 
         for nt, t in enumerate(tint):
             data = self.data
-            db = dbs(eps=t * 60, min_samples=2) \
+            db = dbs(eps=self.gaptime, min_samples=1) \
                 .fit((time * 3600).reshape(-1, 1))
             scannums = db.labels_
             uscan = np.unique(scannums)
@@ -3117,22 +3128,8 @@ class open_fits:
         self.bprms = (self.bmin, self.bmaj, self.bpa)
         self.ploter.bprms = self.bprms
 
-    def apply_systematics(self,
-                          binning=None, types=None, d=0.0, m=0.0):
-        if types is None:
-            out_txt =\
-                "Please provide appropriate list of type!" \
-                " (available: 'clamp', 'clphs')"
-            raise Exception(out_txt)
-
-        if binning is None:
-            out_txt = "Please provide appropriate binning time!"
-            raise Exception(out_txt)
-
-        if binning in ["none", "scan"]:
-            binning = self.scanlen
-        else:
-            binning = self.avgtime
+    def apply_systematics(self, d=0.0, m=0.0):
+        types = self.systype
 
         for systype in types:
             if systype in ["vis", "amp"]:
@@ -3151,7 +3148,7 @@ class open_fits:
                 label_sigma = "sigma_clphs"
                 label_pair = "triangle"
 
-            db = dbs(eps=binning, min_samples=1) \
+            db = dbs(eps=self.gaptime, min_samples=1) \
                 .fit((data["time"] * 3600).reshape(-1, 1))
             scannums = db.labels_
             uscan = np.unique(scannums)
@@ -3211,11 +3208,21 @@ class open_fits:
                         np.sqrt(2 * 4) * d * m
                         * np.abs(np.log(self.clamp["clamp"]))
                     )
+                self.ploter.clq_obs =\
+                    (
+                        copy.deepcopy(self.clamp),
+                        copy.deepcopy(self.clphs)
+                    )
 
             elif systype == "clphs":
                 self.clphs["sigma_clphs"] =\
                     np.sqrt(self.clphs["sigma_clphs"]**2 + out**2) \
                     + (np.sqrt(2 * 3) * d * m)
+                self.ploter.clq_obs =\
+                    (
+                        copy.deepcopy(self.clamp),
+                        copy.deepcopy(self.clphs)
+                    )
 
     def append_visibility_model(self,
                                 freq_ref, freq, theta, pol=False,
@@ -3853,6 +3860,8 @@ class open_fits:
     def cal_systematics(self,
                         binning=None, type=None):
 
+        self.systype.append(type)
+
         def cal_s(s, X, sigma_th):
             Y = X / np.sqrt(sigma_th**2 + s**2)
             mad = np.nanmedian(np.abs(Y - np.nanmedian(Y)))
@@ -3888,7 +3897,7 @@ class open_fits:
 
         if not np.all(np.isnan(data["time"])):
             db =\
-                dbs(eps=binning, min_samples=1) \
+                dbs(eps=self.gaptime, min_samples=1) \
                 .fit((time * 3600).reshape(-1, 1))
             scannums = db.labels_
             uscan = np.unique(scannums)
@@ -4300,6 +4309,8 @@ class open_fits:
         hdul_cp = copy.deepcopy(self.uvf_file)
         hdul = copy.deepcopy(self.uvf_file)
 
+        staxof = hdul["AIPS AN"].data["STAXOF"]
+
         data = self.data.copy()
         ufq = np.unique(data["freq"])
 
@@ -4386,6 +4397,9 @@ class open_fits:
         INTTIM = data["tint"]
         DATA = data_
 
+        if len(pars_pr) >= 8:
+            pars_pr = pars_pr[:7]
+
         data_pr = [UU, VV, WW, BASELINE, DATE, _DATE, INTTIM]
         cols_pr_ =\
             fits.GroupData(
@@ -4409,9 +4423,9 @@ class open_fits:
                 ]
             )
         ORBPARM = [[] for i in range(nant)]
-        NOSTA = np.array([i+1 for i in range(nant)])
+        NOSTA = np.array([i+1 for i in range(nant)], dtype=np.int32)
         MNTSTA = np.array([0 for i in range(nant)])
-        STAXOF = np.array([0. for i in range(nant)])
+        STAXOF = staxof
         POLTYA = np.array(["R" for i in range(nant)])
         POLAA = np.array([0. for i in range(nant)])
         POLCALA = np.array([[0., 0.] for i in range(nant)])
@@ -4419,21 +4433,41 @@ class open_fits:
         POLAB = np.array([0. for i in range(nant)])
         POLCALB = np.array([[0., 0.] for i in range(nant)])
 
-        data_an =\
-            [
-                ANNAME, STABXYZ, ORBPARM, NOSTA, MNTSTA, STAXOF,
-                POLTYA, POLAA, POLCALA, POLTYB, POLAB, POLCALB
-            ]
+        dict_an = dict(zip(cols_an.names, cols_an.formats))
+        dict_an_units = dict(zip(cols_an.names, cols_an.units))
 
-        cols_an_ = [0 for i in range(ncol_an)]
-        for i in range(ncol_an):
-            cols_an_[i] =\
-                fits.Column(
-                    name=cols_an.names[i],
-                    format=cols_an.formats[i],
-                    array=data_an[i]
-                )
+        dict_an_ =\
+            {
+                "ANNAME":[ANNAME, "8A"], "STABXYZ":[STABXYZ, "3D"],
+                "ORBPARM":[ORBPARM, "0D"], "NOSTA":[NOSTA, "1J"],
+                "MNTSTA":[MNTSTA, "1J"], "STAXOF":[STAXOF, "1E"],
+                "POLTYA":[POLTYA, "1A"],  "POLAA":[POLAA, "1E"],
+                "POLCALA":[POLCALA, "2E"], "POLTYB":[POLTYB, "1A"],
+                "POLAB":[POLAB, "1E"], "POLCALB":[POLCALB, "2E"]
+            }
+
+        cols_an_ = [0 for i in range(len(dict_an_))]
+        for ncol, cname in enumerate(list(dict_an_.keys())):
+            if cname in ["POLCALA", "POLCALB"]\
+                and dict_an[cname] == "0E":
+                    cols_an_[ncol] =\
+                        fits.Column(
+                            name=cname,
+                            format="0E",
+                            array=[[] for i in range(nant)],
+                            unit=dict_an_units[cname]
+                        )
+            else:
+                cols_an_[ncol] =\
+                    fits.Column(
+                        name=cname,
+                        format=dict_an_[cname][1],
+                        array=dict_an_[cname][0],
+                        unit=dict_an_units[cname]
+                    )
+
         cols_an_ = fits.ColDefs(cols_an_)
+
         hdu_an = fits.BinTableHDU.from_columns(cols_an_)
         hdu_an.name = "AIPS AN"
 
@@ -4441,15 +4475,15 @@ class open_fits:
             if h.name == "PRIMARY":
                 hdul[i] = hdu_pr
                 break
-            else:
-                hdul.append(hdu_pr)
+        else:
+            hdul.append(hdu_pr)
 
         for i, h in enumerate(hdul):
             if h.name == "AIPS AN":
                 hdul[i] = hdu_an
                 break
-            else:
-                hdul.append(hdu_an)
+        else:
+            hdul.append(hdu_an)
 
         hdul["PRIMARY"].header["CRVAL4"] = self.freq * 1e9
 
@@ -5338,7 +5372,6 @@ def cal_clean_error(s_peak=0, s_tot=0, sig_rms=0, size=0):
     sig_size = size * (sig_peak / s_peak)
     return sig_peak, sig_tot, sig_size
 
-
 def set_matrix_visphs(N):
     """
     Set the matrix for the visibility phase
@@ -5351,10 +5384,10 @@ def set_matrix_visphs(N):
     if N == 2:
         return out
     else:
-        for i in range(3, N+1):
-            m1 = np.ones((i-1, 1))
-            Is = np.eye(i-1)
-            m0 = np.zeros((int(comb(i-1, 2)), 1))
+        for i in range(3, N + 1):
+            m1 = np.ones((i - 1, 1))
+            Is = np.eye(i - 1)
+            m0 = np.zeros((int(comb(i - 1, 2)), 1))
             phi = out
 
             upper = np.concatenate((m1, -Is), axis=1)

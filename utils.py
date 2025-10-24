@@ -145,8 +145,8 @@ def sarray(data, field, dtype):
     return sarray_
 
 
-def cc2d(image1, image2, shift, psize, mrng,
-    f1=False, f2=False, mask_thick=False, plotimg=True,
+def cc2d(image1, image2, f1=None, f2=None, shift=1, psize=None, mrng=None,
+    peakalign=False, mask_thick=False, plotimg=True,
     save_path=False, save_name=False, save_form="pdf"
 ):
     """
@@ -180,65 +180,73 @@ def cc2d(image1, image2, shift, psize, mrng,
     else:
         image1_mask = image1.copy()
         image2_mask = image2.copy()
-    mean1 = np.nanmean(image1)
-    mean2 = np.nanmean(image2)
 
-    delxy = int(shift/psize)
-    maproi = int((mrng-shift)/psize)
-    center = int(image1.shape[0]/2)
-    shift1 = np.arange(-delxy, +delxy, 1)
-    shift2 = np.arange(-delxy, +delxy, 1)
+    if peakalign:
+        peak1 = np.where(image1 == np.nanmax(image1))
+        peak2 = np.where(image2 == np.nanmax(image2))
+        peakra = psize * (-peak1[1][0] + peak2[1][0])
+        peakdec = psize * (+peak1[0][0] - peak2[0][0])
+        return None, None, None, -peakra, -peakdec
+    else:
+        mean1 = np.nanmean(image1)
+        mean2 = np.nanmean(image2)
 
-    ceff = np.zeros((shift1.shape[0], shift2.shape[0]))
-    image1_roi =\
-        image1_mask.copy()[
-            center - maproi : center + maproi,
-            center - maproi : center + maproi
-        ]
-    for i, x in enumerate(shift1):
-        center1 = center+x
-        for j, y in enumerate(shift2):
-            center2 = center+y
-            image2_roi =\
-                image2_mask.copy()[
-                    center2 - maproi : center2 + maproi,
-                    center1 - maproi : center1 + maproi
-                ]
+        delxy = int(shift/psize)
+        maproi = int((mrng-shift)/psize)
+        center = int(image1.shape[0]/2)
+        shift1 = np.arange(-delxy, +delxy, 1)
+        shift2 = np.arange(-delxy, +delxy, 1)
 
-            numer = np.nansum((image1_roi-mean1)*(image2_roi-mean2))
-            denom1 = np.nansum((image1_roi-mean1)**2)
-            denom2 = np.nansum((image2_roi-mean2)**2)
+        ceff = np.zeros((shift1.shape[0], shift2.shape[0]))
+        image1_roi =\
+            image1_mask.copy()[
+                center - maproi : center + maproi,
+                center - maproi : center + maproi
+            ]
+        for i, x in enumerate(shift1):
+            center1 = center+x
+            for j, y in enumerate(shift2):
+                center2 = center+y
+                image2_roi =\
+                    image2_mask.copy()[
+                        center2 - maproi : center2 + maproi,
+                        center1 - maproi : center1 + maproi
+                    ]
 
-            rxy = numer/np.sqrt(denom1*denom2)
-            ceff[i,j] = rxy
-    ra = shift1*psize
-    dec = shift2*psize
-    ra, dec = np.meshgrid(ra, dec)
+                numer = np.nansum((image1_roi-mean1)*(image2_roi-mean2))
+                denom1 = np.nansum((image1_roi-mean1)**2)
+                denom2 = np.nansum((image2_roi-mean2)**2)
 
-    peakloc = np.where(ceff == np.max(ceff))
-    peakra = ra [peakloc][0]
-    peakdec = dec[peakloc][0]
-    fig_2dcc, ax_2dcc = plt.subplots(1, 1, figsize=(8, 8))
-    ax_2dcc.set_aspect("equal")
-    ax_2dcc.contourf(ra, dec, ceff, levels=101)
-    ax_2dcc.axvline(x=peakra, c="red", ls="--")
-    ax_2dcc.axhline(y=peakdec, c="red", ls="--")
-    ax_2dcc.set_xlabel(r"$\rm \Delta R.A~(mas)$", fontsize=15)
-    ax_2dcc.set_ylabel(r"$\rm \Delta Dec~(mas)$", fontsize=15)
-    ax_2dcc.tick_params("both", labelsize=13)
-    ax_2dcc.set_title(
-        f"RA={-peakra:+.3f} | Dec={-peakdec:+.3f} (@{f1:.3f} GHz)",
-        fontsize=15
-    )
-    if save_path and save_name:
-        fig_2dcc.savefig(
-            f"{save_path}" + f"{save_name}.{save_form}",
-            format=save_form,
-            dpi=300
+                rxy = numer/np.sqrt(denom1*denom2)
+                ceff[i,j] = rxy
+        ra = shift1*psize
+        dec = shift2*psize
+        ra, dec = np.meshgrid(ra, dec)
+
+        peakloc = np.where(ceff == np.max(ceff))
+        peakra = ra [peakloc][0]
+        peakdec = dec[peakloc][0]
+        fig_2dcc, ax_2dcc = plt.subplots(1, 1, figsize=(8, 8))
+        ax_2dcc.set_aspect("equal")
+        ax_2dcc.contourf(ra, dec, ceff, levels=101)
+        ax_2dcc.axvline(x=peakra, c="red", ls="--")
+        ax_2dcc.axhline(y=peakdec, c="red", ls="--")
+        ax_2dcc.set_xlabel(r"$\rm \Delta R.A~(mas)$", fontsize=15)
+        ax_2dcc.set_ylabel(r"$\rm \Delta Dec~(mas)$", fontsize=15)
+        ax_2dcc.tick_params("both", labelsize=13)
+        ax_2dcc.set_title(
+            f"RA={-peakra:+.3f} | Dec={-peakdec:+.3f} (@{f1:.3f} GHz)",
+            fontsize=15
         )
-    if plotimg:
-        plt.show()
-    close_figure(fig_2dcc)
+        if save_path and save_name:
+            fig_2dcc.savefig(
+                f"{save_path}" + f"{save_name}.{save_form}",
+                format=save_form,
+                dpi=300
+            )
+        if plotimg:
+            plt.show()
+        close_figure(fig_2dcc)
     return ceff, ra, dec, -peakra, -peakdec
 
 
@@ -532,7 +540,7 @@ def fit_beam(uvc):
     return gparams
 
 
-def set_uvf(dataset, type="sf"):
+def set_uvf(dataset, type="sf", clq=True):
     """
     Set the uv-fits data for the input dataset
         Arguments:
@@ -568,51 +576,57 @@ def set_uvf(dataset, type="sf"):
         sig_4 = np.append(sig_4, dataset[i].sig_4)
         data_ = dataset[i].data
         tarr_ = dataset[i].tarr
-        clamp_ = dataset[i].clamp
-        clphs_ = dataset[i].clphs
-        tmpl_clamp_ = dataset[i].tmpl_clamp
-        tmpl_clphs_ = dataset[i].tmpl_clphs
+        if clq:
+            clamp_ = dataset[i].clamp
+            clphs_ = dataset[i].clphs
+            tmpl_clamp_ = dataset[i].tmpl_clamp
+            tmpl_clphs_ = dataset[i].tmpl_clphs
         uant = np.unique(np.append(data_["ant_name1"], data_["ant_name2"]))
         if ndat == 1:
             data = data_
             tarr = tarr_
-            clamp = clamp_
-            clphs = clphs_
-            tmpl_clamp = tmpl_clamp_
-            tmpl_clphs = tmpl_clphs_
-        else:
-            if i == 0:
-                data = data_
-                tarr = tarr_
+            if clq:
                 clamp = clamp_
                 clphs = clphs_
                 tmpl_clamp = tmpl_clamp_
                 tmpl_clphs = tmpl_clphs_
+        else:
+            if i == 0:
+                data = data_
+                tarr = tarr_
+                if clq:
+                    clamp = clamp_
+                    clphs = clphs_
+                    tmpl_clamp = tmpl_clamp_
+                    tmpl_clphs = tmpl_clphs_
             else:
                 data = rfn.stack_arrays((data, data_))
                 for nant in range(len(uant)):
                     if tarr_["name"][nant] not in tarr["name"]:
                         tarr = rfn.stack_arrays((tarr, tarr_[nant]))
-                if len(uant) >= 4:
-                    clamp = rfn.stack_arrays((clamp, clamp_))
-                    tmpl_clamp = rfn.stack_arrays((tmpl_clamp, tmpl_clamp_))
-                if len(uant) >= 3:
-                    clphs = rfn.stack_arrays((clphs, clphs_))
-                    tmpl_clphs = rfn.stack_arrays((tmpl_clphs, tmpl_clphs_))
+                if clq:
+                    if len(uant) >= 4:
+                        clamp = rfn.stack_arrays((clamp, clamp_))
+                        tmpl_clamp = rfn.stack_arrays((tmpl_clamp, tmpl_clamp_))
+                    if len(uant) >= 3:
+                        clphs = rfn.stack_arrays((clphs, clphs_))
+                        tmpl_clphs = rfn.stack_arrays((tmpl_clphs, tmpl_clphs_))
     out.ufreq = [dataset[i].freq for i in range(ndat)]
     out.avgtime = dataset[0].avgtime
     out.data = data
     out.tarr = tarr
-    out.clamp = clamp
-    out.clphs = clphs
-    out.tmpl_clamp = tmpl_clamp
-    out.tmpl_clphs = tmpl_clphs
+    if clq:
+        out.clamp = clamp
+        out.clphs = clphs
+        out.tmpl_clamp = tmpl_clamp
+        out.tmpl_clphs = tmpl_clphs
     out.fit_beam(uvw=dataset[0].uvw)
-    out.ploter.clq_obs =\
-        (
-            copy.deepcopy(clamp),
-            copy.deepcopy(clphs)
-        )
+    if clq:
+        out.ploter.clq_obs =\
+            (
+                copy.deepcopy(clamp),
+                copy.deepcopy(clphs)
+            )
 
     if type == "sf":
         out.select = dataset[0].select
