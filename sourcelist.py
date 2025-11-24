@@ -4,6 +4,15 @@ from astropy.coordinates import SkyCoord
 
 source_positions = {
 
+"NRAO005"   : SkyCoord(
+    ( 0 * u.hour +  6 * u.min + 13.893 * u.s).to(u.hour).value * 15 * u.deg,
+    (-( 6 * u.deg + 23 * u.arcmin + 35.335 * u.arcsec)).to(u.deg)
+),
+"0003-066"  : SkyCoord(
+    ( 0 * u.hour +  6 * u.min + 13.893 * u.s).to(u.hour).value * 15 * u.deg,
+    (-( 6 * u.deg + 23 * u.arcmin + 35.335 * u.arcsec)).to(u.deg)
+),
+
 "3C66A"     : SkyCoord(
     ( 2 * u.hour + 22 * u.min + 39.611 * u.s).to(u.hour).value * 15 * u.deg,
     (+(43 * u.deg +  2 * u.arcmin +  7.799 * u.arcsec)).to(u.deg)
@@ -38,6 +47,15 @@ source_positions = {
 "0316+413"  : SkyCoord(
     ( 3 * u.hour + 19 * u.min + 48.160 * u.s).to(u.hour).value * 15 * u.deg,
     (+(41 * u.deg + 30 * u.arcmin + 42.106 * u.arcsec)).to(u.deg)
+),
+
+"1H0323+342": SkyCoord(
+    ( 3 * u.hour + 24 * u.min + 41.161 * u.s).to(u.hour).value * 15 * u.deg,
+    (+(34 * u.deg + 10 * u.arcmin + 45.858 * u.arcsec)).to(u.deg)
+),
+"0321+340"  : SkyCoord(
+    ( 3 * u.hour + 24 * u.min + 41.161 * u.s).to(u.hour).value * 15 * u.deg,
+    (+(34 * u.deg + 10 * u.arcmin + 45.858 * u.arcsec)).to(u.deg)
 ),
 
 "NRAO140"   : SkyCoord(
@@ -112,6 +130,11 @@ source_positions = {
 "0716+714"  : SkyCoord(
     ( 7 * u.hour + 21 * u.min + 53.448 * u.s).to(u.hour).value * 15 * u.deg,
     (+(71 * u.deg + 20 * u.arcmin + 36.363 * u.arcsec)).to(u.deg)
+),
+
+"0723-008"  : SkyCoord(
+    ( 7 * u.hour + 25 * u.min + 50.640 * u.s).to(u.hour).value * 15 * u.deg,
+    (-( 0 * u.deg + 54 * u.arcmin + 56.543 * u.arcsec)).to(u.deg)
 ),
 
 "OI158"     : SkyCoord(

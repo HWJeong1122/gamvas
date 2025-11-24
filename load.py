@@ -340,7 +340,7 @@ class open_fits:
             mod_m = u.deg.to(u.mas) * self.fits_model["DELTAY"]
 
             vism = np.zeros(len(uvr), dtype="c8")
-            for i in range(self.fits_Nmodel):
+            for i in range(len(self.fits_model)):
                 vism += gamvas.functions.gvis(
                     (uvu, uvv), mod_S[i], mod_a[i], mod_l[i], mod_m[i])
 
@@ -746,7 +746,10 @@ class open_fits:
         self.tarr = tarr
         self.tkey = {self.tarr[i]["name"]: i for i in range(len(self.tarr))}
 
-        self.select = select
+        if select.upper() == "I" and nstokes == 1:
+            self.select = self.select.lower()
+        else:
+            self.select = select
 
         self.sort_uvvis(
             type="tb&ant", reverse=False, set_uvvis=False, set_closure=False,
@@ -4346,7 +4349,6 @@ class open_fits:
 
         data = self.data
 
-
         # PRIMARY table
         nstokes = self.nstokes
         data_pr = hdul["PRIMARY"].data
@@ -4448,13 +4450,23 @@ class open_fits:
 
         cols_an_ = [0 for i in range(len(dict_an_))]
         for ncol, cname in enumerate(list(dict_an_.keys())):
-            if cname in ["POLCALA", "POLCALB"]\
-                and dict_an[cname] == "0E":
+            if cname in ["POLCALA", "POLCALB"]:
+                if dict_an[cname] == "0E":
                     cols_an_[ncol] =\
                         fits.Column(
                             name=cname,
                             format="0E",
-                            array=[[] for i in range(nant)],
+                            array=np.zeros(nant),
+                            unit=dict_an_units[cname]
+                        )
+                else:
+                    shape = hdul["AIPS AN"].data[cname].shape
+                    shape = (nant, int(shape[1] / self.no_if))
+                    cols_an_[ncol] =\
+                        fits.Column(
+                            name=cname,
+                            format="2E",
+                            array=np.zeros(shape),
                             unit=dict_an_units[cname]
                         )
             else:
@@ -4462,7 +4474,8 @@ class open_fits:
                     fits.Column(
                         name=cname,
                         format=dict_an_[cname][1],
-                        array=dict_an_[cname][0],
+                        # array=dict_an_[cname][0],
+                        array=hdul["AIPS AN"].data[cname],
                         unit=dict_an_units[cname]
                     )
 
@@ -4480,10 +4493,12 @@ class open_fits:
 
         for i, h in enumerate(hdul):
             if h.name == "AIPS AN":
-                hdul[i] = hdu_an
+                # hdul[i] = hdu_an
+                hdul[i] = copy.deepcopy(hdul_cp["AIPS AN"])
                 break
         else:
-            hdul.append(hdu_an)
+            # hdul.append(hdu_an)
+            hdul.append(copy.deepcopy(hdul_cp["AIPS AN"]))
 
         hdul["PRIMARY"].header["CRVAL4"] = self.freq * 1e9
 
@@ -4491,21 +4506,29 @@ class open_fits:
         hdr_cp = hdul_cp["PRIMARY"].header
         keys = list(hdr_cp.keys())
         comments = list(hdr_cp.comments)
-        for i in range(len(keys)):
-            if "HISTORY" in keys[i]:
-                break
-            hdr_pr[keys[i]] = (hdr_cp[keys[i]], comments[i].replace("\n", " "))
+        hdul["PRIMARY"].header = copy.deepcopy(hdul_cp["PRIMARY"].header)
+        # for i in range(len(keys)):
+        #     if "HISTORY" in keys[i]:
+        #         break
+        #     hdr_pr[keys[i]] = (hdr_cp[keys[i]], comments[i].replace("\n", " "))
 
-        hdr_an = hdul["AIPS AN"].header
-        hdr_cp = hdul_cp["AIPS AN"].header
-        keys = list(hdr_cp.keys())
-        comments = list(hdr_cp.comments)
-        for i in range(len(keys)):
-            hdr_an[keys[i]] = (hdr_cp[keys[i]], comments[i].replace("\n", " "))
+        # hdr_an = hdul["AIPS AN"].header
+        # hdr_cp = hdul_cp["AIPS AN"].header
+        # keys = list(hdr_cp.keys())
+        # comments = list(hdr_cp.comments)
+        # for i in range(len(keys)):
+        #     if keys[i] == "NO_IF":
+        #         hdr_an[keys[i]] =\
+        #             (1, "")
+        #     else:
+        #         hdr_an[keys[i]] =\
+        #             (hdr_cp[keys[i]], comments[i].replace("\n", " "))
+        hdul["AIPS AN"].header["NO_IF"] = 1
 
         hdul.writeto(
             save_path + save_name,
-            overwrite=True, output_verify="warn")
+            overwrite=True, output_verify="warn"
+        )
 
     def uvshift(self,
                 deltal=0, deltam=0):

@@ -555,8 +555,8 @@ class plotter:
         ax_amp.get_shared_y_axes().joined(ax_amp, ax_phs)
         ax_amp.set_aspect("equal")
         ax_phs.set_aspect("equal")
-        ax_amp.set_facecolor("gray")
-        ax_phs.set_facecolor("gray")
+        ax_amp.set_facecolor("lightgray")
+        ax_phs.set_facecolor("lightgray")
         cmap1 = ax_amp.scatter(
             +uu, +vv,
             c=+amp1, s=30, ec="black", cmap="jet",
@@ -1936,6 +1936,7 @@ class plotter:
 
         xgrid = uvf.xgrid
         ygrid = uvf.ygrid
+        uvf.image = image
         self.restore_img = image
 
         xu, yu = 1 / 37, 1 / 41
@@ -2079,8 +2080,9 @@ class plotter:
 
     def draw_fits_image(self,
         uvf, select="i", rms=None, xlim=False, ylim=False, cmap_snr_i=3,
-        cmap_snr_p=3, fsize=6, contourw=0.3, pagap=30, plotimg=True,
-        show_title=False, save_path=False, save_name=False, save_form="png"
+        cmap_snr_p=3, fsize=6, contourw=0.3, pagap=30, draw_cntr=True,
+        draw_log=False, plotimg=True, show_title=False,
+        save_path=False, save_name=False, save_form="png"
     ):
         if select.lower() == "i":
             image = uvf.fits_image_vi
@@ -2163,6 +2165,9 @@ class plotter:
         ra  = u.deg.to(u.mas) * uvf.fits_grid_ra
         dec = u.deg.to(u.mas) * uvf.fits_grid_dec
         norm_i = mpl.colors.Normalize(vmin=np.abs(vmin), vmax=np.abs(vmax))
+        if draw_log:
+            norm_i =\
+                mpl.colors.LogNorm(vmin=np.abs(vmin), vmax=np.abs(vmax))
         colormapping_i = cm.ScalarMappable(norm=norm_i, cmap=cmap)
         if select.lower() != "p":
             fig_fits, ax_imap = plt.subplots(1, 1, figsize=(fsize*4/3, fsize))
@@ -2182,12 +2187,13 @@ class plotter:
             colormapping_f = cm.ScalarMappable(norm=norm_f, cmap=cmap_f)
         if select.lower() == "p":
             ax_pmap.set_aspect("equal")
-            ax_pmap.contour(
-                ra, dec, image,
-                levels=cntr[0], colors="black",
-                linewidths=contourw
-            )
-            ax_pmap.pcolor (
+            if draw_cntr:
+                ax_pmap.contour(
+                    ra, dec, image,
+                    levels=cntr[0], colors="black",
+                    linewidths=contourw
+                )
+            ax_pmap.pcolor(
                 ra, dec, np.abs(image_p),
                 norm=norm_p, cmap=cmap_p
             )
@@ -2205,12 +2211,13 @@ class plotter:
             )
 
             ax_fmap.set_aspect("equal")
-            ax_fmap.contour(
-                ra, dec, image,
-                levels=cntr[0], colors="black",
-                linewidths=contourw
-            )
-            ax_fmap.pcolor (
+            if draw_cntr:
+                ax_fmap.contour(
+                    ra, dec, image,
+                    levels=cntr[0], colors="black",
+                    linewidths=contourw
+                )
+            ax_fmap.pcolor(
                 ra, dec, np.abs(image_f),
                 norm=norm_f, cmap=cmap_f
             )
@@ -2228,12 +2235,13 @@ class plotter:
             )
         elif select.lower() in ["i", "rr", "ll"]:
             ax_imap.set_aspect("equal")
-            ax_imap.contour(
-                ra, dec, image,
-                levels=cntr[0], colors="lightgrey",
-                linewidths=contourw
-            )
-            ax_imap.pcolor (
+            if draw_cntr:
+                ax_imap.contour(
+                    ra, dec, image,
+                    levels=cntr[0], colors="lightgrey",
+                    linewidths=contourw
+                )
+            ax_imap.pcolor(
                 ra, dec, np.abs(image),
                 norm=norm_i, cmap=cmap
             )

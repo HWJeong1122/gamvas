@@ -256,7 +256,7 @@ def print_stats(uvf, uvcomb, k, logz, dlogz, ftype):
         Arguments:
             uvf: uv-fits data
             uvcomb: uv-combination data
-            k: number of parameters
+            k: number of free parameters
             logz: log-likelihood
             dlogz: uncertainty of the log-likelihood
             ftype: fit type
@@ -995,4 +995,10 @@ def rd_mprms(file, cid=1):
         vprms["1_a"] = core_va
         eprms["1_S"] = core_ss
         eprms["1_a"] = core_sa
-    return vprms, eprms
+
+    nmod = int(np.round(mprms["value"][0]))
+    mask_thick = np.array(list(map(lambda x: "thick" in x, mprms["idx"])))
+    mask_thick = np.round(mprms["value"].values[mask_thick]).astype(int)
+    k = len(mprms) - 2 * (len(mask_thick) - np.sum(mask_thick)) - 1
+
+    return vprms, eprms, k

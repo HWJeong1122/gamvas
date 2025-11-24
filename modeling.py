@@ -427,52 +427,13 @@ class modeling:
         Get the number of parameters
         """
         mprms = self.mprms.copy()
-        nmprms = 0
+        vals = rfn.structured_to_unstructured(mprms)
         nmod = int(np.round(mprms["nmod"]))
-
-        if self.model == "gaussian":
-            if self.set_spectrum:
-                for i in range(nmod):
-                    nmod_ = int(i + 1)
-                    if nmod_ == 1:
-                        if self.spectrum == "spl":
-                            nmprms += 3
-                        else:
-                            nmprms += 4
-                    else:
-                        if self.spectrum in ["spl"]:
-                            nmprms_ = 5
-                        else:
-                            nmprms_ = 6
-                            spectrum = bool(np.round(mprms[f"{nmod_}_thick"]))
-                            if not spectrum:
-                                nmprms_ -= 1
-                        nmprms += nmprms_
-            else:
-                if nmod == 1:
-                    nmprms += 2
-                else:
-                    nmprms += 4
-        elif self.model == "delta":
-            if self.set_spectrum:
-                for i in range(nmod):
-                    nmod_ = int(i + 1)
-                    if nmod_ == 1:
-                        if self.spectrum == "spl":
-                            nmprms += 2
-                        else:
-                            nmprms += 3
-                    else:
-                        nmprms_ = 5
-                        spectrum = bool(np.round(mprms[f"{nmod_}_thick"]))
-                        if not spectrum:
-                            nmprms_ -= 1
-                        nmprms += nmprms_
-            else:
-                if nmod == 1:
-                    nmprms += 1
-                else:
-                    nmprms += 3
+        mask_thick =\
+            np.array(list(map(lambda x: "thick" in x, mprms.dtype.names)))
+        mask_thick =\
+            np.round(vals[mask_thick]).astype(int)
+        nmprms = len(vals) - 2 * (len(mask_thick) - np.sum(mask_thick)) - 1
 
         self.nmprms = nmprms
 
@@ -1127,7 +1088,7 @@ class modeling:
             if self.save_uvfits:
                 outpath = f"{self.path_fig}/uvfs/"
                 outname =\
-                    f"out." \
+                    f"gamvas." \
                     f"sf." \
                     f"{uvf.freq:.0f}." \
                     f"{uvf.source}." \
@@ -1710,7 +1671,7 @@ class modeling:
             for i in range(len(uvfs)):
                 outpath = f"{self.path_fig}/uvfs/"
                 outname =\
-                    f"out." \
+                    f"gamvas." \
                     f"mf." \
                     f"{uvfs[i].freq:.0f}." \
                     f"{uvfs[i].source}." \
