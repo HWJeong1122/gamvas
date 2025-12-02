@@ -2090,8 +2090,7 @@ class open_fits:
                                     rfn.stack_arrays(
                                         (tmpl_clphs, tmpl_clphs_)
                                     )
-            gc.collect()
-
+                gc.collect()
 
             flag_clamp = False
             flag_clphs = False
@@ -4317,6 +4316,8 @@ class open_fits:
         hdul_cp = copy.deepcopy(self.uvf_file)
         hdul = copy.deepcopy(self.uvf_file)
 
+        staxof = hdul["AIPS AN"].data["STAXOF"]
+
         data = self.data.copy()
         ufq = np.unique(data["freq"])
 
@@ -4428,9 +4429,9 @@ class open_fits:
                 ]
             )
         ORBPARM = [[] for i in range(nant)]
-        NOSTA = np.array([i + 1 for i in range(nant)], dtype=np.int32)
+        NOSTA = np.array([i+1 for i in range(nant)], dtype=np.int32)
         MNTSTA = np.array([0 for i in range(nant)])
-        STAXOF = np.array([0 for i in range(nant)])
+        STAXOF = staxof
         POLTYA = np.array(["R" for i in range(nant)])
         POLAA = np.array([0. for i in range(nant)])
         POLCALA = np.array([[0., 0.] for i in range(nant)])
@@ -4477,7 +4478,8 @@ class open_fits:
                     fits.Column(
                         name=cname,
                         format=dict_an_[cname][1],
-                        array=dict_an_[cname][0],
+                        # array=dict_an_[cname][0],
+                        array=hdul["AIPS AN"].data[cname],
                         unit=dict_an_units[cname]
                     )
 
@@ -4495,10 +4497,12 @@ class open_fits:
 
         for i, h in enumerate(hdul):
             if h.name == "AIPS AN":
-                hdul[i] = hdu_an
+                # hdul[i] = hdu_an
+                hdul[i] = copy.deepcopy(hdul_cp["AIPS AN"])
                 break
         else:
-            hdul.append(hdu_an)
+            # hdul.append(hdu_an)
+            hdul.append(copy.deepcopy(hdul_cp["AIPS AN"]))
 
         hdul["PRIMARY"].header["CRVAL4"] = self.freq * 1e9
 
@@ -4507,11 +4511,23 @@ class open_fits:
         keys = list(hdr_cp.keys())
         comments = list(hdr_cp.comments)
         hdul["PRIMARY"].header = copy.deepcopy(hdul_cp["PRIMARY"].header)
-        hdul["PRIMARY"].header["CRVAL4"] = self.freq * 1e9
+        # for i in range(len(keys)):
+        #     if "HISTORY" in keys[i]:
+        #         break
+        #     hdr_pr[keys[i]] = (hdr_cp[keys[i]], comments[i].replace("\n", " "))
 
+        # hdr_an = hdul["AIPS AN"].header
+        # hdr_cp = hdul_cp["AIPS AN"].header
+        # keys = list(hdr_cp.keys())
+        # comments = list(hdr_cp.comments)
+        # for i in range(len(keys)):
+        #     if keys[i] == "NO_IF":
+        #         hdr_an[keys[i]] =\
+        #             (1, "")
+        #     else:
+        #         hdr_an[keys[i]] =\
+        #             (hdr_cp[keys[i]], comments[i].replace("\n", " "))
         hdul["AIPS AN"].header["NO_IF"] = 1
-        hdul["AIPS AN"].header["EXTVER"] =\
-            hdul_cp["AIPS AN"].header.get("EXTVER", 1)
 
         hdul.writeto(
             save_path + save_name,

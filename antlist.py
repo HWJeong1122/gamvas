@@ -147,7 +147,6 @@ name_VS, lat_VS, lon_VS, hgt_VS =\
         +(  65.10) * u.m
     )   # VERA Ishigakijima
 
-
 """
 EVN
 """
@@ -228,7 +227,6 @@ name_RO, lat_RO, lon_RO, hgt_RO =\
         (-(  4 * u.deg + 14 * u.arcmin + 52.817 * u.arcsec)).to(u.deg),
         +( 864.90) * u.m
     )   # Robledo 70-m
-
 
 """
 NRAO
@@ -323,7 +321,7 @@ name_AL, lat_AL, lon_AL, hgt_AL =\
         -23.029 * u.deg,
         -67.755 * u.deg,
         5058.7 * u.m)
-  # A
+  # ALMA
 
 """
 LBA
@@ -371,7 +369,6 @@ name_TD, lat_TD, lon_TD, hgt_TD =\
         +( 688.80) * u.m
     )   # Tidbinbilla 70-m
 
-
 """
 JCMT
 """
@@ -382,6 +379,28 @@ name_JC, lat_JC, lon_JC, hgt_JC =\
         (-(155 * u.deg + 28 * u.arcmin + 37.000 * u.arcsec)).to(u.deg),
         +(4092.00) * u.m
     )   # JCMT
+
+"""
+CARMA
+"""
+name_CARMA, lat_CARMA, lon_CARMA, hgt_CARMA =\
+    (
+        "CARMA",
+        (+(37 * u.deg + 16 * u.arcmin + 49.000 * u.arcsec)).to(u.deg),
+        (-(118 * u.deg + 8 * u.arcmin + 31.000 * u.arcsec)).to(u.deg),
+        +(2196.00) * u.m
+    )   # CARMA
+
+"""
+SMT
+"""
+name_SMT, lat_SMT, lon_SMT, hgt_SMT =\
+    (
+        "SMT",
+        (+(32 * u.deg + 42 * u.arcmin + 6.000 * u.arcsec)).to(u.deg),
+        (-(109 * u.deg + 53 * u.arcmin + 28.000 * u.arcsec)).to(u.deg),
+        +(3185.00) * u.m
+    )   # SMT
 
 
 dict_lat =\
@@ -399,7 +418,8 @@ dict_lat =\
         "AT":lat_AT, "CD":lat_CD, "HO":lat_HO, "MP":lat_MP, "PA":lat_PA,
         "TD":lat_TD,
         "YY":lat_YY, "GB":lat_GB, "AL":lat_AL,
-        "JC":lat_JC
+        "JC":lat_JC,
+        "CARMA":lat_CARMA, "SMT":lat_SMT
     }
 
 dict_lon =\
@@ -417,7 +437,8 @@ dict_lon =\
         "AT":lon_AT, "CD":lon_CD, "HO":lon_HO, "MP":lon_MP, "PA":lon_PA,
         "TD":lon_TD,
         "YY":lon_YY, "GB":lon_GB, "AL":lon_AL,
-        "JC":lon_JC
+        "JC":lon_JC,
+        "CARMA":lon_CARMA, "SMT":lon_SMT
     }
 
 dict_hgt =\
@@ -435,7 +456,8 @@ dict_hgt =\
         "AT":hgt_AT, "CD":hgt_CD, "HO":hgt_HO, "MP":hgt_MP, "PA":hgt_PA,
         "TD":hgt_TD,
         "YY":hgt_YY, "GB":hgt_GB, "AL":hgt_AL,
-        "JC":hgt_JC
+        "JC":hgt_JC,
+        "CARMA":hgt_CARMA, "SMT":hgt_SMT
     }
 
 

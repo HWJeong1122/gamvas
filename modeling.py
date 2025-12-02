@@ -1997,7 +1997,7 @@ class modeling:
                                         0, 0,
                                         mprms[f"{i+1}_alpha"]
                                     )
-                                    if not reldmod:
+                                    if not relmod:
                                         smax_, a_, l_, m_, alpha_ =\
                                         (
                                             mprms[f"{i+1}_S"],
