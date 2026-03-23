@@ -160,7 +160,7 @@ name_JB, lat_JB, lon_JB, hgt_JB =\
 name_EF, lat_EF, lon_EF, hgt_EF =\
     (
         "EF",
-        (+(50 * u.deg + 31 * u.arcmin + 29.410 * u.arcsec)).to(u.deg),
+        (+(50 * u.deg + 31 * u.arcmin + 29.390 * u.arcsec)).to(u.deg),
         (+(  6 * u.deg + 53 * u.arcmin +  1.022 * u.arcsec)).to(u.deg),
         +( 416.72) * u.m
     )   # Effelsberg 100-m
@@ -227,6 +227,20 @@ name_RO, lat_RO, lon_RO, hgt_RO =\
         (-(  4 * u.deg + 14 * u.arcmin + 52.817 * u.arcsec)).to(u.deg),
         +( 864.90) * u.m
     )   # Robledo 70-m
+name_NN, lat_NN, lon_NN, hgt_NN =\
+    (
+        "NN",
+        (+( 44 * u.deg + 38 * u.arcmin +  2.000 * u.arcsec)).to(u.deg),
+        (+( 5 * u.deg + 54 * u.arcmin + 28.500 * u.arcsec)).to(u.deg),
+        +(2550.00) * u.m
+    )   # NOEMA
+name_PV, lat_PV, lon_PV, hgt_PV =\
+    (
+        "PV",
+        (+( 37 * u.deg +  3 * u.arcmin + 58.300 * u.arcsec)).to(u.deg),
+        (-( 3 * u.deg + 23 * u.arcmin + 33.700 * u.arcsec)).to(u.deg),
+        +(2850.00) * u.m
+    )   # Pico Veleta
 
 """
 NRAO
@@ -315,6 +329,13 @@ name_GB, lat_GB, lon_GB, hgt_GB =\
         (-( 79 * u.deg + 50 * u.arcmin + 23.433 * u.arcsec)).to(u.deg),
         +( 823.66) * u.m
     )   # Green Bank Telescope
+name_GL, lat_GL, lon_GL, hgt_GL =\
+    (
+        "GL",
+        (+(76 * u.deg + 32 * u.arcmin + 06.000 * u.arcsec)).to(u.deg),
+        (-( 68 * u.deg + 41 * u.arcmin + 09.000 * u.arcsec)).to(u.deg),
+        +(3210.00) * u.m
+    )   # Green Bank Telescope
 name_AL, lat_AL, lon_AL, hgt_AL =\
     (
         "AL",
@@ -402,6 +423,17 @@ name_SMT, lat_SMT, lon_SMT, hgt_SMT =\
         +(3185.00) * u.m
     )   # SMT
 
+"""
+APEX
+"""
+name_AX, lat_AX, lon_AX, hgt_AX =\
+    (
+        "AX",
+        (-(23 * u.deg + 00 * u.arcmin + 21.000 * u.arcsec)).to(u.deg),
+        (-(67 * u.deg + 45 * u.arcmin + 33.000 * u.arcsec)).to(u.deg),
+        +(5050.00) * u.m
+    )   # SMT
+
 
 dict_lat =\
     {
@@ -412,14 +444,14 @@ dict_lat =\
         "VO":lat_VO, "VS":lat_VS,
         "JB":lat_JB, "EF":lat_EF, "MC":lat_MC, "NT":lat_NT, "O6":lat_O6,
         "TR":lat_TR, "MH":lat_MH, "YS":lat_YS, "HH":lat_HH, "SR":lat_SR,
-        "RO":lat_RO,
+        "RO":lat_RO, "NN":lat_NN, "PV":lat_PV,
         "BR":lat_BR, "FD":lat_FD, "HN":lat_HN, "KP":lat_KP, "LA":lat_LA,
         "MK":lat_MK, "NL":lat_NL, "OV":lat_OV, "PT":lat_PT, "SC":lat_SC,
         "AT":lat_AT, "CD":lat_CD, "HO":lat_HO, "MP":lat_MP, "PA":lat_PA,
         "TD":lat_TD,
-        "YY":lat_YY, "GB":lat_GB, "AL":lat_AL,
+        "YY":lat_YY, "GB":lat_GB, "GL":lat_GL, "AL":lat_AL,
         "JC":lat_JC,
-        "CARMA":lat_CARMA, "SMT":lat_SMT
+        "CARMA":lat_CARMA, "SMT":lat_SMT, "AX":lat_AX
     }
 
 dict_lon =\
@@ -431,14 +463,14 @@ dict_lon =\
         "VO":lon_VO, "VS":lon_VS,
         "JB":lon_JB, "EF":lon_EF, "MC":lon_MC, "NT":lon_NT, "O6":lon_O6,
         "TR":lon_TR, "MH":lon_MH, "YS":lon_YS, "HH":lon_HH, "SR":lon_SR,
-        "RO":lon_RO,
+        "RO":lon_RO, "NN":lon_NN, "PV":lon_PV,
         "BR":lon_BR, "FD":lon_FD, "HN":lon_HN, "KP":lon_KP, "LA":lon_LA,
         "MK":lon_MK, "NL":lon_NL, "OV":lon_OV, "PT":lon_PT, "SC":lon_SC,
         "AT":lon_AT, "CD":lon_CD, "HO":lon_HO, "MP":lon_MP, "PA":lon_PA,
         "TD":lon_TD,
-        "YY":lon_YY, "GB":lon_GB, "AL":lon_AL,
+        "YY":lon_YY, "GB":lon_GB, "GL":lon_GL, "AL":lon_AL,
         "JC":lon_JC,
-        "CARMA":lon_CARMA, "SMT":lon_SMT
+        "CARMA":lon_CARMA, "SMT":lon_SMT, "AX":lon_AX
     }
 
 dict_hgt =\
@@ -450,14 +482,14 @@ dict_hgt =\
         "VO":hgt_VO, "VS":hgt_VS,
         "JB":hgt_JB, "EF":hgt_EF, "MC":hgt_MC, "NT":hgt_NT, "O6":hgt_O6,
         "TR":hgt_TR, "MH":hgt_MH, "YS":hgt_YS, "HH":hgt_HH, "SR":hgt_SR,
-        "RO":hgt_RO,
+        "RO":hgt_RO, "NN":hgt_NN, "PV":hgt_PV,
         "BR":hgt_BR, "FD":hgt_FD, "HN":hgt_HN, "KP":hgt_KP, "LA":hgt_LA,
         "MK":hgt_MK, "NL":hgt_NL, "OV":hgt_OV, "PT":hgt_PT, "SC":hgt_SC,
         "AT":hgt_AT, "CD":hgt_CD, "HO":hgt_HO, "MP":hgt_MP, "PA":hgt_PA,
         "TD":hgt_TD,
-        "YY":hgt_YY, "GB":hgt_GB, "AL":hgt_AL,
+        "YY":hgt_YY, "GB":hgt_GB, "GL":hgt_GL, "AL":hgt_AL,
         "JC":hgt_JC,
-        "CARMA":hgt_CARMA, "SMT":hgt_SMT
+        "CARMA":hgt_CARMA, "SMT":hgt_SMT, "AX":hgt_AX
     }
 
 

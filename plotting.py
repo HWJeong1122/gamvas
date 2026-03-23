@@ -547,7 +547,7 @@ class plotter:
         limv = 1.1 * max(np.max(np.abs(uu)), np.max(np.abs(vv)))
 
         fsize = 14
-        fig_uvc, ax_uvc = plt.subplots(1, 2, figsize=(fsize,fsize*11/16))
+        fig_uvc, ax_uvc = plt.subplots(1, 2, figsize=(fsize, fsize * 9 / 16))
         ax_amp, ax_phs = ax_uvc[0], ax_uvc[1]
         ax_amp.set_rasterized(True)
         ax_phs.set_rasterized(True)
@@ -661,7 +661,8 @@ class plotter:
         xlist =\
             -np.linspace(
                 -uvf.mrng.value,
-                uvf.mrng.value,npix
+                +uvf.mrng.value,
+                npix
             ) * u.mas.to(u.rad)
         ygrid, xgrid = np.meshgrid(xlist, xlist)
         for i in range(npix):

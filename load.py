@@ -47,68 +47,28 @@ m2r = u.mas.to(u.rad)
 class open_fits:
     """
     Load the fits file and extract the information
-    Attributes:
-        path (str): path to the fits file
-        file (str): fits file name
-        npixel1 (int): number of pixels in the x-axis
-        npixel2 (int): number of pixels in the y-axis
-        bmin (float): minor axis of the beam
-        bmaj (float): major axis of the beam
-        bpa (float): position angle of the beam
-        fluxmax (float): maximum intensity of the image
-        fluxmin (float): minimum intensity of the image
-        noise (float): theoretical thermal noise
-        freq (float): observing frequency
-        stokes (int): Stokes parameter information
-        date (str): observation date
-        data (2D-array): uv-fits data
-        units (str): units of the data
-        select (str): polarization type
-        select_if (str): number(s) of IFs
-        uvinfo (bool): mask if uv-fits information is loaded
-        mrng (float): maximum range of the image
-        save_path (str): path to save the image
-        save_file (str): file name to save the image
-        xlim (list): x-axis limits
-        ylim (list): y-axis limits
-        source (str): source name
-        fits_image (2D-array): reconstructed fits image
-        pangle (bool): mask if parallactic angle is updated
-        load_uvf (bool): toggle option if load uv-fits
     """
     def __init__(self,
-                 path="", file="", npixel1=False, npixel2=False,
-                 bmin=False, bmaj=False, bpa=False, fluxmax=False,
-                 fluxmin=False, noise=False, freq=False, stokes=None,
-                 date=None, data=None, units=None, model=None,
-                 fits_model=None, select="i", select_if="all",
-                 mrng=10*u.mas, load_uvf=False, load_fits=False):
+                 path="", file="", select="i", select_if="all", bmin=False,
+                 bmaj=False, bpa=False, freq=False, stokes=None, date=None,
+                 data=None, fits_model=None, mrng=10*u.mas, load_uvf=False,
+                 load_fits=False):
         self.path = path
         self.file = file
-        self.npixel1 = npixel1
-        self.npixel2 = npixel2
-        self.npixel = None
-
         self.bmin = bmin
         self.bmaj = bmaj
         self.bpa = bpa
-        self.fluxmax = fluxmax
-        self.fluxmin = fluxmin
-        self.noise = noise
         self.freq = freq
 
         self.stokes = stokes
         self.date = date
         self.data = data
-        self.units = units
-        self.model = model
         self.fits_model = fits_model
 
         self.select = select
         self.select_if = select_if
         self.uvinfo = False
         self.mrng = mrng
-
         self.save_path = None
         self.save_file = None
         self.xlim = None
@@ -127,7 +87,7 @@ class open_fits:
 
     def load_fits(self,
                   file=False, align_index=0, align_model=False, units="deg",
-                  prt=True, contour_snr=3):
+                  prt=True, contour_snr=3, contour_step=np.sqrt(2)):
         """
         Load fits image file and extract the information
             Arguments:
@@ -137,6 +97,7 @@ class open_fits:
                 units (str): units of the model
                 prt (bool): toggle option if print the information
                 contour_snr (float): signal-to-noise ratio for the contour
+                contour_step (float): increment level of contours
         """
         if file:
             self.file = file
@@ -170,7 +131,6 @@ class open_fits:
 
         # information on CLEAN or Gaussian models
         self.fits_model = h2.data
-        # self.fits_model = h1.header["NITER"]
 
         # min and max intensities of the image [Jy/beam]
         self.fits_fmin = h1.header["DATAMIN"]
@@ -188,9 +148,12 @@ class open_fits:
         self.fits_image_rms = gamvas.utils.cal_rms(self.fits_image)
 
         # image contours
-        self.fits_imgcntr = gamvas.utils.make_cntr(
-            self.fits_image,
-            contour_snr=contour_snr)
+        self.fits_imgcntr =\
+            gamvas.utils.make_cntr(
+                self.fits_image,
+                contour_snr=contour_snr,
+                scale=contour_step
+            )
 
         # the number of pixel (1-D)
         self.fits_npix = self.fits_image.shape[0]
@@ -359,8 +322,8 @@ class open_fits:
             self.vism = vism_s
 
     def load_uvf(self,
-                 select="i", select_if="all", uvw="natural", mrng=None,
-                 uvave="none", scanlen=600, gaptime=60, d=0.0, m=0.0,
+                 select="i", select_if="all", uvw="natural", uvave="none",
+                 scanlen=600, gaptime=60, mrng=None, d=0.0, m=0.0,
                  dosyscal=True, doscatter=False, set_clq=True, set_pang=False,
                  minclq=True, prt=True):
         """
@@ -369,13 +332,19 @@ class open_fits:
                 select (str): polarization type
                 select_if (str): number(s) of IFs
                 uvw (str): uv-weighting // u:uniform, n:natural
-                uvave (int): averaging time [sec]
+                uvave (float): averaging time [sec]
                 scanlen (int): scan length [sec]
-                doscatter (bool): toggle option if to compute sigma
-                                  from standard deviation
-                set_clq (bool): toggle option if to set closure quantities
-                set_pang (bool): toggle option if to set parallactic angle
-                prt (bool): toggle option if to print the information
+                gaptime (float): gaptime between scans
+                mrng (float): map range (-mrng, +mrng)
+                d (float): percentage of D-term uncertainty
+                m (float): percentage of source polarization
+                dosyscal (bool): if True, compute systematic offsets
+                doscatter (bool): if True, replace sigma with standard deviation
+                                  of visibility amplitude
+                set_clq (bool): if True, compute closure quantities
+                set_pang (bool): if True, compute parallactic angle
+                minclq (bool): if True, compute minimum set of closures
+                prt (bool): if True, print summarized information
         """
         self.avgtime = uvave
         self.gaptime = gaptime
@@ -401,9 +370,9 @@ class open_fits:
         h1 = uvf_file["PRIMARY"]
         h2 = uvf_file["AIPS FQ"]
         h3 = uvf_file["AIPS AN"]
+        stokes = int(h1.header["CRVAL3"])
         freq = h1.header["CRVAL4"] / 1e9
         freq0 = h1.header["CRVAL4"] / 1e9
-        stokes = int(h1.header["CRVAL3"])
 
         data1 = h1.data
         data2 = h2.data
@@ -421,6 +390,9 @@ class open_fits:
         self.no_if = h2.header["NO_IF"]
         self.refGST = h3.header["GSTIA0"]
         self.f2w = (C.c / (self.freq * u.GHz)).to(u.m).value
+
+        if self.ra < 0:
+            self.ra += 360
 
         if isinstance(self.select_if, (list, tuple)):
             ifs = np.array(self.select_if)
@@ -713,6 +685,17 @@ class open_fits:
 
         uant = np.unique(np.append(ant1, ant2))
 
+        def wavg(value, weight, mask):
+            msk_ =\
+                np.tile(mask[:, np.newaxis, np.newaxis], (1, value.shape[1], 1))
+
+            val_ = np.ma.masked_invalid(value)
+            wgt_ = np.ma.masked_array(weight, mask=msk_)
+
+            wgt_ = np.ma.masked_array(wgt_, mask=msk_)
+            val_ = np.ma.average(val_, weights=wgt_, axis=(1, 2))
+            return val_
+
         v_1 = np.nanmean(np.nanmean(v_1, axis=2), axis=1)[~maske]
         v_2 = np.nanmean(np.nanmean(v_2, axis=2), axis=1)[~maske]
         v_3 = np.nanmean(np.nanmean(v_3, axis=2), axis=1)[~maske]
@@ -758,8 +741,6 @@ class open_fits:
 
         self.set_uvvis(set_pang=set_pang)
         self.set_clq = set_clq
-        if set_clq:
-            self.set_closure(minclq=self.minclq)
 
         if self.avgtime in ["none", "scan"]:
             binning = self.scanlen
@@ -767,6 +748,8 @@ class open_fits:
             binning = self.avgtime
 
         if dosyscal:
+            if set_clq:
+                self.set_closure(minclq=self.minclq)
             self.systype = []
             self.cal_systematics(binning=binning, type="vis")
             if len(uant) >= 4 and set_clq:
@@ -799,7 +782,7 @@ class open_fits:
             if self.nstokes == 4:
                 i = self.data["vis_i"]
                 p = self.data["vis_p"]
-                self.m = np.abs(np.nanmedian(p/i))
+                self.m = np.abs(np.nanmedian(p / i))
                 out7 = self.m * 100
                 out_txt =\
                     f"\nloading uvf file.." \
@@ -823,17 +806,16 @@ class open_fits:
               uvave="none", scanlen=300, doscatter=False,
               set_clq=True, set_pang=True, prt=True):
         """
-        Average the uv-visibility data
+        Time-average uv-visibilities
             Arguments:
                 uvave (str, float): averaging interval time in second
                                     (availables: 'none', 'scan', or float)
                 scanlen (float): scan length in second
-                doscatter (bool): if True,
-                                  replace sigma with standard deviation
+                doscatter (bool): if True, replace sigma with standard deviation
                                   of visibility amplitude
-                set_clq (bool): if True, make the closure quantities
-                set_pang (bool): if True, calculate parallactic angle
-                prt (bool): if True, allow printing message
+                set_clq (bool): if True, compute closure quantities
+                set_pang (bool): if True, compute parallactic angle
+                prt (bool): if True, print summarized information
         """
         if not uvave:
             pass
@@ -869,8 +851,9 @@ class open_fits:
             utime_sec = np.unique(time_sec)
             select = self.select.lower()
 
+            gaptime = np.median(np.diff(utime_sec)) * 2
             db =\
-                dbs(eps=self.gaptime, min_samples=1) \
+                dbs(eps=gaptime, min_samples=2) \
                 .fit(time_sec.reshape(-1, 1))
             scannum = db.labels_
 
@@ -1049,15 +1032,17 @@ class open_fits:
             self.uvu = np.array(uvu)
             self.uvv = np.array(uvv)
             self.ww = np.array(ww)
-            self.set_uvvis(set_pang=set_pang)
-            if set_pang:
-                self.cal_pangle()
-            if set_clq:
-                self.set_closure(minclq=self.minclq)
+        self.set_uvvis(set_pang=set_pang)
+        if set_pang:
+            self.cal_pangle()
+        if set_clq:
+            self.set_closure(minclq=self.minclq)
 
     def set_uvvis(self, set_pang=True):
         """
         Set the uv-visibility data
+        Arguments:
+            set_pang (bool): if True, compute parallactic angle
         """
         time = self.time
         tint = self.tint
@@ -1221,18 +1206,24 @@ class open_fits:
     def set_closure_(self, minclq=False):
         """
         Set the closure quantities
+        Arguments:
+            minclq (bool): if True, compute minimum set of closures
         """
+
         if "vis" not in self.data.dtype.names:
             self.set_uvvis()
+
         data = self.data
         tarr = self.tarr
+
         times = np.unique(data["time"])
 
-        torder = {tel: idx for idx, tel in enumerate(tarr["name"])}
+        torder_num = {int(idx+1): idx for idx, tel in enumerate(tarr["name"])}
+        torder_name = {tel: idx for idx, tel in enumerate(tarr["name"])}
 
-        ant_names =\
+        ant_nums =\
             np.unique(
-                np.append(data["ant_name1"], data["ant_name2"])
+                np.append(data["ant_num1"], data["ant_num2"])
             )
 
         field_vis = f"vis"
@@ -1316,71 +1307,78 @@ class open_fits:
             mask_time = data["time"] == time
             data_ = data[data["time"] == time]
 
+            ant_nums_ =\
+                np.array(sorted(
+                    np.unique(
+                        np.append(data_["ant_num1"], data_["ant_num2"])
+                    ),
+                    key=lambda x: torder_num[x]
+                ))
             ant_names_ =\
                 np.array(sorted(
                     np.unique(
                         np.append(data_["ant_name1"], data_["ant_name2"])
                     ),
-                    key=lambda x: torder[x]
+                    key=lambda x: torder_name[x]
                 ))
 
-            Nant = len(ant_names_)
+            Nant = len(ant_nums_)
             if Nant >= 4:
                 crit = int(round(0.5 * Nant * (Nant - 3) / 2))
-                crit_count = 0
-                quadrangles = list(it.combinations(ant_names_.tolist(), 4))
-
-                for quadrangle in quadrangles:
-                    if minclq and crit_count >= crit:
-                        continue
-
+                quadrangles_num = list(it.combinations(ant_nums_.tolist(), 4))
+                quadrangles_name = list(it.combinations(ant_names_.tolist(), 4))
+                for nquad, quadrangle in enumerate(quadrangles_num):
                     for nvert in range(2):
                         if nvert == 0:
                             quadra_ =\
                                 [
-                                    quadrangle[0], quadrangle[1],
-                                    quadrangle[2], quadrangle[3]
+                                    quadrangles_name[nquad][0],
+                                    quadrangles_name[nquad][1],
+                                    quadrangles_name[nquad][2],
+                                    quadrangles_name[nquad][3]
                                 ]
 
                             mask_uv12 =\
                                 (mask_time) \
-                                & (data["ant_name1"] == quadrangle[0]) \
-                                & (data["ant_name2"] == quadrangle[1])
+                                & (data["ant_num1"] == quadrangle[0]) \
+                                & (data["ant_num2"] == quadrangle[1])
                             mask_uv34 =\
                                 (mask_time) \
-                                & (data["ant_name1"] == quadrangle[2]) \
-                                & (data["ant_name2"] == quadrangle[3])
+                                & (data["ant_num1"] == quadrangle[2]) \
+                                & (data["ant_num2"] == quadrangle[3])
                             mask_uv13 =\
                                 (mask_time) \
-                                & (data["ant_name1"] == quadrangle[0]) \
-                                & (data["ant_name2"] == quadrangle[2])
+                                & (data["ant_num1"] == quadrangle[0]) \
+                                & (data["ant_num2"] == quadrangle[2])
                             mask_uv24 =\
                                 (mask_time) \
-                                & (data["ant_name1"] == quadrangle[1]) \
-                                & (data["ant_name2"] == quadrangle[3])
+                                & (data["ant_num1"] == quadrangle[1]) \
+                                & (data["ant_num2"] == quadrangle[3])
                         else:
                             quadra_ =\
                                 [
-                                    quadrangle[0], quadrangle[2],
-                                    quadrangle[1], quadrangle[3]
+                                    quadrangles_name[nquad][0],
+                                    quadrangles_name[nquad][2],
+                                    quadrangles_name[nquad][1],
+                                    quadrangles_name[nquad][3]
                                 ]
 
                             mask_uv12 =\
                                 (mask_time) \
-                                & (data["ant_name1"] == quadrangle[0]) \
-                                & (data["ant_name2"] == quadrangle[2])
+                                & (data["ant_num1"] == quadrangle[0]) \
+                                & (data["ant_num2"] == quadrangle[2])
                             mask_uv34 =\
                                 (mask_time) \
-                                & (data["ant_name1"] == quadrangle[1]) \
-                                & (data["ant_name2"] == quadrangle[3])
+                                & (data["ant_num1"] == quadrangle[1]) \
+                                & (data["ant_num2"] == quadrangle[3])
                             mask_uv13 =\
                                 (mask_time) \
-                                & (data["ant_name1"] == quadrangle[0]) \
-                                & (data["ant_name2"] == quadrangle[3])
+                                & (data["ant_num1"] == quadrangle[0]) \
+                                & (data["ant_num2"] == quadrangle[3])
                             mask_uv24 =\
                                 (mask_time) \
-                                & (data["ant_name1"] == quadrangle[1]) \
-                                & (data["ant_name2"] == quadrangle[2])
+                                & (data["ant_num1"] == quadrangle[1]) \
+                                & (data["ant_num2"] == quadrangle[2])
 
                         mask_uv1234 =\
                             np.sum(mask_uv12) \
@@ -1412,7 +1410,6 @@ class open_fits:
                                     data["v"][mask_uv24][0]
                                 )
 
-                            crit_count += 1
                             outca_time.append(time)
                             outca_freq.append(self.freq)
                             outca_quad.append(out_quadrangle)
@@ -1424,27 +1421,26 @@ class open_fits:
                             outca_v13.append(out_uv13[1])
                             outca_u24.append(out_uv24[0])
                             outca_v24.append(out_uv24[1])
+
             if Nant >= 3:
                 crit = int(round(0.5 * (Nant - 1) * (Nant - 2)))
-                crit_count = 0
-                triangles = list(it.combinations(ant_names_.tolist(), 3))
+                triangles_num = list(it.combinations(ant_nums_.tolist(), 3))
+                triangles_name = list(it.combinations(ant_names_.tolist(), 3))
 
-                for triangle in triangles:
-                    if minclq and crit_count >= crit:
-                        continue
+                for ntri, triangle in enumerate(triangles_num):
 
                     mask_uv12 =\
                         (mask_time) \
-                        & (data["ant_name1"] == triangle[0]) \
-                        & (data["ant_name2"] == triangle[1])
+                        & (data["ant_num1"] == triangle[0]) \
+                        & (data["ant_num2"] == triangle[1])
                     mask_uv23 =\
                         (mask_time) \
-                        & (data["ant_name1"] == triangle[1]) \
-                        & (data["ant_name2"] == triangle[2])
+                        & (data["ant_num1"] == triangle[1]) \
+                        & (data["ant_num2"] == triangle[2])
                     mask_uv31 =\
                         (mask_time) \
-                        & (data["ant_name1"] == triangle[0]) \
-                        & (data["ant_name2"] == triangle[2])
+                        & (data["ant_num1"] == triangle[0]) \
+                        & (data["ant_num2"] == triangle[2])
 
                     mask_uv123 =\
                         np.sum(mask_uv12) \
@@ -1454,7 +1450,7 @@ class open_fits:
                     if mask_uv123 == 3:
                         out_times = time
                         out_frequency = self.freq
-                        out_triangle = "-".join(triangle)
+                        out_triangle = "-".join(triangles_name[ntri])
 
                         out_uv12 =\
                             (
@@ -1472,7 +1468,6 @@ class open_fits:
                                 data["v"][mask_uv31][0]
                             )
 
-                        crit_count += 1
                         outcp_time.append(time)
                         outcp_freq.append(self.freq)
                         outcp_tri.append(out_triangle)
@@ -1791,7 +1786,10 @@ class open_fits:
     def set_closure(self, minclq=True):
         """
         Set the closure quantities
+        Arguments:
+            minclq (bool): if True, compute minimum set of closures
         """
+
         if not minclq:
             self.set_closure_(minclq=minclq)
         else:
@@ -1799,6 +1797,7 @@ class open_fits:
                 self.set_uvvis()
             data = self.data
             tarr = self.tarr
+
             times = np.unique(data["time"])
 
             torder = {tel: idx for idx, tel in enumerate(tarr["name"])}
@@ -1893,18 +1892,22 @@ class open_fits:
 
                 Nant = len(ant_names_)
                 if Nant >= 4:
-                    pairs_obs =\
-                        np.array(list(map(
-                            ",".join,
-                            tuple(zip(
-                                data_["ant_num1"].astype(str),
-                                data_["ant_num2"].astype(str)
-                            ))
-                        )))
+                    # pairs_obs =\
+                    #     np.array(list(map(
+                    #         ",".join,
+                    #         tuple(zip(
+                    #             data_["ant_num1"].astype(str),
+                    #             data_["ant_num2"].astype(str)
+                    #         ))
+                    #     )))
+                    pairs_obs = np.stack(
+                        [data_["ant_num1"], data_["ant_num2"]]
+                        , axis=1
+                    )
 
                     pairs_obs = np.sort(pairs_obs)
                     matrix_clamp, pairs_full =\
-                        set_min_matrix_clamp(Nant, ant_nums_.astype(str))
+                        set_min_matrix_clamp(Nant, ant_nums_)
 
                     row = matrix_clamp.shape[0]
                     for i in range(row):
@@ -1918,15 +1921,15 @@ class open_fits:
                             & (pair_sub[0] in pairs_obs) \
                             & (pair_sub[1] in pairs_obs)
 
-                        pair_add = [val.split(",") for val in pair_add]
-                        pair_sub = [val.split(",") for val in pair_sub]
+                        # pair_add = [val.split(",") for val in pair_add]
+                        # pair_sub = [val.split(",") for val in pair_sub]
                         if mask_tot:
                             pair_ants =\
                                 np.array([
-                                    int(pair_add[0][0]),
-                                    int(pair_add[0][1]),
-                                    int(pair_add[1][0]),
-                                    int(pair_add[1][1])
+                                    pair_add[0][0],
+                                    pair_add[0][1],
+                                    pair_add[1][0],
+                                    pair_add[1][1]
                                 ])
                             out_times = time
                             out_frequency = self.freq
@@ -1936,80 +1939,91 @@ class open_fits:
                                 )))
 
                             loc_uv1 =\
-                                (data_["ant_num1"] == int(pair_add[0][0])) \
-                                & (data_["ant_num2"] == int(pair_add[0][1]))
+                                (data_["ant_num1"] == pair_add[0][0]) \
+                                & (data_["ant_num2"] == pair_add[0][1])
 
                             loc_uv2 =\
-                                (data_["ant_num1"] == int(pair_add[1][0])) \
-                                & (data_["ant_num2"] == int(pair_add[1][1]))
+                                (data_["ant_num1"] == pair_add[1][0]) \
+                                & (data_["ant_num2"] == pair_add[1][1])
 
                             loc_uv3 =\
-                                (data_["ant_num1"] == int(pair_sub[0][0])) \
-                                & (data_["ant_num2"] == int(pair_sub[0][1]))
+                                (data_["ant_num1"] == pair_sub[0][0]) \
+                                & (data_["ant_num2"] == pair_sub[0][1])
 
                             loc_uv4 =\
-                                (data_["ant_num1"] == int(pair_sub[1][0])) \
-                                & (data_["ant_num2"] == int(pair_sub[1][1]))
+                                (data_["ant_num1"] == pair_sub[1][0]) \
+                                & (data_["ant_num2"] == pair_sub[1][1])
 
-                            out_uv1 =\
-                                (
-                                    data_["u"][loc_uv1][0],
-                                    data_["v"][loc_uv1][0]
+                            mask_loc_uv =\
+                                loc_uv1.sum() \
+                                + loc_uv2.sum() \
+                                + loc_uv3.sum() \
+                                + loc_uv4.sum()
+
+                            if mask_loc_uv == 4:
+                                out_uv1 =\
+                                    (
+                                        data_["u"][loc_uv1][0],
+                                        data_["v"][loc_uv1][0]
+                                    )
+
+                                out_uv2 =\
+                                    (
+                                        data_["u"][loc_uv2][0],
+                                        data_["v"][loc_uv2][0]
+                                    )
+
+                                out_uv3 =\
+                                    (
+                                        data_["u"][loc_uv3][0],
+                                        data_["v"][loc_uv3][0]
+                                    )
+
+                                out_uv4 =\
+                                    (
+                                        data_["u"][loc_uv4][0],
+                                        data_["v"][loc_uv4][0]
+                                    )
+
+                                tmpl_clamp_ = gamvas.utils.sarray(
+                                    [
+                                        out_times,
+                                        out_frequency,
+                                        out_quadrangle,
+                                        out_uv1[0], out_uv1[1],
+                                        out_uv2[0], out_uv2[1],
+                                        out_uv3[0], out_uv3[1],
+                                        out_uv4[0], out_uv4[1],
+                                        0, 0, 0, 0, 0,
+                                        0, 0, 0, 0, 0
+                                    ],
+                                    field=field_amp,
+                                    dtype=dtype_amp
                                 )
 
-                            out_uv2 =\
-                                (
-                                    data_["u"][loc_uv2][0],
-                                    data_["v"][loc_uv2][0]
-                                )
-
-                            out_uv3 =\
-                                (
-                                    data_["u"][loc_uv3][0],
-                                    data_["v"][loc_uv3][0]
-                                )
-
-                            out_uv4 =\
-                                (
-                                    data_["u"][loc_uv4][0],
-                                    data_["v"][loc_uv4][0]
-                                )
-
-                            tmpl_clamp_ = gamvas.utils.sarray(
-                                [
-                                    out_times,
-                                    out_frequency,
-                                    out_quadrangle,
-                                    out_uv1[0], out_uv1[1],
-                                    out_uv2[0], out_uv2[1],
-                                    out_uv3[0], out_uv3[1],
-                                    out_uv4[0], out_uv4[1],
-                                    0, 0, 0, 0, 0,
-                                    0, 0, 0, 0, 0
-                                ],
-                                field=field_amp,
-                                dtype=dtype_amp
-                            )
-
-                            if tmpl_clamp.size == 0:
-                                tmpl_clamp = tmpl_clamp_
-                            else:
-                                tmpl_clamp =\
-                                    rfn.stack_arrays((
-                                        tmpl_clamp, tmpl_clamp_
-                                    ))
+                                if tmpl_clamp.size == 0:
+                                    tmpl_clamp = tmpl_clamp_
+                                else:
+                                    tmpl_clamp =\
+                                        rfn.stack_arrays((
+                                            tmpl_clamp, tmpl_clamp_
+                                        ))
                 if Nant >= 3:
-                    pairs_obs =\
-                        np.array(list(map(
-                            ",".join,
-                            tuple(zip(
-                                data_["ant_num1"].astype(str),
-                                data_["ant_num2"].astype(str)
-                            ))
-                        )))
+                    # pairs_obs =\
+                    #     np.array(list(map(
+                    #         ",".join,
+                    #         tuple(zip(
+                    #             data_["ant_num1"].astype(str),
+                    #             data_["ant_num2"].astype(str)
+                    #         ))
+                    #     )))
+                    pairs_obs = np.stack(
+                        [data_["ant_num1"], data_["ant_num2"]],
+                        axis=1
+                    )
 
                     matrix_clphs, pairs_full =\
-                        set_min_matrix_clphs(Nant, ant_nums_.astype(str))
+                        set_min_matrix_clphs(Nant, ant_nums_)
 
                     row = matrix_clphs.shape[0]
                     for i in range(row):
@@ -2022,14 +2036,14 @@ class open_fits:
                             & (pair_add[1] in pairs_obs) \
                             & (pair_sub[0] in pairs_obs)
 
-                        pair_add = [val.split(",") for val in pair_add]
-                        pair_sub = [val.split(",") for val in pair_sub]
+                        # pair_add = [val.split(",") for val in pair_add]
+                        # pair_sub = [val.split(",") for val in pair_sub]
                         if mask_tot:
                             pair_ants =\
                                 np.array([
-                                    int(pair_add[0][0]),
-                                    int(pair_add[0][1]),
-                                    int(pair_sub[0][1])
+                                    pair_add[0][0],
+                                    pair_add[0][1],
+                                    pair_sub[0][1]
                                 ])
 
                             out_times = time
@@ -2040,57 +2054,62 @@ class open_fits:
                                 )))
 
                             loc_uv1 =\
-                                (data_["ant_num1"] == int(pair_add[0][0])) \
-                                & (data_["ant_num2"] == int(pair_add[0][1]))
+                                (data_["ant_num1"] == pair_add[0][0]) \
+                                & (data_["ant_num2"] == pair_add[0][1])
 
                             loc_uv2 =\
-                                (data_["ant_num1"] == int(pair_add[1][0])) \
-                                & (data_["ant_num2"] == int(pair_add[1][1]))
+                                (data_["ant_num1"] == pair_add[1][0]) \
+                                & (data_["ant_num2"] == pair_add[1][1])
 
                             loc_uv3 =\
-                                (data_["ant_num1"] == int(pair_sub[0][0])) \
-                                & (data_["ant_num2"] == int(pair_sub[0][1]))
+                                (data_["ant_num1"] == pair_sub[0][0]) \
+                                & (data_["ant_num2"] == pair_sub[0][1])
 
-                            out_uv1 =\
-                                (
-                                    data_["u"][loc_uv1][0],
-                                    data_["v"][loc_uv1][0]
-                                )
+                            mask_loc_uv =\
+                                loc_uv1.sum() \
+                                + loc_uv2.sum() \
+                                + loc_uv3.sum()
 
-                            out_uv2 =\
-                                (
-                                    data_["u"][loc_uv2][0],
-                                    data_["v"][loc_uv2][0]
-                                )
-
-                            out_uv3 =\
-                                (
-                                    data_["u"][loc_uv3][0],
-                                    data_["v"][loc_uv3][0]
-                                )
-
-                            tmpl_clphs_ = gamvas.utils.sarray(
-                                [
-                                    out_times,
-                                    out_frequency,
-                                    out_triangle,
-                                    out_uv1[0], out_uv1[1],
-                                    out_uv2[0], out_uv2[1],
-                                    out_uv3[0], out_uv3[1],
-                                    0, 0, 0, 0, 0,
-                                    0, 0, 0, 0, 0
-                                ],
-                                field=field_phs,
-                                dtype=dtype_phs
-                            )
-                            if tmpl_clphs.size == 0:
-                                tmpl_clphs = tmpl_clphs_
-                            else:
-                                tmpl_clphs =\
-                                    rfn.stack_arrays(
-                                        (tmpl_clphs, tmpl_clphs_)
+                            if mask_loc_uv == 3:
+                                out_uv1 =\
+                                    (
+                                        data_["u"][loc_uv1][0],
+                                        data_["v"][loc_uv1][0]
                                     )
-            gc.collect()
+
+                                out_uv2 =\
+                                    (
+                                        data_["u"][loc_uv2][0],
+                                        data_["v"][loc_uv2][0]
+                                    )
+
+                                out_uv3 =\
+                                    (
+                                        data_["u"][loc_uv3][0],
+                                        data_["v"][loc_uv3][0]
+                                    )
+
+                                tmpl_clphs_ = gamvas.utils.sarray(
+                                    [
+                                        out_times,
+                                        out_frequency,
+                                        out_triangle,
+                                        out_uv1[0], out_uv1[1],
+                                        out_uv2[0], out_uv2[1],
+                                        out_uv3[0], out_uv3[1],
+                                        0, 0, 0, 0, 0,
+                                        0, 0, 0, 0, 0
+                                    ],
+                                    field=field_phs,
+                                    dtype=dtype_phs
+                                )
+                                if tmpl_clphs.size == 0:
+                                    tmpl_clphs = tmpl_clphs_
+                                else:
+                                    tmpl_clphs =\
+                                        rfn.stack_arrays(
+                                            (tmpl_clphs, tmpl_clphs_)
+                                        )
 
 
             flag_clamp = False
@@ -2179,39 +2198,23 @@ class open_fits:
                 # debiasing visibility amplitude
                 #  (Eq. 19 in EHTC+2019, III)
                 amp12 =\
-                    np.where(
-                        amp12 < clamp_["sig12"],
-                        0,
-                        np.sqrt(
-                            np.abs(clamp_["vis12"])**2 - clamp_["sig12"]**2
-                        )
+                    np.sqrt(
+                        np.abs(clamp_["vis12"])**2 - clamp_["sig12"]**2
                     )
 
                 amp34 =\
-                    np.where(
-                        amp34 < clamp_["sig34"],
-                        0,
-                        np.sqrt(
-                            np.abs(clamp_["vis34"])**2 - clamp_["sig34"]**2
-                        )
+                    np.sqrt(
+                        np.abs(clamp_["vis34"])**2 - clamp_["sig34"]**2
                     )
 
                 amp13 =\
-                    np.where(
-                        amp13 < clamp_["sig13"],
-                        0,
-                        np.sqrt(
-                            np.abs(clamp_["vis13"])**2 - clamp_["sig13"]**2
-                        )
+                    np.sqrt(
+                        np.abs(clamp_["vis13"])**2 - clamp_["sig13"]**2
                     )
 
                 amp24 =\
-                    np.where(
-                        amp24 < clamp_["sig24"],
-                        0,
-                        np.sqrt(
-                            np.abs(clamp_["vis24"])**2 - clamp_["sig24"]**2
-                        )
+                    np.sqrt(
+                        np.abs(clamp_["vis24"])**2 - clamp_["sig24"]**2
                     )
 
                 snr12 = amp12 / np.abs(clamp_["sig12"])
@@ -2388,7 +2391,7 @@ class open_fits:
         type="tb&ant", reverse=False, set_uvvis=False, set_closure=False,
         minclq=True):
         """
-        Sort the uv-visibilities in order of time and antenna number
+        Sort the uv-visibilities by given 'type'
             Arguments:
                 type (str): sorting type
                     available options:
@@ -2399,7 +2402,7 @@ class open_fits:
                                                      in order of time and
                                                      antenna number
                         'snr' : sort uv-visibilities in order of SNR
-                reverse (bool): toggle option for sorting in the reverse order
+                reverse (bool): if True, sort in the reverse order
         """
         tarr = self.tarr
         time = self.time
@@ -2419,6 +2422,13 @@ class open_fits:
         sig_3 = self.sig_3
         sig_4 = self.sig_4
 
+        if self.data is not None:
+            mask_vism = "vism" in self.data.dtype.names
+            if mask_vism:
+                vism = self.data["vism"]
+        else:
+            mask_vism = False
+
         ant_dict_name2num =\
             dict(zip(
                 tarr["name"],
@@ -2427,13 +2437,7 @@ class open_fits:
         ant_num1 = np.array(list(map(ant_dict_name2num.get, ant_name1)))
         ant_num2 = np.array(list(map(ant_dict_name2num.get, ant_name2)))
 
-        if type == "time" or type == "tb":
-            order = np.argsort(time)
-        elif type == "ant" or type == "antenna":
-            order = np.lexsort((ant_num2, ant_num1))
-        elif type == "tb&ant" or type == "time&antenna":
-            order = np.lexsort((ant_num2, ant_num1, time))
-        elif type == "snr":
+        if "snr" in type:
             if self.nstokes == 1:
                 vis = vis_1
                 sig = sig_1
@@ -2486,6 +2490,16 @@ class open_fits:
                     vis = (vis_q + 1j * vis_u) * 1.0
                     sig = np.sqrt(sig_q**2 + sig_u**2) * 1.0
             inverse_snr = 1 / (np.abs(vis) / np.abs(sig))
+
+        if type == "time" or type == "tb":
+            order = np.argsort(time)
+        elif type == "ant" or type == "antenna":
+            order = np.lexsort((ant_num2, ant_num1))
+        elif type == "tb&ant" or type == "time&antenna":
+            order = np.lexsort((ant_num2, ant_num1, time))
+        elif type == "tb&snr" or type == "time&antenna":
+            order = np.lexsort((inverse_snr, time))
+        elif type == "snr":
             order = np.argsort(inverse_snr)
 
         if reverse:
@@ -2514,10 +2528,15 @@ class open_fits:
         if set_closure:
             self.set_closure()
 
+        if mask_vism:
+            self.data = rfn.append_fields(
+                self.data, "vism", vism[order], usemask=False
+            )
+
     def flag_uvvis(self,
-                   type=None, value=None, unit="m", prt=True):
+                   type=None, value=None, set_clq=True, unit="m", prt=True):
         """
-        Flag the uv-visibilities
+        Flag the uv-visibilities by given 'type'
             Arguments:
                 type (str): flagging type
                     available options:
@@ -2629,37 +2648,41 @@ class open_fits:
             mask = sig >= value
 
         elif type == "snr":
-            if self.select.lower() == "rr":
+            if self.nstokes >= 2:
+                if self.select.lower() == "rr":
+                    vis = vis_1
+                    sig = sig_1
+                elif self.select.lower() == "ll":
+                    vis = vis_2
+                    sig = sig_2
+                elif self.select.lower() == "rl":
+                    vis = vis_3
+                    sig = sig_3
+                elif self.select.lower() == "lr":
+                    vis = vis_4
+                    sig = sig_4
+                elif self.select.lower() == "i":
+                    vis = (vis_1 + vis_2) * 0.5
+                    sig = np.sqrt(sig_1**2 + sig_2**2) * 0.5
+                elif self.select.lower() == "q":
+                    vis = (vis_3 + vis_4) * 0.5
+                    sig = np.sqrt(sig_3**2 + sig_4**2) * 0.5
+                elif self.select.lower() == "u":
+                    vis = (vis_3 - vis_4) * 0.5 / 1j
+                    sig = np.sqrt(sig_3**2 + sig_4**2) * 0.5
+                elif self.select.lower() == "v":
+                    vis = (vis_1 - vis_2) * 0.5
+                    sig = np.sqrt(sig_1**2 + sig_2**2) * 0.5
+                elif self.select.lower() == "p":
+                    vis_q = (vis_3 + vis_4) * 0.5
+                    vis_u = (vis_3 - vis_4) * 0.5 / 1j
+                    sig_q = np.sqrt(sig_3**2 + sig_4**2) * 0.5
+                    sig_u = np.sqrt(sig_3**2 + sig_4**2) * 0.5
+                    vis = (vis_q + 1j * vis_u) * 1.0
+                    sig = np.sqrt(sig_q**2 + sig_u**2) * 1.0
+            else:
                 vis = vis_1
                 sig = sig_1
-            elif self.select.lower() == "ll":
-                vis = vis_2
-                sig = sig_2
-            elif self.select.lower() == "rl":
-                vis = vis_3
-                sig = sig_3
-            elif self.select.lower() == "lr":
-                vis = vis_4
-                sig = sig_4
-            elif self.select.lower() == "i":
-                vis = (vis_1 + vis_2) * 0.5
-                sig = np.sqrt(sig_1**2 + sig_2**2) * 0.5
-            elif self.select.lower() == "q":
-                vis = (vis_3 + vis_4) * 0.5
-                sig = np.sqrt(sig_3**2 + sig_4**2) * 0.5
-            elif self.select.lower() == "u":
-                vis = (vis_3 - vis_4) * 0.5 / 1j
-                sig = np.sqrt(sig_3**2 + sig_4**2) * 0.5
-            elif self.select.lower() == "v":
-                vis = (vis_1 - vis_2) * 0.5
-                sig = np.sqrt(sig_1**2 + sig_2**2) * 0.5
-            elif self.select.lower() == "p":
-                vis_q = (vis_3 + vis_4) * 0.5
-                vis_u = (vis_3 - vis_4) * 0.5 / 1j
-                sig_q = np.sqrt(sig_3**2 + sig_4**2) * 0.5
-                sig_u = np.sqrt(sig_3**2 + sig_4**2) * 0.5
-                vis = (vis_q + 1j * vis_u) * 1.0
-                sig = np.sqrt(sig_q**2 + sig_u**2) * 1.0
             snr = np.abs(vis) / sig
             mask = snr <= value
 
@@ -2723,26 +2746,27 @@ class open_fits:
                     f"(type='{type}', value={value}, unit='{unit}')"
                 print(out_txt)
 
-        self.time = time[~mask]
-        self.tint = tint[~mask]
-        self.mjd = mjd[~mask]
-        self.ant_name1 = ant_name1[~mask]
-        self.ant_name2 = ant_name2[~mask]
-        self.uvu = uvu[~mask]
-        self.uvv = uvv[~mask]
-        self.ww = ww[~mask]
-        self.vis_1 = vis_1[~mask]
-        self.vis_2 = vis_2[~mask]
-        self.vis_3 = vis_3[~mask]
-        self.vis_4 = vis_4[~mask]
-        self.sig_1 = sig_1[~mask]
-        self.sig_2 = sig_2[~mask]
-        self.sig_3 = sig_3[~mask]
-        self.sig_4 = sig_4[~mask]
 
         if np.sum(mask) != 0:
+            self.time = time[~mask]
+            self.tint = tint[~mask]
+            self.mjd = mjd[~mask]
+            self.ant_name1 = ant_name1[~mask]
+            self.ant_name2 = ant_name2[~mask]
+            self.uvu = uvu[~mask]
+            self.uvv = uvv[~mask]
+            self.ww = ww[~mask]
+            self.vis_1 = vis_1[~mask]
+            self.vis_2 = vis_2[~mask]
+            self.vis_3 = vis_3[~mask]
+            self.vis_4 = vis_4[~mask]
+            self.sig_1 = sig_1[~mask]
+            self.sig_2 = sig_2[~mask]
+            self.sig_3 = sig_3[~mask]
+            self.sig_4 = sig_4[~mask]
+
             self.set_uvvis()
-            if self.set_clq:
+            if set_clq:
                 self.set_closure(minclq=self.minclq)
             self.fit_beam(uvw=self.uvw)
 
@@ -2750,14 +2774,18 @@ class open_fits:
                 type="phs", gnorm=False, tint=False,
                 startmod=False, lm=(0, 0), selfflag=True, prt=True):
         """
-        Do self-calibration based on model visibility
+        Self-calibration using model visibility
             Arguments:
-                type (str): self-calibration type // amp, phs, a&p, gscale
+                type (str): self-calibration type
+                            (availables: 'amp', 'phs', 'a&p', 'gscale')
                 gnorm (bool): if True, normalize gain amplitude solutions
                 tint (list, float): interval times [s]
                 startmod (bool): if True, do phase self-calibration
                                  using 1 Jy point-like source
                 lm (tuple): position of the point source
+                selfflag (bool): if True, scans with three stations or less
+                                 are not flagged out
+                prt (bool): if True, print summarized information
         """
         if prt:
             out_txt =\
@@ -2857,12 +2885,16 @@ class open_fits:
 
         time = self.data["time"]
         time_sec = time * 3600
+
+        utime_sec = np.unique(time_sec)
+        gaptime = np.median(np.diff(utime_sec)) * 2
+
         out_cgain1 = np.ones(self.data.shape[0]) * np.exp(1j * 0)
         out_cgain2 = np.ones(self.data.shape[0]) * np.exp(1j * 0)
 
         for nt, t in enumerate(tint):
             data = self.data
-            db = dbs(eps=self.gaptime, min_samples=1) \
+            db = dbs(eps=gaptime, min_samples=1) \
                 .fit((time * 3600).reshape(-1, 1))
             scannums = db.labels_
             uscan = np.unique(scannums)
@@ -3039,7 +3071,7 @@ class open_fits:
         Fit beam parameters under Gaussian approximation.
         Given observed (u,v)-coordinates, the beam response near its peak
         is approximated as a Gaussian
-        (TMS, Interferometry and Synthesis, 2017, Thompson, Moran, Swenson):
+        (TMS; Interferometry and Synthesis, 2017, Thompson, Moran, Swenson):
             B_0(l,m) \approx
                 1 - 2*pi^2/N * (l^2*sum(u^2) - 2*l*m*sum(u*v) + m^2*sum(v^2))
 
@@ -3533,6 +3565,18 @@ class open_fits:
 
         self.data = uvdat
 
+        # model closure quantities
+        clamp_uvcomb, clphs_uvcomb = gamvas.utils.set_uvcombination(
+            self.data, self.tmpl_clamp, self.tmpl_clphs
+        )
+
+        self.ploter.clq_mod = gamvas.utils.set_closure(
+            self.data["u"], self.data["v"], self.data["vism"],
+            np.zeros(vism.shape[0]),
+            self.data["ant_name1"], self.data["ant_name2"],
+            clamp_uvcomb, clphs_uvcomb
+        )
+
     def drop_visibility_model(self):
         """
         Drop the model visibility from the data
@@ -3903,9 +3947,12 @@ class open_fits:
                 " (availables: 'vis', 'clamp', 'clphs')"
             raise ValueError(out_txt)
 
+        utime_sec = np.unique(time * 3600)
+        gaptime = np.median(np.diff(utime_sec)) * 2
+
         if not np.all(np.isnan(data["time"])):
             db =\
-                dbs(eps=self.gaptime, min_samples=1) \
+                dbs(eps=gaptime, min_samples=1) \
                 .fit((time * 3600).reshape(-1, 1))
             scannums = db.labels_
             uscan = np.unique(scannums)
@@ -3964,7 +4011,7 @@ class open_fits:
             np.sqrt(self.fits_image_vq**2 + self.fits_image_vu**2)
 
         self.fits_image_rms_p =\
-            (self.fits_image_rms_q + self.fits_image_rms_q) / 2
+            (self.fits_image_rms_q + self.fits_image_rms_u) / 2
 
         self.fits_image_vpeak_p = np.nanmax(self.fits_image_vp)
         self.fits_clean_vflux_p =\
@@ -4307,7 +4354,8 @@ class open_fits:
         self.fits_model_cal = model_cal
 
     def save_uvfits(self,
-                     save_path=False, save_name=False):
+                     f_uvr=1, infreq=None, save_path=False, save_name=False
+    ):
         """
         Save new fits file
             Arguments:
@@ -4493,25 +4541,50 @@ class open_fits:
         else:
             hdul.append(hdu_pr)
 
+        # for i, h in enumerate(hdul):
+        #     if h.name == "AIPS AN":
+        #         hdul[i] = hdu_an
+        #         break
+        # else:
+        #     hdul.append(hdu_an)
+
+        mask_an = False
+        indx_an = []
         for i, h in enumerate(hdul):
             if h.name == "AIPS AN":
-                hdul[i] = hdu_an
-                break
-        else:
+                if not mask_an:
+                    hdul[i] = hdu_an
+                    mask_an = True
+                elif mask_an:
+                    indx_an.append(i)
+        indx_an.sort(reverse=True)
+        for idx in indx_an:
+            del hdul[idx]
+        if not mask_an:
             hdul.append(hdu_an)
-
-        hdul["PRIMARY"].header["CRVAL4"] = self.freq * 1e9
 
         hdr_pr = hdul["PRIMARY"].header
         hdr_cp = hdul_cp["PRIMARY"].header
         keys = list(hdr_cp.keys())
         comments = list(hdr_cp.comments)
         hdul["PRIMARY"].header = copy.deepcopy(hdul_cp["PRIMARY"].header)
-        hdul["PRIMARY"].header["CRVAL4"] = self.freq * 1e9
 
+        hdul["PRIMARY"].header["PSCAL1"] = 1 * f_uvr
+        hdul["PRIMARY"].header["PSCAL2"] = 1 * f_uvr
+        hdul["PRIMARY"].header["PSCAL3"] = 1 * f_uvr
+        if infreq is None:
+            hdul["PRIMARY"].header["CRVAL4"] =\
+                hdul_cp["PRIMARY"].header["CRVAL4"]
+        else:
+            hdul["PRIMARY"].header["CRVAL4"] = infreq * 1e9
+
+        hdul["AIPS AN"].header["GSTIA0"] = self.refGST
+        hdul["AIPS AN"].header["FREQ"] = self.freq * 1e9
         hdul["AIPS AN"].header["NO_IF"] = 1
         hdul["AIPS AN"].header["EXTVER"] =\
             hdul_cp["AIPS AN"].header.get("EXTVER", 1)
+
+        hdul["AIPS FQ"].header["NO_IF"] = 1
 
         hdul.writeto(
             save_path + save_name,
@@ -4782,7 +4855,33 @@ class open_fits:
         sblf = np.median(np.abs(sbl["vis"]))
         self.sblf = sblf
         self.sbl = (sbl_ant1, sbl_ant2)
-        return self.sblf, self.sbl
+        self.sbl_mask = mask_sbl
+        return self.sblf, self.sbl, self.sbl_mask
+
+    def get_lblf(self):
+        """
+        Get the longest-baseline flux level
+        """
+        data = self.data
+        uvd = np.sqrt(data["u"]**2 + data["v"]**2)
+
+        mask = uvd == uvd.max()
+        lbl = data[mask]
+
+        lbl_ant1 = lbl["ant_name1"][0]
+        lbl_ant2 = lbl["ant_name2"][0]
+
+        mask_lbl =\
+            (data["freq"] == data["freq"].max()) \
+            & (data["ant_name1"] == lbl_ant1) \
+            & (data["ant_name2"] == lbl_ant2)
+
+        lbl = data[mask_lbl]
+        lblf = np.median(np.abs(lbl["vis"]))
+        self.lblf = lblf
+        self.lbl = (lbl_ant1, lbl_ant2)
+        self.lbl_mask = mask_lbl
+        return self.lblf, self.lbl, self.lbl_mask
 
     def dterm_transfer(self,
                        uncal=None, niter=1, drarr=None, dlarr=None,
@@ -5410,84 +5509,85 @@ def set_matrix_visphs(N):
 def set_min_matrix_clphs(N, ant_nums):
     """
     Set the minimum matrix for the closure phase
-        Arguments:
-            N (int): number of antennas
-            ant_nums (array): array of antenna numbers
-        Returns:
-            out (array): matrix for the closure phase
-            pairs (array): array of antenna pairs
+    Args
+        N (int): number of antennas
+        ant_nums (array-like): antenna numbers (length N)
+    Returns
+        out (ndarray): matrix for closure phase
+        pairs (ndarray): all antenna pairs, shape (N*(N-1)/2, 2)
     """
-    pairs = np.array(list(map(",".join, list(it.combinations(ant_nums, 2)))))
-    out = np.array([[1, -1, 1]])
+    ant_nums = np.asarray(ant_nums)
+    pairs = np.array(list(it.combinations(ant_nums.tolist(), 2)), dtype=int)
+
+    out = np.array([[1, -1, 1]], dtype=float)
+
     if N == 3:
         return out, pairs
-    else:
-        phi = set_matrix_visphs(N - 1)
-        Is = np.eye(int(comb(N - 1, 2)))
-        out = np.concatenate((phi, Is), axis=1)
-        return out, pairs
+
+    phi = set_matrix_visphs(N - 1)
+
+    ncols = (N - 1) * (N - 2) // 2
+    Is = np.eye(ncols, dtype=float)
+
+    out = np.concatenate((phi, Is), axis=1)
+    return out, pairs
 
 
 def set_min_matrix_clamp(N, ant_nums):
     """
     Set the minimum matrix for the closure amplitude
-        Arguments:
-            N (int): number of antennas
-            ant_nums (array): array of antenna numbers
-        Returns:
-            out (array): matrix for the closure amplitude
-            pairs (array): array of antenna pairs
+    Args
+        N (int): number of antennas
+        ant_nums (array-like): antenna numbers (length N)
+    Returns
+        out (ndarray): matrix for closure amplitude
+        pairs (ndarray): all antenna pairs, shape (N*(N-1)/2, 2)
     """
-    pairs =\
-        np.array(
-            list(map(
-                ",".join,
-                list(it.combinations(ant_nums, 2))
-            ))
-        )
+    ant_nums = np.asarray(ant_nums)
+    pairs = np.array(list(it.combinations(ant_nums.tolist(), 2)), dtype=int)
+
     out = np.array([
         [0, 1, -1, -1, 1, 0],
-        [1, 0, -1, -1, 0, 1]]
-    )
+        [1, 0, -1, -1, 0, 1],
+    ], dtype=float)
 
     if N == 4:
         return out, pairs
-    else:
-        for i in range(5, N + 1):
-            ant_nums_ = ant_nums[:i]
-            m1 = np.ones((i - 2, 1))
-            m0 = np.zeros((int((i - 1) * (i - 4) / 2), i - 1))
-            xn = np.concatenate((np.eye(i - 2), -m1), axis=1)
-            yn = np.zeros((i - 2, int(comb(i - 1, 2))))
 
-            yn_comb =\
-                np.array(
-                list(map(
-                    ",".join,
-                    list(it.combinations(ant_nums_, 2))
-                ))
-            )[i - 1:]
+    for i in range(5, N + 1):
+        ant_nums_ = ant_nums[:i]
 
-            for j in range(i - 2):
-                if j != i - 3:
-                    idx1 = f"{ant_nums_[j + 1]},{ant_nums_[j + 2]}"
-                    idx2 = f"{ant_nums_[j + 2]},{ant_nums_[-1]}"
-                    loc1 = np.where(yn_comb == idx1)[0][0]
-                    loc2 = np.where(yn_comb == idx2)[0][0]
-                else:
-                    idx1 = f"{ant_nums_[1]},{ant_nums_[-2]}"
-                    idx2 = f"{ant_nums_[1]},{ant_nums_[-1]}"
-                    loc1 = np.where(yn_comb == idx1)[0][0]
-                    loc2 = np.where(yn_comb == idx2)[0][0]
-                yn[j, loc1] = -1
-                yn[j, loc2] = +1
-            upper = np.concatenate((xn, yn), axis=1)
+        n_pairs_prev = (i - 1) * (i - 2) // 2
+        n_lower_rows = (i - 1) * (i - 4) // 2
 
-            if i == 4:
-                out = upper
+        m1 = np.ones((i - 2, 1), dtype=float)
+        xn = np.concatenate((np.eye(i - 2, dtype=float), -m1), axis=1)
+
+        yn = np.zeros((i - 2, n_pairs_prev), dtype=float)
+
+        all_pairs_i = list(it.combinations(ant_nums_.tolist(), 2))
+        sub_pairs = all_pairs_i[(i - 1):]
+
+        pair_to_col = {tuple(p): k for k, p in enumerate(sub_pairs)}
+
+        for j in range(i - 2):
+            if j != i - 3:
+                idx1 = (int(ant_nums_[j + 1]), int(ant_nums_[j + 2]))
+                idx2 = (int(ant_nums_[j + 2]), int(ant_nums_[-1]))
             else:
-                m0 = np.zeros((int((i - 1) * (i - 4) / 2), i - 1))
-                cm0 = out
-                lower = np.concatenate((m0, cm0), axis=1)
-                out = np.concatenate((upper, lower), axis=0)
-        return out, pairs
+                idx1 = (int(ant_nums_[1]),  int(ant_nums_[-2]))
+                idx2 = (int(ant_nums_[1]),  int(ant_nums_[-1]))
+
+            loc1 = pair_to_col[idx1]
+            loc2 = pair_to_col[idx2]
+            yn[j, loc1] = -1.0
+            yn[j, loc2] = +1.0
+
+        upper = np.concatenate((xn, yn), axis=1)
+
+        m0 = np.zeros((n_lower_rows, i - 1), dtype=float)
+        lower = np.concatenate((m0, out), axis=1)
+
+        out = np.concatenate((upper, lower), axis=0)
+
+    return out, pairs

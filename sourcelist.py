@@ -118,6 +118,15 @@ source_positions = {
     (+(13 * u.deg + 31 * u.arcmin + 55.150 * u.arcsec)).to(u.deg)
 ),
 
+"CRAB"      : SkyCoord(
+    ( 5 * u.hour + 34 * u.min + 31.5348* u.s).to(u.hour).value * 15 * u.deg,
+    (+(22 * u.deg + 00 * u.arcmin + 27.697 * u.arcsec)).to(u.deg)
+),
+"CRAB2"     : SkyCoord(
+    ( 5 * u.hour + 34 * u.min + 31.971 * u.s).to(u.hour).value * 15 * u.deg,
+    (+(22 * u.deg + 00 * u.arcmin + 52.060 * u.arcsec)).to(u.deg)
+),
+
 "0552+398"  : SkyCoord(
     ( 5 * u.hour + 55 * u.min + 30.806 * u.s).to(u.hour).value * 15 * u.deg,
     (+(39 * u.deg + 48 * u.arcmin + 49.165 * u.arcsec)).to(u.deg)

@@ -34,8 +34,12 @@ def mkdir(path):
     """
     Make a directory if it does not exist.
     """
-    if not os.path.isdir(path):
-        os.system(f"mkdir {path}")
+    _ = path.split("/")
+    _ = list(filter(None, _))
+    for i in range(len(_)):
+        path_ = "/" + "/".join(_[:i+1])
+        if not os.path.isdir(path_):
+            os.system(f"mkdir {path_}")
 
 
 def cal_rms(image, roi=False):
@@ -472,72 +476,111 @@ def get_fwght(ftype, vdat, tmpl_clamp, tmpl_clphs):
     return fwght_
 
 
-def fit_beam(uvc):
+def fit_beam(uvc, sig=None, uvw="u"):
     """
-    Fit the beam parameters for the input UVF data
-     (imported from eht-imaging)
-     (https://achael.github.io/eht-imaging/; Chael+2018, ApJ, 857, 23C)
-        Arguments:
-            uvc (structured array): uv coverage data
-        Returns:
-            array: beam parameters
+    Fit beam parameters under Gaussian approximation.
+    Given observed (u,v)-coordinates, the beam response near its peak
+    is approximated as a Gaussian
+    (TMS, Interferometry and Synthesis, 2017, Thompson, Moran, Swenson):
+        B_0(l,m) \approx
+            1 - 2*pi^2/N * (l^2*sum(u^2) - 2*l*m*sum(u*v) + m^2*sum(v^2))
+
+    Beam parameters can be determined by fitting the latter one to
+    a 2D Gaussian function:
+        F(x,y) = exp(-(a*x^2 + b*y^2 + c*x*y)),
+    where (a,b,c) are functions of beam parameters, (b_min, b_maj, b_pa).
+
+    Arguments:
+        npix (int): number of pixels for the beam fitting
+        uvw (str): UV weighting option
+            - n: natural weighting
+            - u: uniform weighting
     """
-    def fit_chisq(beamparams, db_coeff):
-        (fwhm_maj2, fwhm_min2, theta) = beamparams
+    uvu = uvc["u"]
+    uvv = uvc["v"]
+
+    def fit_abc(beamparams, in_abc):
+        """
+        FWHM = 2 * sqrt(2 * ln(2)) * sigma
+        b_min**2 = 4 * 2 * ln(2) * sig_x**2
+        """
+        (b_maj, b_min, b_pa) = beamparams
+        sig_x2 = b_min**2 / (4 * 2 * np.log(2))
+        sig_y2 = b_maj**2 / (4 * 2 * np.log(2))
         a =\
             (
-                4 * np.log(2)
-                * (
-                    np.cos(theta)**2 / fwhm_min2
-                    + np.sin(theta)**2 / fwhm_maj2
-                )
-            )
+                np.cos(b_pa)**2 / sig_x2
+                + np.sin(b_pa)**2 / sig_y2
+            ) * 0.5
+
         b =\
             (
-                4 * np.log(2)
-                * (
-                    np.cos(theta)**2 / fwhm_maj2
-                    + np.sin(theta)**2 / fwhm_min2
-                )
+                (1 / sig_y2 - 1 / sig_x2)
+                * np.cos(b_pa) * np.sin(b_pa)
             )
+
         c =\
             (
-                8 * np.log(2) * np.cos(theta) * np.sin(theta)
-                * (1.0 / fwhm_maj2 - 1.0 / fwhm_min2)
-            )
-        gauss_coeff = np.array((a, b, c))
-        chisq = np.sum((np.array(db_coeff) - gauss_coeff)**2)
-        return chisq
+                np.sin(b_pa)**2 / sig_x2
+                + np.cos(b_pa)**2 / sig_y2
+            ) * 0.5
 
-    uu = uvc["u"]
-    vv = uvc["v"]
+        out_abc = np.array([a, b, c])
+        out = np.sum((in_abc - out_abc)**2)
+        return out
 
-    wfn = np.ones(uvc.shape)
+    if uvw == ["u", "uniform"]:
+        wfn = np.ones(len(uvc))
+    elif uvw == ["n", "natural"]:
+        if sig is None:
+            out_txt =\
+                "'sig' value is absent during fitting beam parameters!"
+            raise Exception(out_txt)
+        else:
+            wfn = 1 / sig**2
+    else:
+        out_txt =\
+            "Invalid uv-weighting type is presented! " \
+            "(available: 'u', 'n')"
+        raise Exception(out_txt)
 
-    abc = np.array([np.sum(wfn * uu**2),
-                    np.sum(wfn * vv**2),
-                    2 * np.sum(wfn * uu * vv)])
-    abc *= (2. * np.pi**2 / np.sum(wfn))
-    abc *= 1e-20    # Decrease size of coefficients
+    rsc = 1e-9  # Rescaling factor for fitting
+
+    abc =\
+        np.array([
+            np.sum(wfn * uvu**2),
+            np.sum(wfn * uvu * uvv),
+            np.sum(wfn * uvv**2)
+            ]) \
+        * 2 * np.pi**2 / np.sum(wfn)
+
+    abc *= rsc ** 2
 
     # Fit the beam
-    guess = [(50)**2, (50)**2, 0.0]
-    params = optimize.minimize(fit_chisq, guess, args=(abc,), method="Powell")
+    guess = np.array([1, 1, 0])
 
-    if params.x[0] > params.x[1]:
-        fwhm_maj = 1e-10 * np.sqrt(params.x[0])
-        fwhm_min = 1e-10 * np.sqrt(params.x[1])
-        theta = np.mod(params.x[2], np.pi)
+    Gprms =\
+        optimize.minimize(
+            fit_abc, guess, args=abc,
+            bounds=[[0, 1000], [0, 1000], [-np.pi, +np.pi]],
+            method="Powell"
+        )
+
+    if Gprms.x[0] > Gprms.x[1]:
+        fwhm_maj = rsc * Gprms.x[0]
+        fwhm_min = rsc * Gprms.x[1]
+        theta = np.mod(Gprms.x[2], np.pi)
     else:
-        fwhm_maj = 1e-10 * np.sqrt(params.x[1])
-        fwhm_min = 1e-10 * np.sqrt(params.x[0])
-        theta = np.mod(params.x[2] + np.pi / 2.0, np.pi)
+        fwhm_maj = rsc * Gprms.x[1]
+        fwhm_min = rsc * Gprms.x[0]
+        theta = np.mod(Gprms.x[2] + np.pi / 2, np.pi)
 
-    gparams = np.array((fwhm_maj, fwhm_min, theta))
-    gparams[0] *= u.rad.to(u.mas)
-    gparams[1] *= u.rad.to(u.mas)
-    gparams[2] *= u.rad.to(u.deg)
-    return gparams
+    bprms = np.array((fwhm_maj, fwhm_min, theta))
+    bprms[0] *= u.rad.to(u.mas)
+    bprms[1] *= u.rad.to(u.mas)
+    bprms[2] *= u.rad.to(u.deg)
+
+    return bprms
 
 
 def set_uvf(dataset, type="sf", clq=True):

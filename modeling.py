@@ -1183,11 +1183,12 @@ class modeling:
                         relmod=self.relmod
                 )
 
-            bnds = gamvas.utils.sarray(
+            bnds =\
+                gamvas.utils.sarray(
                     data=(bnd_S, bnd_a, bnd_l, bnd_m, bnd_f, bnd_i),
                     field=fields_mf,
                     dtype=dtypes_mf
-            )
+                )
         else:
             bnds = gamvas.utils.sarray(
                 data=self.bnds,
@@ -1896,7 +1897,7 @@ class modeling:
 
         obs = copy.deepcopy(uvfs[0])
         mod = copy.deepcopy(uvfs[0])
-        sblf_obs, sbl_obs = obs.get_sblf()
+        sblf_obs, sbl_obs, sbl_mask = obs.get_sblf()
 
         # use shortest baseline for rescaling
         mask_sbl =\
