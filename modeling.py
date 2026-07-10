@@ -93,7 +93,7 @@ class modeling:
         fixnmod=False, maxn=None, npix=1024, mindr=3, mapfov=None, gacalerr=0,
         dognorm=True, dogscale=False, doampcal=True, zero_cp=False,
         selfflag=True, rscsbl=True, dophscal=True, path_fig=None, source=None,
-        date=None, cgain_truth=None, save_uvfits=False, save_imgfits=False,
+        date=None, cgain_truth=None, save_uvfits=True, save_imgfits=True,
         ncpu=1
     ):
         if isinstance(uvfs, list):

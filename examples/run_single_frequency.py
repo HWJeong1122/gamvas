@@ -7,12 +7,14 @@ import gamvas as gv
 
 if __name__ == "__main__":
 
-    # For MacOS only:
+    # NOTE (for MacOS only):
     #   use fork start method to avoid multiprocessing issues
     import multiprocessing as mpr
     mpr.set_start_method("fork")
 
-    # define number of CPUs to use
+    # =================================================================
+    # TODO: Define the number of CPU cores to use
+    # =================================================================
     # ncpu = 1                # use a single CPU core
     ncpu = os.cpu_count()   # use all available CPU cores
 
@@ -29,7 +31,7 @@ if __name__ == "__main__":
     # =================================================================
     # TODO: Define polarization, IF channels, and model-fit parameters
     # =================================================================
-    # Polarization & IF channels
+    # polarization & IF channels
     select_pol = "rr"
     select_if = "all"
 
@@ -83,8 +85,8 @@ if __name__ == "__main__":
     syscal_type = ["vis", "logclamp", "clphs"]
     uvf.systematics_cal(dotype=syscal_type)
 
-    # (optional) average data (IF channels)
-    uvf.average(dotype="ifchan", weighted=avgweight)
+    # # (optional) average data (IF channels)
+    # uvf.average(dotype="ifchan", weighted=avgweight)
 
     # (optional) average data (time)
     uvf.average(
@@ -103,7 +105,7 @@ if __name__ == "__main__":
     uvf.systematics_apply(dotype=syscal_type)
 
     # # (optional) increase uncertainty of complex visibility: 0.1 = 10%
-    # uvf.increase_sigma_fraction(value=0.1)
+    # uvf.add_fractional_error(value=0.1)
     # uvf.increase_sigma_factor(value=1)
 
     # NOTE: manually define boundary conditions
@@ -162,7 +164,7 @@ if __name__ == "__main__":
         bands=bands, spectrum=spectrum, maxn=maxn, fixnmod=fixnmod,
         mapfov=mapfov, bnd_a=bnd_a, bnd_l=bnd_l, bnd_m=bnd_m,
         path_fig=path_fig_, source=source, date=date, ncpu=ncpu, model=model,
-        boundset=boundset, rscsbl=rscsbl, save_uvfits=True, save_imgfits=True
+        boundset=boundset, rscsbl=rscsbl
     )
     mfu.run()
 

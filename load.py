@@ -243,6 +243,78 @@ class open_fits:
 
         return mask_timerange & mask_ant
 
+    def add_fractional_error(self, value=0.0, timerange=None, antenna=None):
+        """
+        Add the error fractionally to the visibility amplitude
+        Args:
+            value (float): fraction of the error to be added
+        """
+
+        def gmean_amp(x):
+            x = x[np.isfinite(x) & (x > 0)]
+            if x.size == 0:
+                return 0.0
+            return np.exp(np.nanmean(np.log(x)))
+
+        time = self.get_data("time")
+
+        # scan masking
+        scans, scans_1d = self.set_scan(
+            time=time * 3600.0, gaptime=self.gaptime, scanlen=self.scanlen,
+            returned=True
+        )
+
+        uscan = np.unique(scans)
+
+        # baseline masking
+        baseline = self.baseline
+        ubaseline = np.unique(baseline)
+
+        # time range & antenna masking
+        mask_ta = self._error_mask(timerange, antenna)
+
+        self.check_w0()
+
+        amp_1 = np.abs(self.r_1 + 1j * self.i_1)
+        amp_2 = np.abs(self.r_2 + 1j * self.i_2)
+        amp_3 = np.abs(self.r_3 + 1j * self.i_3)
+        amp_4 = np.abs(self.r_4 + 1j * self.i_4)
+
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=RuntimeWarning)
+            sig_1 = 1 / self.w_1**0.5
+            sig_2 = 1 / self.w_2**0.5
+            sig_3 = 1 / self.w_3**0.5
+            sig_4 = 1 / self.w_4**0.5
+
+        for ns, scan in enumerate(uscan):
+            mask_scan = scans == scan
+            for nb, baseline in enumerate(ubaseline):
+                mask_baseline = self.baseline == baseline
+                mask = mask_ta & mask_scan & mask_baseline
+
+                if mask.sum() == 0:
+                    continue
+
+                add_1 = gmean_amp(amp_1[mask]) * value
+                add_2 = gmean_amp(amp_2[mask]) * value
+                add_3 = gmean_amp(amp_3[mask]) * value
+                add_4 = gmean_amp(amp_4[mask]) * value
+
+                sig_1_new = sig_1[mask] + add_1
+                sig_2_new = sig_2[mask] + add_2
+                sig_3_new = sig_3[mask] + add_3
+                sig_4_new = sig_4[mask] + add_4
+
+                with warnings.catch_warnings():
+                    warnings.filterwarnings("ignore", category=RuntimeWarning)
+                    self.w_1[mask] = 1 / sig_1_new**2
+                    self.w_2[mask] = 1 / sig_2_new**2
+                    self.w_3[mask] = 1 / sig_3_new**2
+                    self.w_4[mask] = 1 / sig_4_new**2
+
+        self.set_data(prt=False)
+
     def average(
         self,
         dotype="time", weighted=True, value=60, mode="day", prt=True
@@ -1369,111 +1441,6 @@ class open_fits:
         self.sbl_mask = mask_sbl
         return self.sblf, self.sbl, self.sbl_mask
 
-    def increase_sigma_fraction(self, value=0.0, timerange=None, antenna=None):
-        """
-        Add the error fractionally to the visibility amplitude
-        Args:
-            value (float): fraction of the error to be added
-        """
-
-        def gmean_amp(x):
-            x = x[np.isfinite(x) & (x > 0)]
-            if x.size == 0:
-                return 0.0
-            return np.exp(np.nanmean(np.log(x)))
-
-        time = self.get_data("time")
-
-        # scan masking
-        scans, scans_1d = self.set_scan(
-            time=time * 3600.0, gaptime=self.gaptime, scanlen=self.scanlen,
-            returned=True
-        )
-
-        uscan = np.unique(scans)
-
-        # baseline masking
-        baseline = self.baseline
-        ubaseline = np.unique(baseline)
-
-        # time range & antenna masking
-        mask_ta = self._error_mask(timerange, antenna)
-
-        self.check_w0()
-
-        amp_1 = np.abs(self.r_1 + 1j * self.i_1)
-        amp_2 = np.abs(self.r_2 + 1j * self.i_2)
-        amp_3 = np.abs(self.r_3 + 1j * self.i_3)
-        amp_4 = np.abs(self.r_4 + 1j * self.i_4)
-
-        with warnings.catch_warnings():
-            warnings.filterwarnings("ignore", category=RuntimeWarning)
-            sig_1 = 1 / self.w_1**0.5
-            sig_2 = 1 / self.w_2**0.5
-            sig_3 = 1 / self.w_3**0.5
-            sig_4 = 1 / self.w_4**0.5
-
-        for ns, scan in enumerate(uscan):
-            mask_scan = scans == scan
-            for nb, baseline in enumerate(ubaseline):
-                mask_baseline = self.baseline == baseline
-                mask = mask_ta & mask_scan & mask_baseline
-
-                if mask.sum() == 0:
-                    continue
-
-                add_1 = gmean_amp(amp_1[mask]) * value
-                add_2 = gmean_amp(amp_2[mask]) * value
-                add_3 = gmean_amp(amp_3[mask]) * value
-                add_4 = gmean_amp(amp_4[mask]) * value
-
-                sig_1_new = sig_1[mask] + add_1
-                sig_2_new = sig_2[mask] + add_2
-                sig_3_new = sig_3[mask] + add_3
-                sig_4_new = sig_4[mask] + add_4
-
-                with warnings.catch_warnings():
-                    warnings.filterwarnings("ignore", category=RuntimeWarning)
-                    self.w_1[mask] = 1 / sig_1_new**2
-                    self.w_2[mask] = 1 / sig_2_new**2
-                    self.w_3[mask] = 1 / sig_3_new**2
-                    self.w_4[mask] = 1 / sig_4_new**2
-
-        self.set_data(prt=False)
-
-    def increase_sigma_factor(self, value=1, timerange=None, antenna=None):
-        """
-        Add the error by a factor
-        Args:
-            value (float): factor of the error to be added
-            timerange (list): [start, end] time range in hours (None = all)
-            antenna (str, int, or list): antenna name(s)/number(s) (None = all)
-        """
-
-        # time range & antenna masking
-        mask = self._error_mask(timerange, antenna)
-
-        self.check_w0()
-
-        with warnings.catch_warnings():
-            warnings.filterwarnings("ignore", category=RuntimeWarning)
-            sig_1 = 1 / self.w_1**0.5
-            sig_2 = 1 / self.w_2**0.5
-            sig_3 = 1 / self.w_3**0.5
-            sig_4 = 1 / self.w_4**0.5
-
-            sig_1_new = (value * sig_1[mask])**2
-            sig_2_new = (value * sig_2[mask])**2
-            sig_3_new = (value * sig_3[mask])**2
-            sig_4_new = (value * sig_4[mask])**2
-
-            self.w_1[mask] = 1 / sig_1_new
-            self.w_2[mask] = 1 / sig_2_new
-            self.w_3[mask] = 1 / sig_3_new
-            self.w_4[mask] = 1 / sig_4_new
-
-        self.set_data(prt=False)
-
     def load_uvf(
         self,
         select_pol="i", select_if="all", uvw="u", minclq=True, gaptime=None,
@@ -2097,6 +2064,39 @@ class open_fits:
         self.w0_2 = w0_2
         self.w0_3 = w0_3
         self.w0_4 = w0_4
+
+        self.set_data(prt=False)
+
+    def rescale_sigma(self, value=1, timerange=None, antenna=None):
+        """
+        Rescale visibility sigma by a factor
+        Args:
+            value (float): factor of the error to be added
+            timerange (list): [start, end] time range in hours (None = all)
+            antenna (str, int, or list): antenna name(s)/number(s) (None = all)
+        """
+
+        # time range & antenna masking
+        mask = self._error_mask(timerange, antenna)
+
+        self.check_w0()
+
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=RuntimeWarning)
+            sig_1 = 1 / self.w_1**0.5
+            sig_2 = 1 / self.w_2**0.5
+            sig_3 = 1 / self.w_3**0.5
+            sig_4 = 1 / self.w_4**0.5
+
+            sig_1_new = (value * sig_1[mask])**2
+            sig_2_new = (value * sig_2[mask])**2
+            sig_3_new = (value * sig_3[mask])**2
+            sig_4_new = (value * sig_4[mask])**2
+
+            self.w_1[mask] = 1 / sig_1_new
+            self.w_2[mask] = 1 / sig_2_new
+            self.w_3[mask] = 1 / sig_3_new
+            self.w_4[mask] = 1 / sig_4_new
 
         self.set_data(prt=False)
 

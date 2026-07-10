@@ -21,7 +21,7 @@ uvfs = [None for _ in range(len(freqs))]
 # =================================================================
 for nf, freq in enumerate(freqs):
     # read model parameters in '.xlsx' ('model_params.xlsx')
-    theta, error, k = gv.utils.rd_theta(
+    theta_sf, error_sf, k_sf = gv.utils.rd_theta(
         path=f"{path}/1749+096/2025-01-02/Pol_RR/gaussian.{freq}/",
         file="model_params.xlsx",
         # id_core=1   # ID no. of the core component, if needed
@@ -102,7 +102,7 @@ for nf, freq in enumerate(freqs):
     #     if any, you may want to establish model visibilities
     #     from the model parameters in '.xlsx' ('model_params.xlsx').
     #     Then,
-    # uvfs[nf].model_visibility_append(theta=theta)
+    # uvfs[nf].model_visibility_append(theta=theta_sf)
 
     # self-calibration
     uvfs[nf].selfcal(dotype="phs")
@@ -121,7 +121,7 @@ for nf, freq in enumerate(freqs):
 
     print(f"\nStatistics @ {freq:.0f} GHz")
     stats = gv.utils.print_stats(
-        uvf=uvfs[nf], uvcomb=uvcomb, k=k,
+        uvf=uvfs[nf], uvcomb=uvcomb, k=k_sf,
         dotype=["vis", "amp", "clamp", "clphs"]
     )
 
@@ -135,26 +135,28 @@ for nf, freq in enumerate(freqs):
 # =================================================================
 
 # read multi-frequency model parameters in '.xlsx' ('model_params.xlsx')
-theta, error, k = gv.utils.rd_theta(
+theta_mf, error_mf, k_mf = gv.utils.rd_theta(
     path=f"{path}/1749+096/2025-01-02/Pol_RR/mf.gaussian.ssa/",
     file="model_params.xlsx",
     # id_core=1   # ID no. of the core component, if needed
 )
 
-# drop single-frequency model visibilities
+# replace single-frequency model visibilities with multi-frequency ones
 for _uvf in uvfs:
     _uvf.model_visibility_drop()
+    _uvf.model_visibility_append(
+        freq_ref=uvfs[0].freq0, theta=theta_mf,
+        model="gaussian", spectrum="ssa"
+    )
+    _uvf.selfcal(dotype="phs")
+    _uvf.selfcal(dotype="a&p")
 
 # set multi-frequency UVFITS file
 uvf = gv.utils.set_uvf(uvfs, dotype="mf")
 
-# append multi-frequency model visibilities
-uvf.model_visibility_append(
-    freq_ref=uvfs[0].freq0, theta=theta,
-    model="gaussian", spectrum="ssa"
-)
-
 # basic plots with model
 uvf.ploter.draw_radplot(uvf, plotimg=True, plotmodel=True)
-uvf.ploter.draw_closure(dotype="clamp", plotimg=True, plotmodel=True)
-uvf.ploter.draw_closure(dotype="clphs", plotimg=True, plotmodel=True)
+uvf.ploter.draw_closure(
+    dotype="clamp", plotimg=True, plotmodel=True, plotalif=False)
+uvf.ploter.draw_closure(
+    dotype="clphs", plotimg=True, plotmodel=True, plotalif=False)
