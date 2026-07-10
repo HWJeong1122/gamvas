@@ -6,9 +6,9 @@ from gamvas import functions
 from gamvas import modeling
 from gamvas import utils
 from gamvas import plotting
-from gamvas import carr
 from gamvas import antlist
 from gamvas import sourcelist
+from gamvas import simulation
 from gamvas import polarization
 
 from astropy import units
@@ -17,9 +17,6 @@ mas = units.mas
 arcs = units.arcsecond
 deg = units.deg
 rad = units.rad
-
-import warnings
-warnings.filterwarnings("ignore")
 
 import matplotlib as mpl
 mpl.rcParams["xtick.major.size" ] = 5.0*1.0

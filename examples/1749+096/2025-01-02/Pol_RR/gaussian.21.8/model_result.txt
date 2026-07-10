@@ -1,0 +1,10 @@
+# FLUX    RADIUS    POS.A    FWHM
+# (21.8 GHz) Model 1:  2.532v  0.000v    0.000v  0.008v
+# (21.8 GHz) Model 2:  0.099v  1.473v   -3.878v  0.060v
+Chi2_amp      :      2.727 | AIC_amp       : -10841.344 | BIC_amp       : -10761.590
+Chi2_clamp    :      0.599 | AIC_clamp     :  -3480.183 | BIC_clamp     :  -3400.429
+Chi2_clphs    :      1.440 | AIC_clphs     :  -4795.504 | BIC_clphs     :  -4715.751
+Chi2_tot :    4.766
+AIC_tot  : -19117.030
+BIC_tot  : -18877.770
+logz : 15488.735 +/- 0.184

@@ -1,556 +1,92 @@
 
-from astropy import units as u
 from astropy.coordinates import SkyCoord
 
-source_positions = {
-
-"NRAO005"   : SkyCoord(
-    ( 0 * u.hour +  6 * u.min + 13.893 * u.s).to(u.hour).value * 15 * u.deg,
-    (-( 6 * u.deg + 23 * u.arcmin + 35.335 * u.arcsec)).to(u.deg)
-),
-"0003-066"  : SkyCoord(
-    ( 0 * u.hour +  6 * u.min + 13.893 * u.s).to(u.hour).value * 15 * u.deg,
-    (-( 6 * u.deg + 23 * u.arcmin + 35.335 * u.arcsec)).to(u.deg)
-),
-
-"3C66A"     : SkyCoord(
-    ( 2 * u.hour + 22 * u.min + 39.611 * u.s).to(u.hour).value * 15 * u.deg,
-    (+(43 * u.deg +  2 * u.arcmin +  7.799 * u.arcsec)).to(u.deg)
-),
-"0219+428"  : SkyCoord(
-    ( 2 * u.hour + 22 * u.min + 39.611 * u.s).to(u.hour).value * 15 * u.deg,
-    (+(43 * u.deg +  2 * u.arcmin +  7.799 * u.arcsec)).to(u.deg)
-),
-
-"0235+16"   : SkyCoord(
-    ( 2 * u.hour + 38 * u.min + 38.930 * u.s).to(u.hour).value * 15 * u.deg,
-    (+(16 * u.deg + 36 * u.arcmin + 59.275 * u.arcsec)).to(u.deg)
-),
-"0235+164"  : SkyCoord(
-    ( 2 * u.hour + 38 * u.min + 38.930 * u.s).to(u.hour).value * 15 * u.deg,
-    (+(16 * u.deg + 36 * u.arcmin + 59.275 * u.arcsec)).to(u.deg)
-),
-
-"0238-084"  : SkyCoord(
-    ( 2 * u.hour + 41 * u.min +  4.799 * u.s).to(u.hour).value * 15 * u.deg,
-    (-( 8 * u.deg + 15 * u.arcmin + 20.752 * u.arcsec)).to(u.deg)
-),
-"NGC1052"   : SkyCoord(
-    ( 2 * u.hour + 41 * u.min +  4.799 * u.s).to(u.hour).value * 15 * u.deg,
-    (-( 8 * u.deg + 15 * u.arcmin + 20.752 * u.arcsec)).to(u.deg)
-),
-
-"3C84"      : SkyCoord(
-    ( 3 * u.hour + 19 * u.min + 48.160 * u.s).to(u.hour).value * 15 * u.deg,
-    (+(41 * u.deg + 30 * u.arcmin + 42.106 * u.arcsec)).to(u.deg)
-),
-"0316+413"  : SkyCoord(
-    ( 3 * u.hour + 19 * u.min + 48.160 * u.s).to(u.hour).value * 15 * u.deg,
-    (+(41 * u.deg + 30 * u.arcmin + 42.106 * u.arcsec)).to(u.deg)
-),
-
-"1H0323+342": SkyCoord(
-    ( 3 * u.hour + 24 * u.min + 41.161 * u.s).to(u.hour).value * 15 * u.deg,
-    (+(34 * u.deg + 10 * u.arcmin + 45.858 * u.arcsec)).to(u.deg)
-),
-"0321+340"  : SkyCoord(
-    ( 3 * u.hour + 24 * u.min + 41.161 * u.s).to(u.hour).value * 15 * u.deg,
-    (+(34 * u.deg + 10 * u.arcmin + 45.858 * u.arcsec)).to(u.deg)
-),
-
-"NRAO140"   : SkyCoord(
-    ( 3 * u.hour + 36 * u.min + 30.108 * u.s).to(u.hour).value * 15 * u.deg,
-    (+(32 * u.deg + 18 * u.arcmin + 29.342 * u.arcsec)).to(u.deg)
-),
-"0333+321"  : SkyCoord(
-    ( 3 * u.hour + 36 * u.min + 30.108 * u.s).to(u.hour).value * 15 * u.deg,
-    (+(32 * u.deg + 18 * u.arcmin + 29.342 * u.arcsec)).to(u.deg)
-),
-
-"NRAO150"   : SkyCoord(
-    ( 3 * u.hour + 59 * u.min + 29.747 * u.s).to(u.hour).value * 15 * u.deg,
-    (+(50 * u.deg + 57 * u.arcmin + 50.162 * u.arcsec)).to(u.deg)
-),
-"0355+508"  : SkyCoord(
-    ( 3 * u.hour + 59 * u.min + 29.747 * u.s).to(u.hour).value * 15 * u.deg,
-    (+(50 * u.deg + 57 * u.arcmin + 50.162 * u.arcsec)).to(u.deg)
-),
-
-"3C111"     : SkyCoord(
-    ( 4 * u.hour + 18 * u.min + 21.277 * u.s).to(u.hour).value * 15 * u.deg,
-    (+(38 * u.deg +  1 * u.arcmin + 35.800 * u.arcsec)).to(u.deg)
-),
-"0415+379"  : SkyCoord(
-    ( 4 * u.hour + 18 * u.min + 21.277 * u.s).to(u.hour).value * 15 * u.deg,
-    (+(38 * u.deg +  1 * u.arcmin + 35.800 * u.arcsec)).to(u.deg)
-),
-
-"0420-01"   : SkyCoord(
-    ( 4 * u.hour + 23 * u.min + 15.801 * u.s).to(u.hour).value * 15 * u.deg,
-    (-( 1 * u.deg + 20 * u.arcmin + 33.066 * u.arcsec)).to(u.deg)
-),
-"0420-014"  : SkyCoord(
-    ( 4 * u.hour + 23 * u.min + 15.801 * u.s).to(u.hour).value * 15 * u.deg,
-    (-( 1 * u.deg + 20 * u.arcmin + 33.066 * u.arcsec)).to(u.deg)
-),
-
-"3C120"     : SkyCoord(
-    ( 4 * u.hour + 33 * u.min + 11.096 * u.s).to(u.hour).value * 15 * u.deg,
-    (+( 5 * u.deg + 21 * u.arcmin + 15.619 * u.arcsec)).to(u.deg)
-),
-"0430+052"  : SkyCoord(
-    ( 4 * u.hour + 33 * u.min + 11.096 * u.s).to(u.hour).value * 15 * u.deg,
-    (+( 5 * u.deg + 21 * u.arcmin + 15.619 * u.arcsec)).to(u.deg)
-),
-
-"0446+112"  : SkyCoord(
-    ( 4 * u.hour + 49 * u.min +  7.671 * u.s).to(u.hour).value * 15 * u.deg,
-    (+(11 * u.deg + 21 * u.arcmin + 28.596 * u.arcsec)).to(u.deg)
-),
-
-"0506+056"  : SkyCoord(
-    ( 5 * u.hour +  9 * u.min + 25.964 * u.s).to(u.hour).value * 15 * u.deg,
-    (+( 5 * u.deg + 41 * u.arcmin + 35.334 * u.arcsec)).to(u.deg)
-),
-
-"0528+134"  : SkyCoord(
-    ( 5 * u.hour + 30 * u.min + 56.417 * u.s).to(u.hour).value * 15 * u.deg,
-    (+(13 * u.deg + 31 * u.arcmin + 55.150 * u.arcsec)).to(u.deg)
-),
-
-"CRAB"      : SkyCoord(
-    ( 5 * u.hour + 34 * u.min + 31.5348* u.s).to(u.hour).value * 15 * u.deg,
-    (+(22 * u.deg + 00 * u.arcmin + 27.697 * u.arcsec)).to(u.deg)
-),
-"CRAB2"     : SkyCoord(
-    ( 5 * u.hour + 34 * u.min + 31.971 * u.s).to(u.hour).value * 15 * u.deg,
-    (+(22 * u.deg + 00 * u.arcmin + 52.060 * u.arcsec)).to(u.deg)
-),
-
-"0552+398"  : SkyCoord(
-    ( 5 * u.hour + 55 * u.min + 30.806 * u.s).to(u.hour).value * 15 * u.deg,
-    (+(39 * u.deg + 48 * u.arcmin + 49.165 * u.arcsec)).to(u.deg)
-),
-"DA193"     : SkyCoord(
-    ( 5 * u.hour + 55 * u.min + 30.806 * u.s).to(u.hour).value * 15 * u.deg,
-    (+(39 * u.deg + 48 * u.arcmin + 49.165 * u.arcsec)).to(u.deg)
-),
-
-"0716+714"  : SkyCoord(
-    ( 7 * u.hour + 21 * u.min + 53.448 * u.s).to(u.hour).value * 15 * u.deg,
-    (+(71 * u.deg + 20 * u.arcmin + 36.363 * u.arcsec)).to(u.deg)
-),
-
-"0723-008"  : SkyCoord(
-    ( 7 * u.hour + 25 * u.min + 50.640 * u.s).to(u.hour).value * 15 * u.deg,
-    (-( 0 * u.deg + 54 * u.arcmin + 56.543 * u.arcsec)).to(u.deg)
-),
-
-"OI158"     : SkyCoord(
-    ( 7 * u.hour + 38 * u.min +  7.394 * u.s).to(u.hour).value * 15 * u.deg,
-    (+(17 * u.deg + 42 * u.arcmin + 18.998 * u.arcsec)).to(u.deg)
-),
-"0735+178"  : SkyCoord(
-    ( 7 * u.hour + 38 * u.min +  7.394 * u.s).to(u.hour).value * 15 * u.deg,
-    (+(17 * u.deg + 42 * u.arcmin + 18.998 * u.arcsec)).to(u.deg)
-),
-
-"0738+313"  : SkyCoord(
-    ( 7 * u.hour + 41 * u.min + 10.703 * u.s).to(u.hour).value * 15 * u.deg,
-    (+(31 * u.deg + 12 * u.arcmin +  0.229 * u.arcsec)).to(u.deg)
-),
-
-"4C71.07"   : SkyCoord(
-    ( 8 * u.hour + 41 * u.min + 24.365 * u.s).to(u.hour).value * 15 * u.deg,
-    (+(70 * u.deg + 53 * u.arcmin + 42.173 * u.arcsec)).to(u.deg)
-),
-"0836+710"  : SkyCoord(
-    ( 8 * u.hour + 41 * u.min + 24.365 * u.s).to(u.hour).value * 15 * u.deg,
-    (+(70 * u.deg + 53 * u.arcmin + 42.173 * u.arcsec)).to(u.deg)
-),
-
-"OJ287"     : SkyCoord(
-    ( 8 * u.hour + 54 * u.min + 48.875 * u.s).to(u.hour).value * 15 * u.deg,
-    (+(20 * u.deg +  6 * u.arcmin + 30.641 * u.arcsec)).to(u.deg)
-),
-"0851+202"  : SkyCoord(
-    ( 8 * u.hour + 54 * u.min + 48.875 * u.s).to(u.hour).value * 15 * u.deg,
-    (+(20 * u.deg +  6 * u.arcmin + 30.641 * u.arcsec)).to(u.deg)
-),
-
-"4C39.25"   : SkyCoord(
-    ( 9 * u.hour + 27 * u.min +  3.014 * u.s).to(u.hour).value * 15 * u.deg,
-    (+(39 * u.deg +  2 * u.arcmin + 20.852 * u.arcsec)).to(u.deg)
-),
-"0923+392"  : SkyCoord(
-    ( 9 * u.hour + 27 * u.min +  3.014 * u.s).to(u.hour).value * 15 * u.deg,
-    (+(39 * u.deg +  2 * u.arcmin + 20.852 * u.arcsec)).to(u.deg)
-),
-
-"0954+65"   : SkyCoord(
-    ( 9 * u.hour + 58 * u.min + 47.245 * u.s).to(u.hour).value * 15 * u.deg,
-    (+(65 * u.deg + 33 * u.arcmin + 54.818 * u.arcsec)).to(u.deg)
-),
-"0954+658"  : SkyCoord(
-    ( 9 * u.hour + 58 * u.min + 47.245 * u.s).to(u.hour).value * 15 * u.deg,
-    (+(65 * u.deg + 33 * u.arcmin + 54.818 * u.arcsec)).to(u.deg)
-),
-
-"1055+018"  : SkyCoord(
-    (10 * u.hour + 58 * u.min + 29.605 * u.s).to(u.hour).value * 15 * u.deg,
-    (+( 1 * u.deg + 33 * u.arcmin + 58.824 * u.arcsec)).to(u.deg)
-),
-
-"MRK421"    : SkyCoord(
-    (11 * u.hour +  4 * u.min + 27.314 * u.s).to(u.hour).value * 15 * u.deg,
-    (+(38 * u.deg + 12 * u.arcmin + 31.799 * u.arcsec)).to(u.deg)
-),
-"1101+384"  : SkyCoord(
-    (11 * u.hour +  4 * u.min + 27.314 * u.s).to(u.hour).value * 15 * u.deg,
-    (+(38 * u.deg + 12 * u.arcmin + 31.799 * u.arcsec)).to(u.deg)
-),
-
-"1127-145"  : SkyCoord(
-    (11 * u.hour + 30 * u.min +  7.053 * u.s).to(u.hour).value * 15 * u.deg,
-    (-(14 * u.deg + 49 * u.arcmin + 27.388 * u.arcsec)).to(u.deg)
-),
-
-"4C29.45"   : SkyCoord(
-    (11 * u.hour + 59 * u.min + 31.834 * u.s).to(u.hour).value * 15 * u.deg,
-    (+(29 * u.deg + 14 * u.arcmin + 43.827 * u.arcsec)).to(u.deg)
-),
-"TON599"    : SkyCoord(
-    (11 * u.hour + 59 * u.min + 31.834 * u.s).to(u.hour).value * 15 * u.deg,
-    (+(29 * u.deg + 14 * u.arcmin + 43.827 * u.arcsec)).to(u.deg)
-),
-"1156+295"  : SkyCoord(
-    (11 * u.hour + 59 * u.min + 31.834 * u.s).to(u.hour).value * 15 * u.deg,
-    (+(29 * u.deg + 14 * u.arcmin + 43.827 * u.arcsec)).to(u.deg)
-),
-
-"4C21.35"   : SkyCoord(
-    (12 * u.hour + 24 * u.min + 54.458 * u.s).to(u.hour).value * 15 * u.deg,
-    (+(21 * u.deg + 22 * u.arcmin + 46.388 * u.arcsec)).to(u.deg)
-),
-"1222+216"  : SkyCoord(
-    (12 * u.hour + 24 * u.min + 54.458 * u.s).to(u.hour).value * 15 * u.deg,
-    (+(21 * u.deg + 22 * u.arcmin + 46.388 * u.arcsec)).to(u.deg)
-),
-
-"3C273"     : SkyCoord(
-    (12 * u.hour + 29 * u.min +  6.700 * u.s).to(u.hour).value * 15 * u.deg,
-    (+( 2 * u.deg +  3 * u.arcmin +  8.598 * u.arcsec)).to(u.deg)
-),
-"1226+023"  : SkyCoord(
-    (12 * u.hour + 29 * u.min +  6.700 * u.s).to(u.hour).value * 15 * u.deg,
-    (+( 2 * u.deg +  3 * u.arcmin +  8.598 * u.arcsec)).to(u.deg)
-),
-
-"M87"       : SkyCoord(
-    (12 * u.hour + 30 * u.min + 49.423 * u.s).to(u.hour).value * 15 * u.deg,
-    (+(12 * u.deg + 23 * u.arcmin + 28.044 * u.arcsec)).to(u.deg)
-),
-"1228+126"  : SkyCoord(
-    (12 * u.hour + 30 * u.min + 49.423 * u.s).to(u.hour).value * 15 * u.deg,
-    (+(12 * u.deg + 23 * u.arcmin + 28.044 * u.arcsec)).to(u.deg)
-),
-
-"3C279"     : SkyCoord(
-    (12 * u.hour + 56 * u.min + 11.167 * u.s).to(u.hour).value * 15 * u.deg,
-    (-( 5 * u.deg + 47 * u.arcmin + 21.525 * u.arcsec)).to(u.deg)
-),
-"1253-055"  : SkyCoord(
-    (12 * u.hour + 56 * u.min + 11.167 * u.s).to(u.hour).value * 15 * u.deg,
-    (-( 5 * u.deg + 47 * u.arcmin + 21.525 * u.arcsec)).to(u.deg)
-),
-
-"OP313"     : SkyCoord(
-    (13 * u.hour + 10 * u.min + 28.664 * u.s).to(u.hour).value * 15 * u.deg,
-    (+(32 * u.deg + 20 * u.arcmin + 43.783 * u.arcsec)).to(u.deg)
-),
-"1308+326"  : SkyCoord(
-    (13 * u.hour + 10 * u.min + 28.664 * u.s).to(u.hour).value * 15 * u.deg,
-    (+(32 * u.deg + 20 * u.arcmin + 43.783 * u.arcsec)).to(u.deg)
-),
-
-"3C286"     : SkyCoord(
-    (13 * u.hour + 31 * u.min +  8.288 * u.s).to(u.hour).value * 15 * u.deg,
-    (+(30 * u.deg + 30 * u.arcmin + 32.959 * u.arcsec)).to(u.deg)
-),
-"1328+307"  : SkyCoord(
-    (13 * u.hour + 31 * u.min +  8.288 * u.s).to(u.hour).value * 15 * u.deg,
-    (+(30 * u.deg + 30 * u.arcmin + 32.959 * u.arcsec)).to(u.deg)
-),
-
-"1510-089"  : SkyCoord(
-    (15 * u.hour + 12 * u.min + 50.533 * u.s).to(u.hour).value * 15 * u.deg,
-    (-( 9 * u.deg +  5 * u.arcmin + 59.830 * u.arcsec)).to(u.deg)
-),
-
-"APLibrae"  : SkyCoord(
-    (15 * u.hour + 17 * u.min + 41.813 * u.s).to(u.hour).value * 15 * u.deg,
-    (-(24 * u.deg + 22 * u.arcmin + 19.476 * u.arcsec)).to(u.deg)
-),
-"1514-241"  : SkyCoord(
-    (15 * u.hour + 17 * u.min + 41.813 * u.s).to(u.hour).value * 15 * u.deg,
-    (-(24 * u.deg + 22 * u.arcmin + 19.476 * u.arcsec)).to(u.deg)
-),
-
-"1553+113"  : SkyCoord(
-    (15 * u.hour + 55 * u.min + 43.044 * u.s).to(u.hour).value * 15 * u.deg,
-    (+(11 * u.deg + 11 * u.arcmin + 24.366 * u.arcsec)).to(u.deg)
-),
-
-"4C38.41"   : SkyCoord(
-    (16 * u.hour + 35 * u.min + 15.493 * u.s).to(u.hour).value * 15 * u.deg,
-    (+(38 * u.deg +  8 * u.arcmin +  4.501 * u.arcsec)).to(u.deg)
-),
-"1633+382"  : SkyCoord(
-    (16 * u.hour + 35 * u.min + 15.493 * u.s).to(u.hour).value * 15 * u.deg,
-    (+(38 * u.deg +  8 * u.arcmin +  4.501 * u.arcsec)).to(u.deg)
-),
-
-"NGC6251"   : SkyCoord(
-    (16 * u.hour + 32 * u.min + 31.970 * u.s).to(u.hour).value * 15 * u.deg,
-    (+(82 * u.deg + 32 * u.arcmin + 16.400 * u.arcsec)).to(u.deg)
-),
-
-"NRAO512"   : SkyCoord(
-    (16 * u.hour + 40 * u.min + 29.633 * u.s).to(u.hour).value * 15 * u.deg,
-    (+(39 * u.deg + 46 * u.arcmin + 46.028 * u.arcsec)).to(u.deg)
-),
-
-"3C345"     : SkyCoord(
-    (16 * u.hour + 42 * u.min + 58.810 * u.s).to(u.hour).value * 15 * u.deg,
-    (+(39 * u.deg + 48 * u.arcmin + 36.994 * u.arcsec)).to(u.deg)
-),
-"1641+399"  : SkyCoord(
-    (16 * u.hour + 42 * u.min + 58.810 * u.s).to(u.hour).value * 15 * u.deg,
-    (+(39 * u.deg + 48 * u.arcmin + 36.994 * u.arcsec)).to(u.deg)
-),
-
-"MRK501"    : SkyCoord(
-    (16 * u.hour + 53 * u.min + 52.217 * u.s).to(u.hour).value * 15 * u.deg,
-    (+(39 * u.deg + 45 * u.arcmin + 36.609 * u.arcsec)).to(u.deg)
-),
-"1652+398"  : SkyCoord(
-    (16 * u.hour + 53 * u.min + 52.217 * u.s).to(u.hour).value * 15 * u.deg,
-    (+(39 * u.deg + 45 * u.arcmin + 36.609 * u.arcsec)).to(u.deg)
-),
-
-"NRAO530"   : SkyCoord(
-    (17 * u.hour + 33 * u.min +  2.706 * u.s).to(u.hour).value * 15 * u.deg,
-    (-(13 * u.deg +  4 * u.arcmin + 49.548 * u.arcsec)).to(u.deg)
-),
-"1730-130"  : SkyCoord(
-    (17 * u.hour + 33 * u.min +  2.706 * u.s).to(u.hour).value * 15 * u.deg,
-    (-(13 * u.deg +  4 * u.arcmin + 49.548 * u.arcsec)).to(u.deg)
-),
-
-"1741-038"  : SkyCoord(
-    (17 * u.hour + 43 * u.min + 58.856 * u.s).to(u.hour).value * 15 * u.deg,
-    (-( 3 * u.deg + 50 * u.arcmin +  4.617 * u.arcsec)).to(u.deg)
-),
-
-"OT081"     : SkyCoord(
-    (17 * u.hour + 51 * u.min + 32.819 * u.s).to(u.hour).value * 15 * u.deg,
-    (+( 9 * u.deg + 39 * u.arcmin +  0.728 * u.arcsec)).to(u.deg)
-),
-"1749+096"  : SkyCoord(
-    (17 * u.hour + 51 * u.min + 32.819 * u.s).to(u.hour).value * 15 * u.deg,
-    (+( 9 * u.deg + 39 * u.arcmin +  0.728 * u.arcsec)).to(u.deg)
-),
-
-"1803+784"  : SkyCoord(
-    (18 * u.hour +  0 * u.min + 45.684 * u.s).to(u.hour).value * 15 * u.deg,
-    (+(78 * u.deg + 28 * u.arcmin +  4.018 * u.arcsec)).to(u.deg)
-),
-
-"3C371"     : SkyCoord(
-    (18 * u.hour +  6 * u.min + 50.681 * u.s).to(u.hour).value * 15 * u.deg,
-    (+(69 * u.deg + 49 * u.arcmin + 28.109 * u.arcsec)).to(u.deg)
-),
-"1807+698"  : SkyCoord(
-    (18 * u.hour +  6 * u.min + 50.681 * u.s).to(u.hour).value * 15 * u.deg,
-    (+(69 * u.deg + 49 * u.arcmin + 28.109 * u.arcsec)).to(u.deg)
-),
-
-"3C380"     : SkyCoord(
-    (18 * u.hour + 29 * u.min + 31.781 * u.s).to(u.hour).value * 15 * u.deg,
-    (+(48 * u.deg + 44 * u.arcmin + 46.161 * u.arcsec)).to(u.deg)
-),
-"1828+487"  : SkyCoord(
-    (18 * u.hour + 29 * u.min + 31.781 * u.s).to(u.hour).value * 15 * u.deg,
-    (+(48 * u.deg + 44 * u.arcmin + 46.161 * u.arcsec)).to(u.deg)
-),
-
-"1845+797"  : SkyCoord(
-    (18 * u.hour + 42 * u.min +  8.990 * u.s).to(u.hour).value * 15 * u.deg,
-    (+(79 * u.deg + 46 * u.arcmin + 17.128 * u.arcsec)).to(u.deg)
-),
-"3C390.3"   : SkyCoord(
-    (18 * u.hour + 42 * u.min +  8.990 * u.s).to(u.hour).value * 15 * u.deg,
-    (+(79 * u.deg + 46 * u.arcmin + 17.128 * u.arcsec)).to(u.deg)
-),
-
-"3C395"     : SkyCoord(
-    (19 * u.hour +  2 * u.min + 55.939 * u.s).to(u.hour).value * 15 * u.deg,
-    (+(31 * u.deg + 59 * u.arcmin + 41.702 * u.arcsec)).to(u.deg)
-),
-"1901+319"  : SkyCoord(
-    (19 * u.hour +  2 * u.min + 55.939 * u.s).to(u.hour).value * 15 * u.deg,
-    (+(31 * u.deg + 59 * u.arcmin + 41.702 * u.arcsec)).to(u.deg)
-),
-
-"4C73.18"   : SkyCoord(
-    (19 * u.hour + 27 * u.min + 48.495 * u.s).to(u.hour).value * 15 * u.deg,
-    (+(73 * u.deg + 58 * u.arcmin +  1.570   *u.arcsec)).to(u.deg
-    )),
-"1928+738"  : SkyCoord(
-    (19 * u.hour + 27 * u.min + 48.495 * u.s).to(u.hour).value * 15 * u.deg,
-    (+(73 * u.deg + 58 * u.arcmin +  1.570   *u.arcsec)).to(u.deg
-    )),
-
-"CYGNUSA"   : SkyCoord(
-    (19 * u.hour + 59 * u.min + 28.357 * u.s).to(u.hour).value * 15 * u.deg,
-    (+(40 * u.deg + 44 * u.arcmin +  2.097   *u.arcsec)).to(u.deg
-    )),
-"1957+405"  : SkyCoord(
-    (19 * u.hour + 59 * u.min + 28.357 * u.s).to(u.hour).value * 15 * u.deg,
-    (+(40 * u.deg + 44 * u.arcmin +  2.097   *u.arcsec)).to(u.deg
-    )),
-
-"1959+650"  : SkyCoord(
-    (19 * u.hour + 59 * u.min + 59.852 * u.s).to(u.hour).value * 15 * u.deg,
-    (+(65 * u.deg +  8 * u.arcmin + 54.652 * u.arcsec)).to(u.deg)
-),
-
-"2134+004"  : SkyCoord(
-    (21 * u.hour + 36 * u.min + 38.586 * u.s).to(u.hour).value * 15 * u.deg,
-    (+( 0 * u.deg + 41 * u.arcmin + 54.213 * u.arcsec)).to(u.deg)
-),
-
-"4C06.69"   : SkyCoord(
-    (21 * u.hour + 48 * u.min +  5.459 * u.s).to(u.hour).value * 15 * u.deg,
-    (+( 6 * u.deg + 57 * u.arcmin + 38.604 * u.arcsec)).to(u.deg)
-),
-"2145+067"  : SkyCoord(
-    (21 * u.hour + 48 * u.min +  5.459 * u.s).to(u.hour).value * 15 * u.deg,
-    (+( 6 * u.deg + 57 * u.arcmin + 38.604 * u.arcsec)).to(u.deg)
-),
-
-"BLLAC"     : SkyCoord(
-    (22 * u.hour +  2 * u.min + 43.291 * u.s).to(u.hour).value * 15 * u.deg,
-    (+(42 * u.deg + 16 * u.arcmin + 39.980 * u.arcsec)).to(u.deg)
-),
-"2200+420"  : SkyCoord(
-    (22 * u.hour +  2 * u.min + 43.291 * u.s).to(u.hour).value * 15 * u.deg,
-    (+(42 * u.deg + 16 * u.arcmin + 39.980 * u.arcsec)).to(u.deg)
-),
-
-"4C31.63"   : SkyCoord(
-    (22 * u.hour +  3 * u.min + 14.976 * u.s).to(u.hour).value * 15 * u.deg,
-    (+(31 * u.deg + 45 * u.arcmin + 38.270 * u.arcsec)).to(u.deg)
-),
-"2201+315"  : SkyCoord(
-    (22 * u.hour +  3 * u.min + 14.976 * u.s).to(u.hour).value * 15 * u.deg,
-    (+(31 * u.deg + 45 * u.arcmin + 38.270 * u.arcsec)).to(u.deg)
-),
-
-"3C446"     : SkyCoord(
-    (22 * u.hour + 25 * u.min + 47.259 * u.s).to(u.hour).value * 15 * u.deg,
-    (-( 4 * u.deg + 57 * u.arcmin +  1.391 * u.arcsec)).to(u.deg)
-),
-"2223-052"  : SkyCoord(
-    (22 * u.hour + 25 * u.min + 47.259 * u.s).to(u.hour).value * 15 * u.deg,
-    (-( 4 * u.deg + 57 * u.arcmin +  1.391 * u.arcsec)).to(u.deg)
-),
-
-"2227-088"  : SkyCoord(
-    (22 * u.hour + 29 * u.min + 40.084 * u.s).to(u.hour).value * 15 * u.deg,
-    (-( 8 * u.deg + 32 * u.arcmin + 54.436 * u.arcsec)).to(u.deg)
-),
-
-"CTA102"    : SkyCoord(
-    (22 * u.hour + 32 * u.min + 36.409 * u.s).to(u.hour).value * 15 * u.deg,
-    (+(11 * u.deg + 43 * u.arcmin + 50.904 * u.arcsec)).to(u.deg)
-),
-"2230+114"  : SkyCoord(
-    (22 * u.hour + 32 * u.min + 36.409 * u.s).to(u.hour).value * 15 * u.deg,
-    (+(11 * u.deg + 43 * u.arcmin + 50.904 * u.arcsec)).to(u.deg)
-),
-
-"3C454.3"   : SkyCoord(
-    (22 * u.hour + 53 * u.min + 57.748 * u.s).to(u.hour).value * 15 * u.deg,
-    (+(16 * u.deg +  8 * u.arcmin + 53.561 * u.arcsec)).to(u.deg)
-),
-"2251+158"  : SkyCoord(
-    (22 * u.hour + 53 * u.min + 57.748 * u.s).to(u.hour).value * 15 * u.deg,
-    (+(16 * u.deg +  8 * u.arcmin + 53.561 * u.arcsec)).to(u.deg)
-),
-
-"4C45.51"   : SkyCoord(
-    (23 * u.hour + 54 * u.min + 21.680 * u.s).to(u.hour).value * 15 * u.deg,
-    (+(45 * u.deg + 53 * u.arcmin +  4.236 * u.arcsec)).to(u.deg)
-),
-"2351+456"  : SkyCoord(
-    (23 * u.hour + 54 * u.min + 21.680 * u.s).to(u.hour).value * 15 * u.deg,
-    (+(45 * u.deg + 53 * u.arcmin +  4.236 * u.arcsec)).to(u.deg)
-),
-
-"3C48"      : SkyCoord(
-    ( 1 * u.hour + 37 * u.min + 41.299 * u.s).to(u.hour).value * 15 * u.deg,
-    (+(33 * u.deg +  9 * u.arcmin + 35.134 * u.arcsec)).to(u.deg)
-),
-"3C147"     : SkyCoord(
-    ( 5 * u.hour + 42 * u.min + 36.138 * u.s).to(u.hour).value * 15 * u.deg,
-    (+(49 * u.deg + 51 * u.arcmin +  7.233 * u.arcsec)).to(u.deg)
-),
-"3C138"     : SkyCoord(
-    ( 5 * u.hour + 21 * u.min +  9.886 * u.s).to(u.hour).value * 15 * u.deg,
-    (+(16 * u.deg + 38 * u.arcmin + 22.052 * u.arcsec)).to(u.deg)
-),
-"SGRA"      : SkyCoord(
-    (17 * u.hour + 45 * u.min + 40.041 * u.s).to(u.hour).value * 15 * u.deg,
-    (-(29 * u.deg +  0 * u.arcmin + 28.118 * u.arcsec)).to(u.deg)
-),
-
-
-"R-LEO"     : SkyCoord(
-    ( 9 * u.hour + 47 * u.min + 33.490 * u.s).to(u.hour).value * 15 * u.deg,
-    (+(11 * u.deg + 25 * u.arcmin + 43.700 * u.arcsec)).to(u.deg)
-),
-"R-CAS"     : SkyCoord(
-    (23 * u.hour + 58 * u.min + 24.870 * u.s).to(u.hour).value * 15 * u.deg,
-    (+(51 * u.deg + 23 * u.arcmin + 19.700 * u.arcsec)).to(u.deg)
-),
-"IK-TAU"    : SkyCoord(
-    ( 3 * u.hour + 53 * u.min + 28.870 * u.s).to(u.hour).value * 15 * u.deg,
-    (+(11 * u.deg + 24 * u.arcmin + 21.700 * u.arcsec)).to(u.deg)
-),
-"U-HER"     : SkyCoord(
-    (16 * u.hour + 25 * u.min + 47.470 * u.s).to(u.hour).value * 15 * u.deg,
-    (+(18 * u.deg + 53 * u.arcmin + 32.900 * u.arcsec)).to(u.deg)
-),
-"CHI-CYG"   : SkyCoord(
-    (19 * u.hour + 50 * u.min + 33.920 * u.s).to(u.hour).value * 15 * u.deg,
-    (+(32 * u.deg + 54 * u.arcmin + 50.600 * u.arcsec)).to(u.deg)
-),
-"W-HYA"     : SkyCoord(
-    (13 * u.hour + 49 * u.min +  2.000 * u.s).to(u.hour).value * 15 * u.deg,
-    (-(28 * u.deg + 22 * u.arcmin +  3.500 * u.arcsec)).to(u.deg)
-),
-"VY-CMA"    : SkyCoord(
-    ( 7 * u.hour + 22 * u.min + 58.330 * u.s).to(u.hour).value * 15 * u.deg,
-    (-(25 * u.deg + 46 * u.arcmin +  3.200 * u.arcsec)).to(u.deg)
-),
-"ORION"     : SkyCoord(
-    ( 5 * u.hour + 35 * u.min + 14.160 * u.s).to(u.hour).value * 15 * u.deg,
-    (-( 5 * u.deg + 22 * u.arcmin + 30.630 * u.arcsec)).to(u.deg)
-),
-"TX-CAM"    : SkyCoord(
-    ( 5 * u.hour +  0 * u.min + 50.390 * u.s).to(u.hour).value * 15 * u.deg,
-    (+(56 * u.deg + 10 * u.arcmin + 52.600 * u.arcsec)).to(u.deg)
-),
-
-}
+_SOURCES = [
+    # AGNs
+    ("NRAO005",    "00h06m13.893s",  "-06d23m35.335s", ["0003-066"]),
+    ("3C48",       "01h37m41.299s",  "+33d09m35.134s", []),
+    ("3C66A",      "02h22m39.611s",  "+43d02m07.799s", ["0219+428"]),
+    ("0235+164",   "02h38m38.930s",  "+16d36m59.275s", ["0235+16"]),
+    ("0238-084",   "02h41m04.799s",  "-08d15m20.752s", ["NGC1052"]),
+    ("3C84",       "03h19m48.160s",  "+41d30m42.106s", ["0316+413"]),
+    ("1H0323+342", "03h24m41.161s",  "+34d10m45.858s", ["0321+340"]),
+    ("NRAO140",    "03h36m30.108s",  "+32d18m29.342s", ["0333+321"]),
+    ("NRAO150",    "03h59m29.747s",  "+50d57m50.162s", ["0355+508"]),
+    ("3C111",      "04h18m21.277s",  "+38d01m35.800s", ["0415+379"]),
+    ("0420-01",    "04h23m15.801s",  "-01d20m33.066s", ["0420-014"]),
+    ("3C120",      "04h33m11.096s",  "+05d21m15.619s", ["0430+052"]),
+    ("0446+112",   "04h49m07.671s",  "+11d21m28.596s", []),
+    ("0506+056",   "05h09m25.964s",  "+05d41m35.334s", []),
+    ("3C138",      "05h21m09.886s",  "+16d38m22.052s", []),
+    ("0528+134",   "05h30m56.417s",  "+13d31m55.150s", []),
+    ("CRAB",       "05h34m31.5348s", "+22d00m27.697s", []),
+    ("CRAB2",      "05h34m31.971s",  "+22d00m52.060s", []),
+    ("3C147",      "05h42m36.138s",  "+49d51m07.233s", []),
+    ("0552+398",   "05h55m30.806s",  "+39d48m49.165s", ["DA193"]),
+    ("0716+714",   "07h21m53.448s",  "+71d20m36.363s", []),
+    ("0723-008",   "07h25m50.640s",  "-00d54m56.543s", []),
+    ("OI158",      "07h38m07.394s",  "+17d42m18.998s", ["0735+178"]),
+    ("0738+313",   "07h41m10.703s",  "+31d12m00.229s", []),
+    ("4C71.07",    "08h41m24.365s",  "+70d53m42.173s", ["0836+710"]),
+    ("OJ287",      "08h54m48.875s",  "+20d06m30.641s", ["0851+202"]),
+    ("4C39.25",    "09h27m03.014s",  "+39d02m20.852s", ["0923+392"]),
+    ("0954+65",    "09h58m47.245s",  "+65d33m54.818s", ["0954+658"]),
+    ("1055+018",   "10h58m29.605s",  "+01d33m58.824s", []),
+    ("MRK421",     "11h04m27.314s",  "+38d12m31.799s", ["1101+384"]),
+    ("1127-145",   "11h30m07.053s",  "-14d49m27.388s", []),
+    ("4C29.45",    "11h59m31.834s",  "+29d14m43.827s", ["TON599", "1156+295"]),
+    ("4C21.35",    "12h24m54.458s",  "+21d22m46.388s", ["1222+216"]),
+    ("3C273",      "12h29m06.700s",  "+02d03m08.598s", ["1226+023"]),
+    ("M87",        "12h30m49.423s",  "+12d23m28.044s", ["1228+126"]),
+    ("3C279",      "12h56m11.167s",  "-05d47m21.525s", ["1253-055"]),
+    ("OP313",      "13h10m28.664s",  "+32d20m43.783s", ["1308+326"]),
+    ("3C286",      "13h31m08.288s",  "+30d30m32.959s", ["1328+307"]),
+    ("1510-089",   "15h12m50.533s",  "-09d05m59.830s", []),
+    ("APLibrae",   "15h17m41.813s",  "-24d22m19.476s", ["1514-241"]),
+    ("1553+113",   "15h55m43.044s",  "+11d11m24.366s", []),
+    ("NGC6251",    "16h32m31.970s",  "+82d32m16.400s", []),
+    ("4C38.41",    "16h35m15.493s",  "+38d08m04.501s", ["1633+382"]),
+    ("NRAO512",    "16h40m29.633s",  "+39d46m46.028s", []),
+    ("3C345",      "16h42m58.810s",  "+39d48m36.994s", ["1641+399"]),
+    ("MRK501",     "16h53m52.217s",  "+39d45m36.609s", ["1652+398"]),
+    ("1725+123",   "17h28m07.051s",  "+12d15m39.486s", []),
+    ("NRAO530",    "17h33m02.706s",  "-13d04m49.548s", ["1730-130"]),
+    ("1741-038",   "17h43m58.856s",  "-03d50m04.617s", []),
+    ("SGRA",       "17h45m40.041s",  "-29d00m28.118s", []),
+    ("OT081",      "17h51m32.819s",  "+09d39m00.728s", ["1749+096"]),
+    ("1803+784",   "18h00m45.684s",  "+78d28m04.018s", []),
+    ("3C371",      "18h06m50.681s",  "+69d49m28.109s", ["1807+698"]),
+    ("3C380",      "18h29m31.781s",  "+48d44m46.161s", ["1828+487"]),
+    ("1845+797",   "18h42m08.990s",  "+79d46m17.128s", ["3C390.3"]),
+    ("3C395",      "19h02m55.939s",  "+31d59m41.702s", ["1901+319"]),
+    ("4C73.18",    "19h27m48.495s",  "+73d58m01.570s", ["1928+738"]),
+    ("CYGNUSA",    "19h59m28.357s",  "+40d44m02.097s", ["1957+405"]),
+    ("1959+650",   "19h59m59.852s",  "+65d08m54.652s", []),
+    ("2134+004",   "21h36m38.586s",  "+00d41m54.213s", []),
+    ("4C06.69",    "21h48m05.459s",  "+06d57m38.604s", ["2145+067"]),
+    ("BLLAC",      "22h02m43.291s",  "+42d16m39.980s", ["2200+420"]),
+    ("4C31.63",    "22h03m14.976s",  "+31d45m38.270s", ["2201+315"]),
+    ("3C446",      "22h25m47.259s",  "-04d57m01.391s", ["2223-052"]),
+    ("2227-088",   "22h29m40.084s",  "-08d32m54.436s", []),
+    ("CTA102",     "22h32m36.409s",  "+11d43m50.904s", ["2230+114"]),
+    ("3C454.3",    "22h53m57.748s",  "+16d08m53.561s", ["2251+158"]),
+    ("4C45.51",    "23h54m21.680s",  "+45d53m04.236s", ["2351+456"]),
+
+    # Maser / late-type stars
+    ("R-LEO",      "09h47m33.490s",  "+11d25m43.700s", []),
+    ("R-CAS",      "23h58m24.870s",  "+51d23m19.700s", []),
+    ("IK-TAU",     "03h53m28.870s",  "+11d24m21.700s", []),
+    ("U-HER",      "16h25m47.470s",  "+18d53m32.900s", []),
+    ("CHI-CYG",    "19h50m33.920s",  "+32d54m50.600s", []),
+    ("W-HYA",      "13h49m02.000s",  "-28d22m03.500s", []),
+    ("VY-CMA",     "07h22m58.330s",  "-25d46m03.200s", []),
+    ("ORION",      "05h35m14.160s",  "-05d22m30.630s", []),
+    ("TX-CAM",     "05h00m50.390s",  "+56d10m52.600s", []),
+]
+
+source_positions = {}
+for _name, _ra, _dec, _aliases in _SOURCES:
+    _coord = SkyCoord(_ra, _dec)
+    source_positions[_name] = _coord
+    for _alias in _aliases:
+        source_positions[_alias] = _coord

@@ -1,33 +1,64 @@
 
-import os
-import sys
 import numpy as np
-import numpy.lib.recfunctions as rfn
-from astropy import units as u
+from astropy import units as au
 
-nan = np.nan
-r2m = u.rad.to(u.mas)
-d2m = u.rad.to(u.mas)
+r2m = au.rad.to(au.mas)
+d2m = au.rad.to(au.mas)
 
 
-def gvis(args, S):
+def dvis(args, sq, su, l, m):
     """
-        Arguments:
-            args (tuple): input sub-arguments
-                args[0] (1D-array): u-axis data points
-                args[1] (1D-array): v-axis data points
-            S (float): flux density of the Gaussian model
-            fwhm (float): full-width at half maximum of the Gaussian model
-            r (float): raidus of the Gaussian model from (0,0) position
-            p (float): position angle of the Guassian model (jet direction, north-to-east // top-to-left in RA-DEC map)
-        Returns:
-            complex visibility of the Gaussian model
+    Args:
+        args (tuple): input sub-arguments
+            args[0] (1D-array): u-axis data points
+            args[1] (1D-array): v-axis data points
+        sq (float): flux density for Stokes Q
+        su (float): flux density for Stokes U
+        l (float): right ascension position
+        m (float): declination position
+    Returns:
+        complex visibility of delta-function model
     """
-    fwhm = args[2]
-    l = args[3]
-    m = args[4]
-    uu = args[0] / r2m
-    vv = args[1] / r2m
-    a = fwhm / (2 * np.sqrt(2 * np.log(2)))
-    visibility = S * np.exp(-2 * np.pi**2 * a**2 * (uu**2 + vv**2) + 2j * np.pi * (uu * l + vv * m))
-    return visibility.astype("c8")
+    u = args[0] / r2m
+    v = args[1] / r2m
+    sigma = fwhm / (2 * (2 * np.log(2))**0.5)
+    sp = (sq**2 + su**2)**0.5
+    evpa = 0.5 * np.arctan2(su, sq)
+    gvis = (
+        sp
+        * np.exp(2j * np.pi * (u * l + v * m))
+    )
+    out_q = gvis * np.cos(2 * evpa)
+    out_u = gvis * np.sin(2 * evpa)
+
+    return out_q.astype("c8"), out_u.astype("c8")
+
+
+def gvis(args, sq, su, fwhm, l, m):
+    """
+    Args:
+        args (tuple): input sub-arguments
+            args[0] (1D-array): u-axis data points
+            args[1] (1D-array): v-axis data points
+        sq (float): flux density for Stokes Q
+        su (float): flux density for Stokes U
+        fwhm (float): full-width at half maximum
+        l (float): right ascension position
+        m (float): declination position
+    Returns:
+        complex visibility of Gaussian model
+    """
+    u = args[0] / r2m
+    v = args[1] / r2m
+    sigma = fwhm / (2 * (2 * np.log(2))**0.5)
+    sp = (sq**2 + su**2)**0.5
+    evpa = 0.5 * np.arctan2(su, sq)
+    gvis = (
+        sp
+        * np.exp(-2 * np.pi**2 * sigma**2 * (u**2 + v**2))
+        * np.exp(2j * np.pi * (u * l + v * m))
+    )
+    out_q = gvis * np.cos(2 * evpa)
+    out_u = gvis * np.sin(2 * evpa)
+
+    return out_q.astype("c8"), out_u.astype("c8")

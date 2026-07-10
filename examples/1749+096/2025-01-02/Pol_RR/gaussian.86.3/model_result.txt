@@ -1,0 +1,10 @@
+# FLUX    RADIUS    POS.A    FWHM
+# (86.3 GHz) Model 1:  1.873v  0.000v    0.000v  0.077v
+# (86.3 GHz) Model 2:  0.092v  1.269v    8.636v  0.942v
+Chi2_amp      :      1.251 | AIC_amp       :  -5863.357 | BIC_amp       :  -5792.439
+Chi2_clamp    :      0.377 | AIC_clamp     :  -1181.392 | BIC_clamp     :  -1110.474
+Chi2_clphs    :      0.989 | AIC_clphs     :  -1496.030 | BIC_clphs     :  -1425.112
+Chi2_tot :    2.617
+AIC_tot  : -8540.780
+BIC_tot  : -8328.024
+logz : 8406.157 +/- 0.170

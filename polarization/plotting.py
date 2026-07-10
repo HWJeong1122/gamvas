@@ -14,13 +14,12 @@ import matplotlib.cm as cm
 from matplotlib.ticker import (MultipleLocator, AutoMinorLocator)
 from astropy.convolution import convolve, Gaussian2DKernel
 from astropy.modeling.models import Gaussian2D
-from astropy.time import Time as Ati
-from astropy import units as u
+from astropy.time import Time as atime
+from astropy import units as au
 from dynesty import plotting as dyplot
 from dynesty.utils import quantile as dyquan
 
-import gamvas
-
+import gamvas as gv
 
 class plotter:
     def __init__(
@@ -96,7 +95,7 @@ class plotter:
 
         if save_csv:
             save_path_ = save_path + "plot_cgain/"
-            gamvas.utils.mkdir(save_path_)
+            gv.utils.mkdir(save_path_)
             if truth is not None:
                 out_gain = pd.DataFrame([])
                 for ngain, gain in enumerate(truth):
@@ -111,7 +110,7 @@ class plotter:
                 ant2_ = data["ant_name2"][freqs == freq]
                 cgain1_ = cgain1[freqs == freq]
                 cgain2_ = cgain2[freqs == freq]
-                out_csv = gamvas.utils.sarray(
+                out_csv = gv.utils.structured_array(
                     data =[time_, ant1_, ant2_, cgain1_, cgain2_],
                     field=["time", "ant_name1", "ant_name2", "gain1", "gain2"],
                     dtype=["f8", "U32", "U32", "c8", "c8"]
@@ -125,7 +124,7 @@ class plotter:
             cgain1_ = cgain1[freqs == freq]
             cgain2_ = cgain2[freqs == freq]
             amplim = [0.9*min(np.nanmin(np.abs(cgain1_)), np.nanmin(np.abs(cgain2_))), 1.1*max(np.nanmax(np.abs(cgain1_)), np.nanmax(np.abs(cgain2_)))]
-            newdat = gamvas.utils.sarray(
+            newdat = gv.utils.structured_array(
                 data =[data_["time"], data_["ant_name1"], data_["ant_name2"], cgain1_, cgain2_],
                 field=["time", "ant_name1", "ant_name2", "cgain1", "cgain2"],
                 dtype=["f8", "U32", "U32", "c8", "c8"])
@@ -175,7 +174,7 @@ class plotter:
                 fig_cgain.tight_layout()
                 if save_name:
                     save_path_ = save_path + "plot_cgain/"
-                    gamvas.utils.mkdir(save_path_)
+                    gv.utils.mkdir(save_path_)
                     save_name_ = save_name + f".{freq:.0f}.{i+1}"
                     fig_cgain.savefig(f"{save_path_}" + f"{save_name_}.{save_form}", format=save_form, dpi=200)
                 if plotimg:
@@ -202,7 +201,7 @@ class plotter:
             }
 
         if save_path:
-            gamvas.utils.mkdir(save_path)
+            gv.utils.mkdir(save_path)
 
         data = uvf.data
 
@@ -276,7 +275,7 @@ class plotter:
         save_path=False, save_name=False, save_form="png"
     ):
         if save_path:
-            gamvas.utils.mkdir(save_path)
+            gv.utils.mkdir(save_path)
         data = uvf.data
         if uvf.select == "mf":
             clrs = ["tab:blue", "tab:green", "tab:olive", "tab:purple", "tab:orange", "tab:gray"]
@@ -293,11 +292,11 @@ class plotter:
 
         vis = np.where(data["u"] < 0, vis.conj(), vis)
         amp = np.abs(vis)
-        phs = np.angle(vis) * u.rad.to(u.deg)
+        phs = np.angle(vis) * au.rad.to(au.deg)
 
         sig_a = sig
-        sig_p = sig/np.abs(vis) * u.rad.to(u.deg)
-        date = Ati(data["mjd"], format="mjd").iso[0][:10]
+        sig_p = sig/np.abs(vis) * au.rad.to(au.deg)
+        date = atime(data["mjd"], format="mjd").iso[0][:10]
 
         fsize=16
         maxphs = 1.2*np.nanmax([np.abs(phs-sig_p), np.abs(phs+sig_p)])
@@ -376,7 +375,7 @@ class plotter:
         if plot_vism:
             vism = np.where(data["u"] < 0, data["vism"].conj(), data["vism"])
             ampm = np.abs(vism)
-            phsm = np.angle(vism) * u.rad.to(u.deg)
+            phsm = np.angle(vism) * au.rad.to(au.deg)
             ax_radplot_a.scatter(uvd/1e6, ampm, marker="s", s=7, c="red", zorder=2, label="model")
             ax_radplot_p.scatter(uvd/1e6, phsm, marker="s", s=7, c="red", zorder=2)
         ax_radplot_a.legend(ncol=10)
@@ -418,18 +417,18 @@ class plotter:
         save_path=False, save_name=False, save_form="png"
     ):
         if save_path:
-            gamvas.utils.mkdir(save_path)
+            gv.utils.mkdir(save_path)
         select = uvf.select.upper()
         data = uvf.data
         vis = data["vis"]
 
         amp1 = np.abs(vis)
-        phs1 = np.angle(vis) * u.rad.to(u.deg)
+        phs1 = np.angle(vis) * au.rad.to(au.deg)
         amp2 = np.abs(vis)
-        phs2 = np.angle(vis) * u.rad.to(u.deg)
+        phs2 = np.angle(vis) * au.rad.to(au.deg)
         uu = data["u"] / 1e6
         vv = data["v"] / 1e6
-        date= Ati(data["mjd"], format="mjd").iso[0][:10]
+        date= atime(data["mjd"], format="mjd").iso[0][:10]
 
 
         rng_a = 1.0 * np.max(np.abs(amp1))
@@ -490,7 +489,7 @@ class plotter:
         save_path=False, save_name=False, save_form="png"
     ):
         if save_path:
-            gamvas.utils.mkdir(save_path)
+            gv.utils.mkdir(save_path)
         data = uvf.data
         uu = data["u"]
         vv = data["v"]
@@ -514,7 +513,7 @@ class plotter:
         uvdir = np.zeros((npix, npix))
         uvbim = np.zeros((npix, npix))
 
-        xlist = -np.linspace(-uvf.mrng.value, uvf.mrng.value, npix) * u.mas.to(u.rad)
+        xlist = -np.linspace(-uvf.mrng.value, uvf.mrng.value, npix) * au.mas.to(au.rad)
         ygrid, xgrid = np.meshgrid(xlist, xlist)
         for i in range(npix):
             xset = xgrid[i, :].reshape(-1, 1)
@@ -534,9 +533,9 @@ class plotter:
             uvdir[nloc] = -uvdir[nloc]
             uvdir[ploc] = -uvdir[ploc]
 
-        scale = np.max(uvbim)/uu.size
-        uvbim /= scale*uu.size
-        uvdir /= scale*uu.size
+        scale = np.max(uvbim) / uu.size
+        uvbim /= scale * uu.size
+        uvdir /= scale * uu.size
 
         max_bim = np.max(uvbim)
         max_dir = np.max(uvdir)
@@ -555,8 +554,8 @@ class plotter:
         else:
             dirtitle = r"$\rm dirty~map~(I_{\rm peak}$="+f"{max_dir:.2f} Jy)"
 
-        xgrid *= u.rad.to(u.mas)
-        ygrid *= u.rad.to(u.mas)
+        xgrid *= au.rad.to(au.mas)
+        ygrid *= au.rad.to(au.mas)
         fsize = 15
         fig_dirmap, ax_map = plt.subplots(1, 2, figsize=(fsize, fsize * 10 / 16))
         ax_bim = ax_map[0]
@@ -619,7 +618,7 @@ class plotter:
             spectrum = self.spectrum
 
         save_path = save_path + "plot_tr/"
-        gamvas.utils.mkdir(save_path)
+        gv.utils.mkdir(save_path)
         nidx = 1
         sidx = [0]
         for i in range(nmod):
@@ -723,7 +722,7 @@ class plotter:
             spectrum = self.spectrum
 
         save_path = save_path + "plot_cn/"
-        gamvas.utils.mkdir(save_path)
+        gv.utils.mkdir(save_path)
         nidx = 1
         sidx = [0]
         for i in range(nmod):
@@ -816,7 +815,7 @@ class plotter:
         """
         if save_path is not None:
             save_path_ = save_path + f"/plot_{type}/"
-            gamvas.utils.mkdir(save_path_)
+            gv.utils.mkdir(save_path_)
         if type in ["amp", "clamp"]:
             clq_obs = self.clq_obs[0]
             if model:
@@ -886,7 +885,7 @@ class plotter:
                     close_figure(fig_clamp)
 
         if type in ["phs", "clphs"]:
-            r2d = u.rad.to(u.deg)
+            r2d = au.rad.to(au.deg)
             clq_obs = self.clq_obs[1]
             if model:
                 clq_mod = self.clq_mod[1]
@@ -1075,8 +1074,8 @@ class plotter:
             vmin = cmap_snr_i*rms
             vmax = np.nanmax(image)
 
-        ra = uvf.fits_grid_ra*u.deg.to(u.mas)
-        dec = uvf.fits_grid_dec*u.deg.to(u.mas)
+        ra = uvf.fits_grid_ra * au.deg.to(au.mas)
+        dec = uvf.fits_grid_dec * au.deg.to(au.mas)
         norm_i = mpl.colors.Normalize(vmin=np.abs(vmin), vmax=np.abs(vmax))
         colormapping_i = cm.ScalarMappable(norm=norm_i, cmap=cmap)
         if select.lower() != "p":
@@ -1273,7 +1272,7 @@ class plotter:
                         else:
                             prm_l_ = prms[f"{i+1}_l"]
                             prm_m_ = prms[f"{i+1}_m"]
-                        S = gamvas.functions.S_spl(freq_ref, freq, prm_S_, prm_i_)
+                        S = gv.functions.spl(freq_ref, freq, prm_S_, prm_i_)
                     elif spectrum in ["cpl", "ssa"]:
                         prm_f_ = prms[f"{i+1}_freq"]
                         if i == 0:
@@ -1285,20 +1284,20 @@ class plotter:
                             prm_m_ = prms[f"{i+1}_m"]
                         if spectrum in ["cpl"]:
                             if i == 0:
-                                S = gamvas.functions.S_cpl(freq, prm_S_, prm_f_, prm_i_)
+                                S = gv.functions.cpl(freq, prm_S_, prm_f_, prm_i_)
                             else:
                                 if mask_sindex:
-                                    S = gamvas.functions.S_spl(freq_ref, freq, prm_S_, prm_i_)
+                                    S = gv.functions.spl(freq_ref, freq, prm_S_, prm_i_)
                                 else:
-                                    S = gamvas.functions.S_cpl(freq, prm_S_, prm_f_, prm_i_)
+                                    S = gv.functions.cpl(freq, prm_S_, prm_f_, prm_i_)
                         elif spectrum in ["ssa"]:
                             if i == 0:
-                                S = gamvas.functions.SSA(freq, prm_S_, prm_f_, prm_i_)
+                                S = gv.functions.ssa(freq, prm_S_, prm_f_, prm_i_)
                             else:
                                 if mask_sindex:
-                                    S = gamvas.functions.S_spl(freq_ref, freq, prm_S_, prm_i_)
+                                    S = gv.functions.spl(freq_ref, freq, prm_S_, prm_i_)
                                 else:
-                                    S = gamvas.functions.SSA(freq, prm_S_, prm_f_, prm_i_)
+                                    S = gv.functions.ssa(freq, prm_S_, prm_f_, prm_i_)
                 else:
                     if i == 0:
                         prm_l_ = 0
@@ -1346,7 +1345,10 @@ class plotter:
         kmin = bmin/np.sqrt(8*np.log(2))/psize
         kmaj = bmaj/np.sqrt(8*np.log(2))/psize
 
-        gauss_kernel = Gaussian2DKernel(x_stddev=kmin, y_stddev=kmaj, theta=(bpa+90)*u.deg)
+        gauss_kernel = Gaussian2DKernel(
+            x_stddev=kmin, y_stddev=kmaj,
+            theta=(bpa + 90) * au.deg
+        )
         conv_image = convolve(image, gauss_kernel, normalize_kernel=True)
         conv_image = bsize * conv_image
         return conv_image
@@ -1382,7 +1384,7 @@ class plotter:
             addnoise (bool): if True, the noise in the residual map will be added to the final image
         """
         if save_path:
-            gamvas.utils.mkdir(save_path)
+            gv.utils.mkdir(save_path)
         if freq_ref is None:
             freq_ref = self.freq_ref
         if freq is None:
