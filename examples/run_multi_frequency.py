@@ -161,8 +161,8 @@ if __name__ == "__main__":
     # check plot (uv-coverage)
     uvf.ploter.draw_dirtymap(uvf, plotimg=True)
 
-    # NOTE: in multi-frequency framework, amplitude should be included
     # define fit type & weight
+    # NOTE: in multi-frequency framework, amplitude should be included
     ftype = ["amp", "clamp", "clphs"]
     fwght = [0.1, 1, 1]
 
