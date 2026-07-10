@@ -167,11 +167,11 @@ if __name__ == "__main__":
     fwght = [0.1, 1, 1]
 
     mfu = gv.modeling.modeling(
-        uvfs=uvfs, select_pol=select_pol, factor_sblf=1.5, ftype=ftype,
-        fwght=fwght, ufreq=ufreq, bands=bands, spectrum=spectrum, maxn=maxn,
-        fixnmod=fixnmod, mapfov=mapfov, bnd_a=bnd_a, bnd_l=bnd_l, bnd_m=bnd_m,
-        path_fig=path_fig_, source=source, date=date, ncpu=ncpu, model=model,
-        boundset=boundset
+        uvfs=uvfs, select_pol=select_pol, sampler="slice", factor_sblf=1.5,
+        ftype=ftype, fwght=fwght, ufreq=ufreq, bands=bands, spectrum=spectrum,
+        maxn=maxn, fixnmod=fixnmod, mapfov=mapfov, bnd_a=bnd_a, bnd_l=bnd_l,
+        bnd_m=bnd_m, path_fig=path_fig_, source=source, date=date, ncpu=ncpu,
+        model=model, boundset=boundset
     )
     mfu.run()
 
