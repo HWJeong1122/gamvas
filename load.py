@@ -5046,7 +5046,7 @@ class open_fits:
                         x_masked = X[mask]
                         sig_masked = sig_thermal[mask]
 
-                        if x_masked.size < 3:
+                        if x_masked.size < 2:
                             _fsys = 0.0
                         else:
                             _fsys = optimize.minimize_scalar(

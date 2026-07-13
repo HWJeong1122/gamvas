@@ -120,7 +120,7 @@ if __name__ == "__main__":
     bnd_l = [[-1, +1], [-1, +3], [-1, +6], [-1, +6]] # (RA, mas)
     bnd_m = [[-1, +1], [-1, +4], [-1, +6], [-1, +6]] # (Dec, mas)
     bnd_f = [[fmin, fmax], [fmin, fmax],
-             [fmin, fmax], [fmin, fmax]] # (turnover freq, Hz)
+             [fmin, fmax], [fmin, fmax]] # (turnover freq, GHz)
     bnd_i = [[-3, 0], [-3, 0], [-3, 0], [-3, 0]] # (spectral index)
     boundset = (bnd_s, bnd_a, bnd_l, bnd_m, bnd_f, bnd_i)
 
