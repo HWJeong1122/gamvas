@@ -123,6 +123,9 @@ if __name__ == "__main__":
              [fmin, fmax], [fmin, fmax]] # (turnover freq, GHz)
     bnd_i = [[-3, 0], [-3, 0], [-3, 0], [-3, 0]] # (spectral index)
     boundset = (bnd_s, bnd_a, bnd_l, bnd_m, bnd_f, bnd_i)
+    # NOTE:
+    #     if spectrum == 'flat',
+    #     spectral properties ('bnd_f', 'bnd_i') are not utilized
 
     # basic information
     source = uvf.source
