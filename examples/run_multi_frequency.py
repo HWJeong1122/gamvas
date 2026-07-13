@@ -117,8 +117,8 @@ if __name__ == "__main__":
     uvf = gv.utils.set_uvf(uvfs, dotype="mf")
 
     # NOTE: manually define boundary conditions
-    #     if any, you may want to define boundary conditions separately
-    #     for each model components, for example,
+    #     if needed, you can also define boundary conditions separately
+    #     for each model component, for example,
     # _vis = uvf.get_data("vis")
     # sblf = np.nanmax(np.abs(_vis))
     # fmin, fmax = uvf.ufreq.min(), uvf.ufreq.max()

@@ -109,8 +109,8 @@ if __name__ == "__main__":
     # uvf.increase_sigma_factor(value=1)
 
     # NOTE: manually define boundary conditions
-    #     if any, you may want to define boundary conditions separately
-    #     for each model components, for example,
+    #     if needed, you can also define boundary conditions separately
+    #     for each model component, for example,
     out_sbl = uvf.get_sblf()
     sblf = out_sbl[0]
     fmin, fmax = uvf.ufreq.min(), uvf.ufreq.max()
