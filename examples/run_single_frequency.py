@@ -171,7 +171,7 @@ if __name__ == "__main__":
     )
     mfu.run()
 
-    # Re-run the model-fit with the inclusion of 'amp' term
+    # Re-run the model-fit with the inclusion of 'amp' or 'vis' term
     mfu.ftype = ["amp", "clamp", "clphs"]
     mfu.fwght = [1, 1, 1]
     mfu.run()
