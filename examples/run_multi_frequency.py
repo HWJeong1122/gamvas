@@ -47,8 +47,8 @@ if __name__ == "__main__":
     snrflag = 5             # SNR threshold
     gaptime = 180           # gap time between scans (seconds)
     scanlen = gaptime       # scan length (seconds)
-    avgtime = None          # average time (seconds, None = scan length)
-    avgmode = "scan"        # average mode (scan or day)
+    avgtime = None          # average time (seconds, None = no average)
+    avgmode = "scan"        # time-averaging mode (scan or day)
     avgweight = True        # use weighted average
 
     # =================================================================

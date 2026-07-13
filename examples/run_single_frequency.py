@@ -43,8 +43,8 @@ if __name__ == "__main__":
     snrflag = 5             # SNR threshold
     gaptime = 180           # gap time between scans (seconds)
     scanlen = gaptime       # scan length (seconds)
-    avgtime = 10            # average time (seconds, None = scan length)
-    avgmode = "scan"        # average mode (scan or day)
+    avgtime = 10            # average time (seconds, None = no average)
+    avgmode = "scan"        # time-averaging mode (scan or day)
     avgweight = True        # use weighted average
     rscsbl = False          # amplitude scaling method
     # NOTE: if rscsbl == True and 'amp' term is not included in 'ftype',
