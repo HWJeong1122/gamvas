@@ -9,8 +9,8 @@ if __name__ == "__main__":
 
     # NOTE (for MacOS only):
     #   use fork start method to avoid multiprocessing issues
-    import multiprocessing as mpr
-    mpr.set_start_method("fork")
+    # import multiprocessing as mpr
+    # mpr.set_start_method("fork")
 
     # =================================================================
     # TODO: Define the number of CPU cores to use
