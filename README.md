@@ -25,7 +25,7 @@ Updates
 - (2026/07/10)
   - Flagging method is unified through ``flag_data(dotype, *kwargs)``. Available types are ['time', 'sigma', 'snr', 'antenna', 'nant', 'baseline', 'uvradius'].
   - Averaging UV data is performed through ``average(dotype, *kwargs)``. Available types are ['time', 'ifchan'].
-  - If needed, you may want to modify the 'sigma' of complex visibilities through ``add_fractional_error()`` or `rescale_sigma()`.
+  - If needed, you may want to modify the 'sigma' of complex visibilities through ``inflate_sigma_fractional()`` or `rescale_sigma()`.
   - Now the resulting image FITS (containing model parameters) & UVFITS files are generated.
 
 - ~~(2025/06/13) - All the flagging methods ( e.g., ``flag_snr()`` ) are unified into ``flag_uvvis(type=type, value=value)``.~~

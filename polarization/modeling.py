@@ -314,7 +314,7 @@ class polarization:
                 "is only supported for flat spectrum."
             )
 
-        if nfreq == 2 and spectrum in ["cpl", "ssa", "quad"]:
+        if nfreq == 2 and spectrum in ["cpl", "ssa", "poly"]:
             raise ValueError(
                 "Two-frequency modeling "
                 "is only supported for flat spectrum."

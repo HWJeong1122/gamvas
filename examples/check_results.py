@@ -147,7 +147,7 @@ for _uvf in uvfs:
     _uvf.model_visibility_append(
         freq_ref=uvfs[0].freq0, theta=theta_mf,
         model="gaussian", spectrum="ssa"
-    )
+    )   # change spectrum model to what you used
     _uvf.selfcal(dotype="phs")
     _uvf.selfcal(dotype="a&p")
 

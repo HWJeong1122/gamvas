@@ -40,6 +40,12 @@ if __name__ == "__main__":
     fixnmod = False         # if True, fix number of components to 'maxn'
     model = "gaussian"      # fit Gaussian models
     spectrum = "flat"       # use flat spectrum
+                            # Availables:
+                                # "flat": flat spectrum (default)
+                                # "spl": simple power-law
+                                # "cpl": curved power-law
+                                # "ssa": synchrotron self-absorption
+                                # "poly": logarithmic 2nd-order polynomial
     snrflag = 5             # SNR threshold
     gaptime = 180           # gap time between scans (seconds)
     scanlen = gaptime       # scan length (seconds)
@@ -104,9 +110,24 @@ if __name__ == "__main__":
     # apply estimated systematics
     uvf.systematics_apply(dotype=syscal_type)
 
-    # # (optional) increase uncertainty of complex visibility: 0.1 = 10%
-    # uvf.add_fractional_error(value=0.1)
-    # uvf.increase_sigma_factor(value=1)
+    # (optional) increase uncertainty of complex visibility: 0.1 = 10%
+    # uvf.inflate_sigma_fractional(inflate=0.1)
+    # (optional) rescale uncertainty of complex visibility by a factor
+    # uvf.rescale_sigma(rescale=1)
+    # (optional) rescale flux density by a factor (SNR is preserved)
+    # uvf.rescale_flux(rescale=1)
+    # or you may want to modify a specific antenna/baseline in a timerange,
+    # for example,
+    # uvf.inflate_sigma_fractional(
+    #     inflate={
+    #         "KU": 0.3,
+    #         ("KT", "KC"): 0.1
+    #     },
+    #     timerange=[0, 2]
+    # )
+    # NOTE:
+    #     'timerange=None' indicates the entire time range
+    #     'antenna=None' indicates the entire antenna array
 
     # NOTE: manually define boundary conditions
     #     if needed, you can also define boundary conditions separately
@@ -167,7 +188,7 @@ if __name__ == "__main__":
         fwght=fwght, ufreq=ufreq, bands=bands, spectrum=spectrum, maxn=maxn,
         fixnmod=fixnmod, mapfov=mapfov, bnd_a=bnd_a, bnd_l=bnd_l, bnd_m=bnd_m,
         path_fig=path_fig_, source=source, date=date, ncpu=ncpu, model=model,
-        boundset=boundset, rscsbl=rscsbl
+        boundset=boundset, npix=1024, rscsbl=rscsbl
     )
     mfu.run()
 

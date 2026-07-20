@@ -26,12 +26,17 @@ r2m = au.rad.to(au.mas)
 d2m = au.deg.to(au.mas)
 d2r = au.deg.to(au.rad)
 
-
 def avg_cgain(cg, axis=0):
-    amp_avg = np.nanmean(np.abs(cg), axis=axis)     # scalar average (amp)
-    phs_avg = np.angle(np.nanmean(cg, axis=axis))   # vector average (phase)
-    return amp_avg * np.exp(1j * phs_avg)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", RuntimeWarning)
 
+        # scalar average (amp)
+        amp_avg = np.nanmean(np.abs(cg), axis=axis)
+
+        # vector average (phase)
+        phs_avg = np.angle(np.nanmean(cg, axis=axis))
+
+    return amp_avg * np.exp(1j * phs_avg)
 
 def cal_evpa(
     p=None, q=None, u=None, rms=None, snr=3, mapfov=10, npix=1024,
@@ -340,7 +345,6 @@ def fit_beam(uvc, sig=None, uvw="u"):
         theta    * au.rad.to(au.deg),
     ])
 
-
 def get_data(uvf, dotype=None, flatten=False):
     """
     Return a plain (mask-stripped) ndarray for the requested data type.
@@ -506,7 +510,28 @@ def get_fwght(dotype, vdat, tmpl_clamp, tmpl_clphs):
     out_wght = np.round(3 * out_wght, 3).tolist()
     return out_wght
 
+def get_turnover(freq_ref, alpha, beta):
+    """
+    Compute turnover frequency estimated in 2nd-order polynomial
+    Args:
+        freq_ref (float): reference frequency
+        alpha (float): alpha parameter
+        beta (float): beta parameter
+    Returns:
+        float: turnover frequency
+    """
+    out = freq_ref * np.exp(0.5 * alpha / beta)
+    return out
+
 def get_xygrid(uvf, npix):
+    """
+    Get the x and y grid coordinates for the input UVF map.
+    Args:
+        uvf (UVFITS): input UVF map
+        npix (int): number of pixels in the grid
+    Returns:
+        tuple: (xgrid, ygrid)
+    """
     mapfov = uvf.mapfov.value
 
     xlist = -np.linspace(
@@ -515,7 +540,6 @@ def get_xygrid(uvf, npix):
 
     ygrid, xgrid = np.meshgrid(xlist, xlist)
     return (xgrid, ygrid)
-
 
 def make_cntr(image, rms=None, contour_snr=3, scale=np.sqrt(2)):
     """
@@ -552,7 +576,6 @@ def make_cntr(image, rms=None, contour_snr=3, scale=np.sqrt(2)):
         neg_cntr_level.sort()
     return (pos_cntr_level, neg_cntr_level)
 
-
 def mkdir(path):
     """
     Make a directory if it does not exist.
@@ -560,6 +583,23 @@ def mkdir(path):
     os.makedirs(path, exist_ok=True)
 
 def model_visibility_append(args, theta, mask):
+    """
+    Append the model visibility to the visibility map.
+    Args:
+        args (tuple):
+            args[0]: u
+            args[1]: v
+            args[2]: reference frequency
+            args[3]: frequency
+            args[4]: model type
+            args[5]: spectrum type
+            args[6]: data shape
+            args[7]: field name of model parameters
+        theta (dict): model parameters
+        mask (tuple): mask for parallel and cross polarization
+    Returns:
+        complex or tuple: model visibility or (vism_q, vism_u)
+    """
     u = args[0]
     v = args[1]
     freq_ref = args[2]
@@ -577,7 +617,8 @@ def model_visibility_append(args, theta, mask):
 
         nmod = round(float(theta["nmod"]))
         if model == "gaussian":
-            if spectrum == "flat":  # gaussian with flat spectrum
+            # gaussian with flat spectrum
+            if spectrum == "flat":
                 _fn = gv.functions.gvis
                 for i in range(nmod):
                     idx_s = f"{i + 1}_S"
@@ -603,7 +644,8 @@ def model_visibility_append(args, theta, mask):
                     _theta = [_s, _a, _l, _m]
                     vism += _fn(args, *_theta)
 
-            else:   # gaussian with spectrum model
+            # gaussian with spectrum model: spl, cpl, ssa
+            elif spectrum == ["spl", "cpl", "ssa"]:
                 for i in range(nmod):
                     idx_s = f"{i + 1}_S"
                     idx_a = f"{i + 1}_a"
@@ -656,15 +698,43 @@ def model_visibility_append(args, theta, mask):
                                     _fn = gv.functions.gvis_cpl
                                 elif spectrum == "ssa":
                                     _fn = gv.functions.gvis_ssa
-                                elif spectrum == "quad":
-                                    raise NotImplementedError(
-                                        "To be updated."
-                                    )
+
+                    vism += _fn(args, *_theta)
+
+            # gaussian with spectrum model: 2nd-order polynomial
+            elif spectrum == "poly":
+                args = (freq_ref, freq, u, v)
+                _fn = gv.functions.gvis_poly
+                for i in range(nmod):
+                    idx_s = f"{i + 1}_S"
+                    idx_a = f"{i + 1}_a"
+                    idx_l = f"{i + 1}_l"
+                    idx_m = f"{i + 1}_m"
+                    idx_alpha = f"{i + 1}_alpha"
+                    idx_beta = f"{i + 1}_beta"
+
+                    has_l = idx_l in dtypes
+                    has_m = idx_m in dtypes
+
+                    if has_l and has_m:
+                        _l = theta[idx_l]
+                        _m = theta[idx_m]
+                    else:
+                        _l = 0
+                        _m = 0
+
+                    _s = theta[idx_s]
+                    _a = theta[idx_a]
+                    _alpha = theta[idx_alpha]
+                    _beta = theta[idx_beta]
+
+                    _theta = [_s, _a, _l, _m, _alpha, _beta]
 
                     vism += _fn(args, *_theta)
 
         elif model == "delta":
-            if spectrum == "flat":  # delta-function with flat spectrum
+            # delta-function with flat spectrum
+            if spectrum == "flat":
                 _fn = gv.functions.dvis
                 for i in range(nmod):
                     idx_s = f"{i + 1}_S"
@@ -688,7 +758,8 @@ def model_visibility_append(args, theta, mask):
                     _theta = [_s, _l, _m]
                     vism += _fn(args, *_theta)
 
-            else:   # delta-function with spectrum model
+            # delta-function with spectrum model: spl, cpl, ssa
+            elif spectrum in ["spl", "cpl", "ssa"]:
                 for i in range(nmod):
                     idx_s = f"{i + 1}_S"
                     idx_l = f"{i + 1}_l"
@@ -739,10 +810,38 @@ def model_visibility_append(args, theta, mask):
                                     _fn = gv.functions.dvis_cpl
                                 elif spectrum == "ssa":
                                     _fn = gv.functions.dvis_ssa
-                                elif spectrum == "quad":
-                                    raise Exception("To be updated.")
 
                     vism += _fn(args, *_theta)
+
+            # delta-function with spectrum model: 2nd-order polynomial
+            elif spectrum == "poly":
+                args = (freq_ref, freq, u, v)
+                _fn = gv.functions.dvis_poly
+                for i in range(nmod):
+                    idx_s = f"{i + 1}_S"
+                    idx_l = f"{i + 1}_l"
+                    idx_m = f"{i + 1}_m"
+                    idx_alpha = f"{i + 1}_alpha"
+                    idx_beta = f"{i + 1}_beta"
+
+                    has_l = idx_l in dtypes
+                    has_m = idx_m in dtypes
+
+                    if has_l and has_m:
+                        _l = theta[idx_l]
+                        _m = theta[idx_m]
+                    else:
+                        _l = 0
+                        _m = 0
+
+                    _s = theta[idx_s]
+                    _alpha = theta[idx_alpha]
+                    _beta = theta[idx_beta]
+
+                    _theta = [_s, _l, _m, _alpha, _beta]
+
+                    vism += _fn(args, *_theta)
+
         return vism
 
     if mask_cross:
@@ -776,6 +875,16 @@ def model_visibility_append(args, theta, mask):
         return vism_q, vism_u
 
 def nanaverage(value=None, weight=None, axis=None, returned=False):
+    """
+    Compute the average of the input values, ignoring NaN values.
+    Args:
+        value (array-like): input values
+        weight (array-like): weights for each value
+        axis (int): axis along which to compute the average
+        returned (bool): whether to return the average and weight
+    Returns:
+        float or tuple: average value and weight (if returned=True)
+    """
     if value is None:
         raise ValueError("value cannot be None")
     if weight is None:
@@ -799,7 +908,6 @@ def nanaverage(value=None, weight=None, axis=None, returned=False):
         return out_value, out_weight
     else:
         return out_value
-
 
 def print_stats(
     uvf=None, uvcomb=None, k=None, logz=0, dlogz=0, dotype=None,
@@ -945,7 +1053,6 @@ def print_stats(
         print(f"# logz : {logz:-8.2f} +/- {dlogz:-8.2f}")
 
     return (out_fty, out_chi, out_aic, out_bic)
-
 
 def rd_theta(path="", file="", id_core=1, emode="mean"):
     _file = f"{path}{file}"
@@ -1246,7 +1353,6 @@ def save_imgfits(
         overwrite=True, output_verify="warn"
     )
 
-
 def set_boundary(
     nmod=1, spectrum="flat", select_pol="I", sblf=1, relmod=True, bnd_a=5,
     bnd_l=[-10, +10], bnd_m=[-10, +10], bnd_f=[13.5, 140], bnd_rm=[-1e6, +1e6]
@@ -1266,6 +1372,20 @@ def set_boundary(
             (in_bnd_S, in_bnd_a, in_bnd_l, in_bnd_m, in_bnd_f, in_bnd_i),
     """
 
+    availables_spt = ["flat", "spl", "cpl", "ssa", "poly"]
+    availables_pol = ["I", "RR", "LL", "P"]
+    if spectrum not in availables_spt:
+        raise ValueError(
+            f"Invalid spectrum type: {spectrum!r}.\n"
+            f"Availables: {availables_spt}"
+        )
+
+    if select_pol.upper() not in availables_pol:
+        raise ValueError(
+            f"Invalid polarization type: {select_pol!r}.\n"
+            f"Availables: {availables_pol}"
+        )
+
     if select_pol.upper() in ["I", "RR", "LL"]:
         in_bnd_S = [[+0.0, +sblf]]
         in_bnd_a = [[+0.00, +bnd_a]]
@@ -1277,42 +1397,53 @@ def set_boundary(
             in_bnd_l = [bnd_l]
             in_bnd_m = [bnd_m]
 
-        in_bnd_f = [bnd_f]
-
-        if spectrum in ["flat", "spl", "quad"]:
+        if spectrum in ["flat", "spl"]:
             in_bnd_i = [[-3.00, +3.00]]
-        else:
+            in_bnd_f = [bnd_f]
+        elif spectrum in ["cpl", "ssa"]:
             in_bnd_i = [[-3.00, +0.00]]
+            in_bnd_f = [bnd_f]
+        elif spectrum == "poly":
+            in_bnd_alpha = [[-4.00, +4.00]]
+            in_bnd_beta = [[-4.00, -0.00]]
 
         if nmod >= 2:
             nmod_ = nmod - 1
 
-            if spectrum in ["flat", "spl", "quad"]:
+            if spectrum in ["flat", "spl"]:
                 for i in range(nmod_):
                     in_bnd_S += [[+0.00, +sblf]]
+                    in_bnd_a += [[+0.00, +bnd_a]]
                     in_bnd_l += [bnd_l]
                     in_bnd_m += [bnd_m]
                     in_bnd_f += [bnd_f]
                     in_bnd_i += [[-3.00, +3.00]]
-                    in_bnd_a += [[+0.00, +bnd_a]]
 
             elif spectrum in ["cpl", "ssa"]:
                 for i in range(nmod_):
                     in_bnd_S += [[+0.00, +sblf]]
+                    in_bnd_a += [[+0.00, +bnd_a]]
                     in_bnd_l += [bnd_l]
                     in_bnd_m += [bnd_m]
                     in_bnd_f += [bnd_f]
                     in_bnd_i += [[-3.00, +0.00]]
-                    in_bnd_a += [[+0.00, +bnd_a]]
 
-            else:
-                availables = ["flat", "spl", "cpl", "ssa"]
-                raise ValueError(
-                    f"Invalid spectrum type: {spectrum!r}.\n"
-                    f"Availables: {availables}"
-                )
+            elif spectrum == "poly":
+                for i in range(nmod_):
+                    in_bnd_S += [[+0.00, +sblf]]
+                    in_bnd_l += [bnd_l]
+                    in_bnd_m += [bnd_m]
+                    in_bnd_alpha += [[-4.00, +4.00]]
+                    in_bnd_beta += [[-4.00, -0.00]]
 
-        return (in_bnd_S, in_bnd_a, in_bnd_l, in_bnd_m, in_bnd_f, in_bnd_i)
+        if spectrum in ["flat", "spl", "cpl", "ssa"]:
+            return (
+                in_bnd_S, in_bnd_a, in_bnd_l, in_bnd_m, in_bnd_f, in_bnd_i
+            )
+        elif spectrum == "poly":
+            return (
+                in_bnd_S, in_bnd_a, in_bnd_l, in_bnd_m, in_bnd_alpha, in_bnd_beta
+            )
 
     elif select_pol.upper() == "P":
         in_bnd_Sq = [[-sblf, +sblf] for i in range(nmod)]
@@ -1327,14 +1458,6 @@ def set_boundary(
             in_bnd_Sq, in_bnd_Su, in_bnd_a, in_bnd_l, in_bnd_m, in_bnd_i,
             in_bnd_f, in_bnd_rm
         )
-
-    else:
-        availables = ["I", "RR", "LL", "P"]
-        raise ValueError(
-            f"Invalid polarization type: {select_pol!r}.\n"
-            f"Availables: {availables}"
-        )
-
 
 def set_closure(
     uvf, data_u, data_v, data_vis, data_sig, data_ant1, data_ant2,
@@ -1868,7 +1991,6 @@ def _silent_deepcopy(uvf):
         warnings.simplefilter("ignore", UserWarning)
         return copy.deepcopy(uvf)
 
-
 def _get_name_field(uvf, dotype, shape):
     _uvf = _silent_deepcopy(uvf)
     ant1_name = np.array(
@@ -1883,7 +2005,6 @@ def _get_name_field(uvf, dotype, shape):
         return ant2_name
     return np.char.add(np.char.add(ant1_name, "-"), ant2_name)
 
-
 def _get_pangle_field(uvf, dotype, shape):
     _uvf = _silent_deepcopy(uvf)
     _uvf.set_data(prt=False)
@@ -1891,7 +2012,6 @@ def _get_pangle_field(uvf, dotype, shape):
     return np.ma.getdata(
         data_mount[_GET_DATA_PANGLE_FIELDS[dotype]]
     ).reshape(shape)
-
 
 def _get_derived_field(uvf_data=None, dotype=None):
     # parse polarization suffix

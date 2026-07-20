@@ -129,7 +129,6 @@ if _HAS_NUMBA:
                 grad[idx2[k]] += c2
         return nll, grad
 
-
 class open_fits:
     def __init__(self, path=None, file=None, mapfov=10, mapunit="mas"):
         self.path = path
@@ -190,6 +189,9 @@ class open_fits:
         self.modeling = gv.modeling.modeling()
 
     def __deepcopy__(self, memo):
+        """
+        Deep copy the object
+        """
         cls = self.__class__.__new__(self.__class__)
         memo[id(self)] = cls
         for k, v in self.__dict__.items():
@@ -200,7 +202,10 @@ class open_fits:
         return cls
 
     def _resolve_ant(self, v):
-        """Resolve an antenna name or number to its antenna number."""
+        """
+        Resolve an antenna name or number to its antenna number
+        """
+
         if isinstance(v, int):
             return v
         if isinstance(v, str):
@@ -209,116 +214,14 @@ class open_fits:
             return self.ant_dict_name2num[v.upper()]
         raise ValueError(f"Cannot resolve antenna: {v!r}")
 
-    def _error_mask(self, timerange=None, antenna=None):
-        """
-        Build a boolean mask selecting visibilities within a given time
-        range and/or involving given antenna(s).
-        Args:
-            timerange (list): [start, end] time range in hours (None = all)
-            antenna (str, int, or list): antenna name(s)/number(s) (None = all)
-        Returns:
-            np.ndarray: boolean mask with the same shape as self.time
-        """
-
-        # time range masking
-        if timerange is not None:
-            mask_timerange = (
-                (self.time >= timerange[0])
-                & (self.time <= timerange[1])
-            )
-        else:
-            mask_timerange = np.ones_like(self.time, dtype=bool)
-
-        # antenna masking
-        if antenna is not None:
-            mask_ant = np.zeros_like(self.time, dtype=bool)
-            if isinstance(antenna, (str, int)):
-                antenna = [antenna]
-
-            for ant in antenna:
-                ant = self._resolve_ant(ant)
-                mask_ant |= (self.ant1 == ant) | (self.ant2 == ant)
-        else:
-            mask_ant = np.ones_like(self.time, dtype=bool)
-
-        return mask_timerange & mask_ant
-
-    def add_fractional_error(self, value=0.0, timerange=None, antenna=None):
-        """
-        Add the error fractionally to the visibility amplitude
-        Args:
-            value (float): fraction of the error to be added
-        """
-
-        def gmean_amp(x):
-            x = x[np.isfinite(x) & (x > 0)]
-            if x.size == 0:
-                return 0.0
-            return np.exp(np.nanmean(np.log(x)))
-
-        time = self.get_data("time")
-
-        # scan masking
-        scans, scans_1d = self.set_scan(
-            time=time * 3600.0, gaptime=self.gaptime, scanlen=self.scanlen,
-            returned=True
-        )
-
-        uscan = np.unique(scans)
-
-        # baseline masking
-        baseline = self.baseline
-        ubaseline = np.unique(baseline)
-
-        # time range & antenna masking
-        mask_ta = self._error_mask(timerange, antenna)
-
-        self.check_w0()
-
-        amp_1 = np.abs(self.r_1 + 1j * self.i_1)
-        amp_2 = np.abs(self.r_2 + 1j * self.i_2)
-        amp_3 = np.abs(self.r_3 + 1j * self.i_3)
-        amp_4 = np.abs(self.r_4 + 1j * self.i_4)
-
-        with warnings.catch_warnings():
-            warnings.filterwarnings("ignore", category=RuntimeWarning)
-            sig_1 = 1 / self.w_1**0.5
-            sig_2 = 1 / self.w_2**0.5
-            sig_3 = 1 / self.w_3**0.5
-            sig_4 = 1 / self.w_4**0.5
-
-        for ns, scan in enumerate(uscan):
-            mask_scan = scans == scan
-            for nb, baseline in enumerate(ubaseline):
-                mask_baseline = self.baseline == baseline
-                mask = mask_ta & mask_scan & mask_baseline
-
-                if mask.sum() == 0:
-                    continue
-
-                add_1 = gmean_amp(amp_1[mask]) * value
-                add_2 = gmean_amp(amp_2[mask]) * value
-                add_3 = gmean_amp(amp_3[mask]) * value
-                add_4 = gmean_amp(amp_4[mask]) * value
-
-                sig_1_new = sig_1[mask] + add_1
-                sig_2_new = sig_2[mask] + add_2
-                sig_3_new = sig_3[mask] + add_3
-                sig_4_new = sig_4[mask] + add_4
-
-                with warnings.catch_warnings():
-                    warnings.filterwarnings("ignore", category=RuntimeWarning)
-                    self.w_1[mask] = 1 / sig_1_new**2
-                    self.w_2[mask] = 1 / sig_2_new**2
-                    self.w_3[mask] = 1 / sig_3_new**2
-                    self.w_4[mask] = 1 / sig_4_new**2
-
-        self.set_data(prt=False)
-
     def average(
         self,
         dotype="time", weighted=True, value=60, mode="day", prt=True
     ):
+        """
+        Average the visibility data over time or IF channel
+        """
+
         if isinstance(value, str):
             if value.upper() == "SCAN":
                 value = self.scanlen
@@ -878,6 +781,7 @@ class open_fits:
         """
         Compute the parallactic angle
         """
+
         ndata = self.r_1.size
 
         tarr = self.tarr.copy()
@@ -1005,6 +909,11 @@ class open_fits:
         return data_mount
 
     def check_dims(self):
+        """
+        Check the dimensions of the visibility data and add a channel
+        dimension if necessary
+        """
+
         if self.r_1.ndim == 2:
             self.r_1 = self.r_1[..., None]
             self.i_1 = self.i_1[..., None]
@@ -1020,6 +929,10 @@ class open_fits:
             self.w_4 = self.w_4[..., None]
 
     def check_w0(self):
+        """
+        Check if w0 is None and set it to w if so
+        """
+
         mask_w0 = (
             self.w0_1 is None
             or self.w0_2 is None
@@ -1035,6 +948,10 @@ class open_fits:
         self.empty_w0 = False
 
     def debias_amplitude(self):
+        """
+        Debias the amplitude of the visibility data
+        """
+
         r_1 = self.get_data("r_1")
         r_2 = self.get_data("r_2")
         r_3 = self.get_data("r_3")
@@ -1105,6 +1022,17 @@ class open_fits:
         self,
         dotype=None, value=None, unit="m", timerange="all", prt=True
     ):
+        """
+        Flag data based on the given type, value, unit, and timerange
+
+        Args:
+            dotype (str): Type of data to flag
+            value (float): Flagging criterion
+            unit (str, dotype='uvr' only): Unit of uv-radius
+            timerange (str): Timerange to flag
+            prt (bool): Print flagging summary
+        """
+
         _dshape = self.data_shape
 
         obs = self.flat_data()
@@ -1315,6 +1243,10 @@ class open_fits:
         self.set_data(prt=False)
 
     def flat_data(self):
+        """
+        Flatten the data and return it as a structured array
+        """
+
         mjd = self.mjd.flatten()
         time = self.time.flatten()
         freq = self.freq.flatten()
@@ -1378,6 +1310,10 @@ class open_fits:
         return out
 
     def get_data(self, dotype=None, flatten=False):
+        """
+        Return the called data as a structured array
+        """
+
         if dotype is None:
             raise ValueError("Data type must be specified.")
 
@@ -1391,6 +1327,7 @@ class open_fits:
         """
         Extract the longest-baseline flux level
         """
+
         data = self.data
 
         uvd = np.sqrt(data["u"]**2 + data["v"]**2)
@@ -1418,6 +1355,7 @@ class open_fits:
         """
         Extract the shortest-baseline flux level
         """
+
         data = self.data
 
         uvd = np.sqrt(data["u"]**2 + data["v"]**2)
@@ -1441,6 +1379,184 @@ class open_fits:
         self.sbl_mask = mask_sbl
         return self.sblf, self.sbl, self.sbl_mask
 
+    def inflate_sigma_fractional(self, inflate=0.0, timerange=None):
+        """
+        Inflate visibility sigma values fractionally to the visibility
+        amplitude
+
+        Args:
+            inflate (float | dict): fraction of the error to be added
+        """
+
+        # geometric mean of visibility amplitudes
+        def gmean_amp(x):
+            x = x[np.isfinite(x) & (x > 0)]
+            if x.size == 0:
+                return 0.0
+            return np.exp(np.nanmean(np.log(x)))
+
+        self.check_w0()
+
+        # get visibility amplitudes
+        amp_1 = np.abs(self.r_1 + 1j * self.i_1)
+        amp_2 = np.abs(self.r_2 + 1j * self.i_2)
+        amp_3 = np.abs(self.r_3 + 1j * self.i_3)
+        amp_4 = np.abs(self.r_4 + 1j * self.i_4)
+
+        time = self.get_data("time")
+        ant1 = self.get_data("ant1")
+        ant2 = self.get_data("ant2")
+
+        # scan masking
+        scans, scans_1d = self.set_scan(
+            time=time * 3600.0, gaptime=self.gaptime, scanlen=self.scanlen,
+            returned=True
+        )
+        uscan = np.unique(scans)
+
+        # time masking
+        if timerange is None:
+            mask_timer = np.ones_like(time, dtype=bool)
+        else:
+            if not isinstance(timerange, (list, tuple)):
+                raise TypeError(
+                    "timerange should be a list or tuple "
+                    "of [start, end] times."
+                )
+            mask_timer = (time >= timerange[0]) & (time <= timerange[1])
+
+        # baseline masking
+        baseline = self.baseline
+        ubaseline = np.unique(baseline)
+
+        if isinstance(inflate, (int, float)):
+            for ns, scan in enumerate(uscan):
+                mask_scan = scans == scan
+                for nb, baseline in enumerate(ubaseline):
+
+                    with warnings.catch_warnings():
+                        warnings.filterwarnings(
+                            "ignore",
+                            category=RuntimeWarning
+                        )
+
+                        sig_1 = 1 / self.w_1**0.5
+                        sig_2 = 1 / self.w_2**0.5
+                        sig_3 = 1 / self.w_3**0.5
+                        sig_4 = 1 / self.w_4**0.5
+
+                    mask_baseline = self.baseline == baseline
+                    mask = mask_scan & mask_baseline & mask_timer
+
+                    if mask.sum() == 0:
+                        continue
+
+                    add_1 = gmean_amp(amp_1[mask]) * inflate
+                    add_2 = gmean_amp(amp_2[mask]) * inflate
+                    add_3 = gmean_amp(amp_3[mask]) * inflate
+                    add_4 = gmean_amp(amp_4[mask]) * inflate
+
+                    sig_1_new = sig_1[mask] + add_1
+                    sig_2_new = sig_2[mask] + add_2
+                    sig_3_new = sig_3[mask] + add_3
+                    sig_4_new = sig_4[mask] + add_4
+
+                    with warnings.catch_warnings():
+                        warnings.filterwarnings(
+                            "ignore",
+                            category=RuntimeWarning
+                        )
+                        self.w_1[mask] = 1 / sig_1_new**2
+                        self.w_2[mask] = 1 / sig_2_new**2
+                        self.w_3[mask] = 1 / sig_3_new**2
+                        self.w_4[mask] = 1 / sig_4_new**2
+
+            self.set_data(prt=False)
+
+        elif isinstance(inflate, dict):
+            antenna = list(inflate.keys())
+            factor = list(inflate.values())
+
+            for ns, scan in enumerate(uscan):
+                mask_scan = scans == scan
+
+                for na, _a in enumerate(antenna):
+
+                    if not isinstance(_a, (list, tuple)):
+                        _a = [_a]
+
+                    if len(_a) > 2:
+                        raise ValueError(
+                            f"Invalid antenna list: {_a!r}. "
+                            "Antenna list should have at most 2 elements."
+                        )
+
+                    if len(_a) == 1:
+                        mask_ant1 = ant1 == self._resolve_ant(_a[0])
+                        mask_ant2 = ant2 == self._resolve_ant(_a[0])
+                        mask_ant = (mask_ant1 | mask_ant2)
+                    else:
+                        mask_ant = (
+                            (
+                                (ant1 == self._resolve_ant(_a[0]))
+                                & (ant2 == self._resolve_ant(_a[1]))
+                            )
+                            | (
+                                (ant1 == self._resolve_ant(_a[1]))
+                                & (ant2 == self._resolve_ant(_a[0]))
+                            )
+                        )
+
+                    for nb, baseline in enumerate(ubaseline):
+
+                        with warnings.catch_warnings():
+                            warnings.filterwarnings(
+                                "ignore",
+                                category=RuntimeWarning
+                            )
+
+                            sig_1 = 1 / self.w_1**0.5
+                            sig_2 = 1 / self.w_2**0.5
+                            sig_3 = 1 / self.w_3**0.5
+                            sig_4 = 1 / self.w_4**0.5
+
+                        mask_baseline = self.baseline == baseline
+                        mask = (
+                            mask_scan & mask_baseline & mask_timer & mask_ant
+                        )
+
+                        if mask.sum() == 0:
+                            continue
+
+                        _f = factor[na]
+
+                        add_1 = gmean_amp(amp_1[mask]) * _f
+                        add_2 = gmean_amp(amp_2[mask]) * _f
+                        add_3 = gmean_amp(amp_3[mask]) * _f
+                        add_4 = gmean_amp(amp_4[mask]) * _f
+
+                        sig_1_new = sig_1[mask] + add_1
+                        sig_2_new = sig_2[mask] + add_2
+                        sig_3_new = sig_3[mask] + add_3
+                        sig_4_new = sig_4[mask] + add_4
+
+                        with warnings.catch_warnings():
+                            warnings.filterwarnings(
+                                "ignore",
+                                category=RuntimeWarning
+                            )
+                            self.w_1[mask] = 1 / sig_1_new**2
+                            self.w_2[mask] = 1 / sig_2_new**2
+                            self.w_3[mask] = 1 / sig_3_new**2
+                            self.w_4[mask] = 1 / sig_4_new**2
+
+            self.set_data(prt=False)
+
+        else:
+            raise ValueError(
+                f"Invalid inflate value: {type(inflate)!r}"
+            )
+
     def load_uvf(
         self,
         select_pol="i", select_if="all", uvw="u", minclq=True, gaptime=None,
@@ -1448,16 +1564,17 @@ class open_fits:
     ):
         """
         Load uv-fits file and extract the information
+
         Args:
-            select_pol (str): polarization type
-            select_if (str): number(s) of IFs
-            uvw (str): uv-weighting option
-                - 'w': weighting by visibility weight
-                - 'u': unity weighting
-            gaptime (float): gaptime between scans [sec]
-            scanlen (float): scan length [sec]
-            minclq (bool): if True, compute minimum set of closures
-            prt (bool): if True, print summarized information
+            select_pol (str): Polarization type
+            select_if (str): Number(s) of IFs
+            uvw (str): UV-weighting option
+                - 'w': Weighting by visibility weight
+                - 'u': Unity weighting
+            minclq (bool): Compute minimum set of closures
+            gaptime (float): Gaptime between scans [sec]
+            scanlen (float): Scan length [sec]
+            prt (bool): Print summarized information
         """
         available_pol = ["rr", "ll", "rl", "lr", "i", "q", "u", "v"]
         if select_pol not in available_pol:
@@ -1850,16 +1967,18 @@ class open_fits:
     ):
         """
         Append the model visibility to the data
+
         Args:
-            vism (np.ndarray): model visibility to append
-            freq_ref (float): reference frequency [GHz]
-            theta (dict): model parameters
-            pol (bool): if True, assumes polarization model
-            spectrum (str): spectrum type
-                - flat: flat spectrum (no spectrum model)
-                - spl: simple power-law
-                - cpl: curved power-law
-                - ssa: synchrotron self-absorption
+            vism (np.ndarray): Model visibility to append
+            freq_ref (float): Reference frequency [GHz]
+            theta (dict): Model parameters
+            pol (bool): Assumes polarization model
+            spectrum (str): Spectrum type
+                - flat: Flat spectrum (no spectrum model)
+                - spl: Simple power-law
+                - cpl: Curved power-law
+                - ssa: Synchrotron self-absorption
+                - poly: Logarithmic 2nd-order polynomial
         """
         if vism is None:
             self.spectrum = spectrum
@@ -1873,7 +1992,7 @@ class open_fits:
                     f"Provide appropriate model parameters."
                 )
 
-            available_spectrum = ["flat", "spl", "cpl", "ssa", "quad"]
+            available_spectrum = ["flat", "spl", "cpl", "ssa", "poly"]
             if spectrum not in available_spectrum:
                 raise ValueError(
                     f"Invalid spectrum: {spectrum!r}. "
@@ -1950,6 +2069,7 @@ class open_fits:
         """
         Drop the model visibility from the data
         """
+
         self.vism = None
 
         uvdat = self.data
@@ -1959,13 +2079,23 @@ class open_fits:
 
         self.data = uvdat
 
-    def rescale_gain(
+    def rescale_flux(
         self,
-        rescale=None, timerange=None, antenna=None, gain=None
+        rescale=None, timerange=None
     ):
         """
-        Rescale the gain of the data
+        Rescale flux density of visibilities
+
+        Args:
+            rescale (float | dict): Rescaling factor(s)
+                - float: Global factor applied to all visibilities
+                - {antenna: factor}: Factor for baselines with the antenna
+                  (overlapping keys accumulate multiplicatively)
+                - {(ant1, ant2): factor}: Factor for a single baseline
+            timerange (list, tuple): Time range ([start, end]) in hours
+                (None = all)
         """
+
         time = self.get_data("time")
         r_1 = self.get_data("r_1")
         r_2 = self.get_data("r_2")
@@ -1984,69 +2114,85 @@ class open_fits:
         w0_3 = self.get_data("w0_3")
         w0_4 = self.get_data("w0_4")
 
-        ant1 = self.get_data("ant1_name")
-        ant2 = self.get_data("ant2_name")
-        uant = np.unique(np.append(ant1, ant2))
+        ant1 = self.get_data("ant1")
+        ant2 = self.get_data("ant2")
 
         # Traceback messages
-        if rescale is None:
-            if antenna is None or gain is None:
-                raise ValueError(
-                    "Either rescale or antenna/gain must be provided."
-                )
+        if not isinstance(rescale, (int, float, dict)):
+            raise ValueError(
+                "rescale (float or dictionary) must be provided. "
+                "Available format: float (global factor), "
+                "{antenna: factor}, or {(ant1, ant2): factor}"
+            )
 
-            if antenna is not None and not isinstance(antenna, (list, tuple)):
-                antenna = [antenna]
-
-            if gain is not None and not isinstance(gain, (list, tuple)):
-                gain = [gain]
-
+        # time masking
+        if timerange is None:
+            mask_timer = np.ones_like(time, dtype=bool)
         else:
-            if not isinstance(rescale, dict):
-                raise TypeError(
-                    "rescale should be a dictionary of {antenna: gain} pairs."
-                )
-
-            antenna = list(rescale.keys())
-            gain = list(rescale.values())
-
-        if timerange is not None:
             if not isinstance(timerange, (list, tuple)):
                 raise TypeError(
                     "timerange should be a list or tuple "
                     "of [start, end] times."
                 )
+            mask_timer = (time >= timerange[0]) & (time <= timerange[1])
 
-        # time masking
-        if timerange is None:
-            mask_time = np.ones_like(time, dtype=bool)
+        def _apply_scale(mask, _f):
+            r_1[mask] = r_1[mask] * _f
+            r_2[mask] = r_2[mask] * _f
+            r_3[mask] = r_3[mask] * _f
+            r_4[mask] = r_4[mask] * _f
+            i_1[mask] = i_1[mask] * _f
+            i_2[mask] = i_2[mask] * _f
+            i_3[mask] = i_3[mask] * _f
+            i_4[mask] = i_4[mask] * _f
+            w_1[mask] = w_1[mask] / _f ** 2
+            w_2[mask] = w_2[mask] / _f ** 2
+            w_3[mask] = w_3[mask] / _f ** 2
+            w_4[mask] = w_4[mask] / _f ** 2
+            w0_1[mask] = w0_1[mask] / _f ** 2
+            w0_2[mask] = w0_2[mask] / _f ** 2
+            w0_3[mask] = w0_3[mask] / _f ** 2
+            w0_4[mask] = w0_4[mask] / _f ** 2
+
+        if isinstance(rescale, (int, float)):
+            # global rescaling
+            _apply_scale(mask_timer, rescale)
+
         else:
-            mask_time = (time >= timerange[0]) & (time <= timerange[1])
+            antenna = list(rescale.keys())
+            factor = list(rescale.values())
 
-        for na, _antenna in enumerate(antenna):
-            _gain = gain[na]
+            for na, _a in enumerate(antenna):
+                if not isinstance(_a, (list, tuple)):
+                    _a = [_a]
 
-            mask_ant1 = (mask_time) & (ant1 == _antenna)
-            mask_ant2 = (mask_time) & (ant2 == _antenna)
+                if len(_a) > 2:
+                    raise ValueError(
+                        f"Invalid antenna list: {_a!r}. "
+                        "Antenna list should have at most 2 elements."
+                    )
 
-            mask = mask_ant1 | mask_ant2
+                _f = factor[na]
 
-            r_1[mask] = r_1[mask] * _gain
-            r_2[mask] = r_2[mask] * _gain
-            r_3[mask] = r_3[mask] * _gain
-            r_4[mask] = r_4[mask] * _gain
-            i_1[mask] = i_1[mask] * _gain
-            i_2[mask] = i_2[mask] * _gain
-            i_3[mask] = i_3[mask] * _gain
-            i_4[mask] = i_4[mask] * _gain
-            w_1[mask] = w_1[mask] / _gain ** 2
-            w_2[mask] = w_2[mask] / _gain ** 2
-            w_3[mask] = w_3[mask] / _gain ** 2
-            w_4[mask] = w_4[mask] / _gain ** 2
-            w0_1[mask] = w0_1[mask] / _gain ** 2
-            w0_2[mask] = w0_2[mask] / _gain ** 2
-            w0_3[mask] = w0_3[mask] / _gain ** 2
-            w0_4[mask] = w0_4[mask] / _gain ** 2
+                if len(_a) == 1:
+                    mask_ant1 = ant1 == self._resolve_ant(_a[0])
+                    mask_ant2 = ant2 == self._resolve_ant(_a[0])
+                    mask = mask_ant1 | mask_ant2
+                else:
+                    mask = (
+                        (
+                            (ant1 == self._resolve_ant(_a[0]))
+                            & (ant2 == self._resolve_ant(_a[1]))
+                        )
+                        | (
+                            (ant1 == self._resolve_ant(_a[1]))
+                            & (ant2 == self._resolve_ant(_a[0]))
+                        )
+                    )
+
+                mask = mask & mask_timer
+
+                _apply_scale(mask, _f)
 
         self.r_1 = r_1
         self.r_2 = r_2
@@ -2067,36 +2213,93 @@ class open_fits:
 
         self.set_data(prt=False)
 
-    def rescale_sigma(self, value=1, timerange=None, antenna=None):
+    def rescale_sigma(self, rescale=1, timerange=None):
         """
         Rescale visibility sigma by a factor
-        Args:
-            value (float): factor of the error to be added
-            timerange (list): [start, end] time range in hours (None = all)
-            antenna (str, int, or list): antenna name(s)/number(s) (None = all)
-        """
+        (weights are divided by the squared factor)
 
-        # time range & antenna masking
-        mask = self._error_mask(timerange, antenna)
+        Args:
+            rescale (float | dict): rescaling factor(s)
+                - float: global factor applied to all visibilities
+                - {antenna: factor}: factor for baselines with the antenna
+                  (overlapping keys accumulate multiplicatively)
+                - {(ant1, ant2): factor}: factor for a single baseline
+            timerange (list, tuple): Time range ([start, end]) in hours
+                (None = all)
+        """
 
         self.check_w0()
 
-        with warnings.catch_warnings():
-            warnings.filterwarnings("ignore", category=RuntimeWarning)
-            sig_1 = 1 / self.w_1**0.5
-            sig_2 = 1 / self.w_2**0.5
-            sig_3 = 1 / self.w_3**0.5
-            sig_4 = 1 / self.w_4**0.5
+        time = self.get_data("time")
+        ant1 = self.get_data("ant1")
+        ant2 = self.get_data("ant2")
 
-            sig_1_new = (value * sig_1[mask])**2
-            sig_2_new = (value * sig_2[mask])**2
-            sig_3_new = (value * sig_3[mask])**2
-            sig_4_new = (value * sig_4[mask])**2
+        # Traceback messages
+        if not isinstance(rescale, (int, float, dict)):
+            raise ValueError(
+                "rescale (float or dictionary) must be provided. "
+                "Available format: float (global factor), "
+                "{antenna: factor}, or {(ant1, ant2): factor}"
+            )
 
-            self.w_1[mask] = 1 / sig_1_new
-            self.w_2[mask] = 1 / sig_2_new
-            self.w_3[mask] = 1 / sig_3_new
-            self.w_4[mask] = 1 / sig_4_new
+        # time masking
+        if timerange is None:
+            mask_timer = np.ones_like(time, dtype=bool)
+        else:
+            if not isinstance(timerange, (list, tuple)):
+                raise TypeError(
+                    "timerange should be a list or tuple "
+                    "of [start, end] times."
+                )
+            mask_timer = (time >= timerange[0]) & (time <= timerange[1])
+
+        def _apply_scale(mask, _f):
+            # sigma * f == weight / f**2; direct division keeps
+            # flagged (non-positive or NaN) weights intact
+            self.w_1[mask] = self.w_1[mask] / _f ** 2
+            self.w_2[mask] = self.w_2[mask] / _f ** 2
+            self.w_3[mask] = self.w_3[mask] / _f ** 2
+            self.w_4[mask] = self.w_4[mask] / _f ** 2
+
+        if isinstance(rescale, (int, float)):
+            # global rescaling
+            _apply_scale(mask_timer, rescale)
+
+        else:
+            antenna = list(rescale.keys())
+            factor = list(rescale.values())
+
+            for na, _a in enumerate(antenna):
+                if not isinstance(_a, (list, tuple)):
+                    _a = [_a]
+
+                if len(_a) > 2:
+                    raise ValueError(
+                        f"Invalid antenna list: {_a!r}. "
+                        "Antenna list should have at most 2 elements."
+                    )
+
+                _f = factor[na]
+
+                if len(_a) == 1:
+                    mask_ant1 = ant1 == self._resolve_ant(_a[0])
+                    mask_ant2 = ant2 == self._resolve_ant(_a[0])
+                    mask_ant = mask_ant1 | mask_ant2
+                else:
+                    mask_ant = (
+                        (
+                            (ant1 == self._resolve_ant(_a[0]))
+                            & (ant2 == self._resolve_ant(_a[1]))
+                        )
+                        | (
+                            (ant1 == self._resolve_ant(_a[1]))
+                            & (ant2 == self._resolve_ant(_a[0]))
+                        )
+                    )
+
+                mask = mask_ant & mask_timer
+
+                _apply_scale(mask, _f)
 
         self.set_data(prt=False)
 
@@ -2116,10 +2319,11 @@ class open_fits:
 
     def save_cgain(self, save_path="", save_name=""):
         """
-        Save the complex gain to a csv file.
+        Save the complex gain to a csv file
+
         Args:
-            save_name (str): name of the new fits file
-            save_path (str): path of the new fits file
+            save_name (str): Name of the new fits file
+            save_path (str): Path of the new fits file
         """
         gv.utils.save_cgain(
             uvf=self,
@@ -2130,10 +2334,11 @@ class open_fits:
     def save_uvfits(self, save_path=None, save_name=None):
         """
         Save new fits file by rebuilding all HDUs from scratch
-        (PRIMARY, AIPS AN, AIPS FQ, AIPS NX).
+        (PRIMARY, AIPS AN, AIPS FQ, AIPS NX)
+
         Args:
-            save_name (str): name of the new fits file
-            save_path (str): path of the new fits file
+            save_name (str): Name of the new fits file
+            save_path (str): Path of the new fits file
         """
         if save_path is None:
             save_path = self.path or ""
@@ -2686,22 +2891,24 @@ class open_fits:
     ):
         """
         Self-calibration using model visibility
+
         Args:
-            dotype (str): self-calibration type
-                (availables: 'amp', 'phs', 'a&p', 'gscale', 'startmod')
+            dotype (str): Self-calibration type
+                - availables: 'amp', 'phs', 'a&p', 'gscale', 'startmod'
             intervals (list, float): interval times [minute]
-            lm (tuple): position of the point source
-            selfflag (bool): if True, scans with three stations
-                or less are not flagged out
-            zero_cp (bool): if True, assume zero circular polarization
+            lm (tuple): Position of the point source
+            selfflag (bool): Scans with three stations or less are not
+                flagged out
+            zero_cp (bool): Assume zero circular polarization
                 (RR = LL = Stokes I) and solve antenna gains for each
                 polarization independently. If False, solve a single
                 antenna gain from the Stokes I visibility
                 (= (RR + LL) / 2; the available polarization is used
                 for single-polarization data) and apply it to both
                 polarizations
-            prt (bool): if True, print summarized information
+            prt (bool): Print summarized information
         """
+
         # print messages
         availables = ["amp", "phs", "a&p", "gscale", "startmod"]
         if dotype not in availables:
@@ -3305,11 +3512,13 @@ class open_fits:
     def set_beamprm(self, bprms):
         """
         Set user-defined beam parameters
-        bprms (list, tuple): beam parameters to set
-            bprms[0] (float): FWHM of the minor axis
-            bprms[1] (float): FWHM of the major axis
-            bprms[2] (float): position angle of the beam (degrees)
+        Args:
+            bprms (list, tuple): Beam parameters to set
+                - bprms[0] (float): FWHM of the minor axis
+                - bprms[1] (float): FWHM of the major axis
+                - bprms[2] (float): Position angle of the beam (degrees)
         """
+
         self.bprms = bprms
         self.bmaj = bprms[0]
         self.bmin = bprms[1]
@@ -3319,9 +3528,11 @@ class open_fits:
     def set_closure(self, minclq=None):
         """
         Set the closure quantities of minimal complete
+
         Args:
-            minclq (bool): if True, compute full closure
+            minclq (bool): Compute full closure
         """
+
         if minclq is None:
             minclq = self.minclq
 
@@ -4407,6 +4618,10 @@ class open_fits:
         )
 
     def set_data(self, prt=True):
+        """
+        Set the data
+        """
+
         obs = self.flat_data()
 
         obs["w_1"] = np.where(obs["w_1"] <= 0, np.nan, obs["w_1"])
@@ -4699,23 +4914,18 @@ class open_fits:
     ):
         """
         Compute scan numbers from a time array, splitting on time
-        gaps and length limits.
-
-        Accepts time of shape (N,) or (N, M, 1) where M is IF channel.
-        Scan is a property of the time axis only, so the non-time
-        axes are collapsed (the time value is assumed constant across
-        IF/channel for a given visibility).
+        gaps and length limits
 
         Args:
-            time: array of times in seconds, shape (N,) or (N, M, 1).
-                If None, uses 'self.time * 3600'.
-            gaptime: gap threshold (s). If None, falls back to
+            time: Array of times in seconds, shape (N,) or (N, M, 1).
+                If None, uses 'self.time * 3600'
+            gaptime: Gap threshold (s). If None, falls back to
                 'self.gaptime'; if that is also None, defaults to 60.
-            scanlen: maximum scan length (s). If None, falls back to
+            scanlen: Maximum scan length (s). If None, falls back to
                 'self.scanlen'; if that is also None, defaults to 0
-                (disables the length cut).
-            returned: if True, return the scan numbers as well as
-                writing to 'self.scannum'.
+                (disables the length cut)
+            returned: Return the scan numbers as well as writing to
+                'self.scannum'
 
         Returns:
             np.ndarray of scan indices ((2d, 1d); if returned).
@@ -4738,6 +4948,10 @@ class open_fits:
             self.scannum_1d = scannum_1d
 
     def set_uvcov(self, flatten=False, returned=False):
+        """
+        Set UV-coverage
+        """
+
         data = [self.get_data("u"), self.get_data("v")]
         if flatten:
             data = [d.flatten() for d in data]
@@ -4753,6 +4967,10 @@ class open_fits:
             return self.uvcov
 
     def sort_data(self, dotype=["freq", "time", "ant"], reverse=False):
+        """
+        Sort data by frequency, time, or antenna
+        """
+
         sort_types = []
 
         availables = ["freq", "frequency", "time", "ant", "antenna", "snr"]
@@ -4827,6 +5045,10 @@ class open_fits:
         self.set_data(prt=False)
 
     def systematics_apply(self, dotype=None, d=0.0, m=0.0):
+        """
+        Apply the estimated systematics to the data
+        """
+
         availables = ["vis", "logclamp", "clphs"]
 
         if dotype is None:
@@ -4842,7 +5064,7 @@ class open_fits:
                 bsli = self.baseline.astype(str)
                 systematics = self.systematics_vis
 
-            elif _type == "logclamp":
+            elif _type in ["clamp", "logclamp"]:
                 data = self.clamp
                 time = self.clamp["time"]
                 bsli = self.clamp["quadra"].astype(str)
@@ -4948,6 +5170,11 @@ class open_fits:
         self.set_data(prt=False)
 
     def systematics_cal(self, dotype=None):
+        """
+        Compute the statistical systematics through the median absolute
+        deviation
+        """
+
         availables = ["vis", "logclamp", "clphs"]
 
         if dotype is None:
@@ -4956,10 +5183,13 @@ class open_fits:
                 f"Availables: {availables}"
             )
 
-        if self.clamp is None and self.clphs is None:
+        if self.clamp is not None or self.clphs is not None:
             self.set_closure(self.minclq)
 
-        if self.clamp is None and self.clphs is None:
+        if (
+            self.clamp is None and self.clphs is None
+            and ("logclamp" in dotype or "clphs" in dotype)
+        ):
             raise ValueError("No closure data available.")
 
         if self.clamp is None and "logclamp" in dotype:
@@ -5113,15 +5343,17 @@ class open_fits:
         self.i_3 = v_3.imag
         self.i_4 = v_4.imag
 
-
 def set_matrix_visphs(N):
     """
     Set the matrix for the visibility phase
+
     Args:
-        N (int): number of antennas
+        N (int): Number of antennas
+
     Returns:
-        out (np.array): matrix for the visibility phase
+        out (np.array): Matrix for the visibility phase
     """
+
     out = np.array([[1, -1]])
     if N == 2:
         return out
@@ -5137,76 +5369,19 @@ def set_matrix_visphs(N):
             out = np.concatenate((upper, lower), axis=0)
         return out
 
-
-def _set_min_matrix_clamp(N, ant_nums):
-    """
-    Minimal complete set of closure amplitudes.
-    Args
-        N (int): number of antennas
-        ant_nums (array-like): antenna numbers (length N)
-    Returns
-        out (ndarray): matrix for closure amplitude
-        pairs (ndarray): all antenna pairs, shape (N * (N - 1) / 2, 2)
-    """
-    ant_nums = np.asarray(ant_nums)
-    pairs = np.array(list(it.combinations(ant_nums.tolist(), 2)), dtype=int)
-
-    out = np.array([
-        [0, 1, -1, -1, 1, 0],
-        [1, 0, -1, -1, 0, 1],
-    ], dtype=float)
-
-    if N == 4:
-        return out, pairs
-
-    for i in range(5, N + 1):
-        ant_nums_ = ant_nums[:i]
-
-        n_pairs_prev = (i - 1) * (i - 2) // 2
-        n_lower_rows = (i - 1) * (i - 4) // 2
-
-        m1 = np.ones((i - 2, 1), dtype=float)
-        xn = np.concatenate((np.eye(i - 2, dtype=float), -m1), axis=1)
-
-        yn = np.zeros((i - 2, n_pairs_prev), dtype=float)
-
-        all_pairs_i = list(it.combinations(ant_nums_.tolist(), 2))
-        sub_pairs = all_pairs_i[(i - 1):]
-
-        pair_to_col = {tuple(p): k for k, p in enumerate(sub_pairs)}
-
-        for j in range(i - 2):
-            if j != i - 3:
-                idx1 = (int(ant_nums_[j + 1]), int(ant_nums_[j + 2]))
-                idx2 = (int(ant_nums_[j + 2]), int(ant_nums_[-1]))
-            else:
-                idx1 = (int(ant_nums_[1]), int(ant_nums_[-2]))
-                idx2 = (int(ant_nums_[1]), int(ant_nums_[-1]))
-
-            loc1 = pair_to_col[idx1]
-            loc2 = pair_to_col[idx2]
-            yn[j, loc1] = -1.0
-            yn[j, loc2] = +1.0
-
-        upper = np.concatenate((xn, yn), axis=1)
-
-        m0 = np.zeros((n_lower_rows, i - 1), dtype=float)
-        lower = np.concatenate((m0, out), axis=1)
-
-        out = np.concatenate((upper, lower), axis=0)
-
-    return out, pairs
-
 def set_min_matrix_clamp(N, ant_nums):
     """
     Minimal complete set of closure amplitudes.
-    Args
-        N (int): number of antennas
-        ant_nums (array-like): antenna numbers (length N)
-    Returns
-        out (ndarray): matrix for closure amplitude
-        pairs (ndarray): all antenna pairs, shape (N * (N - 1) / 2, 2)
+
+    Args:
+        N (int): Number of antennas
+        ant_nums (array-like): Antenna numbers (length N)
+
+    Returns:
+        out (ndarray): Matrix for closure amplitude
+        pairs (ndarray): All antenna pairs, shape (N * (N - 1) / 2, 2)
     """
+
     ant_nums = np.asarray(ant_nums)
     pairs = np.array(list(it.combinations(ant_nums.tolist(), 2)), dtype=int)
     pair_idx = {tuple(p): k for k, p in enumerate(pairs.tolist())}
@@ -5236,13 +5411,16 @@ def set_min_matrix_clamp(N, ant_nums):
 def set_min_matrix_clphs(N, ant_nums):
     """
     Set the minimum matrix for the closure phase
+
     Args
-        N (int): number of antennas
-        ant_nums (array-like): antenna numbers (length N)
+        N (int): Number of antennas
+        ant_nums (array-like): Antenna numbers (length N)
+
     Returns
-        out (ndarray): matrix for closure phase
-        pairs (ndarray): all antenna pairs, shape (N * (N - 1) / 2, 2)
+        out (ndarray): Matrix for closure phase
+        pairs (ndarray): All antenna pairs, shape (N * (N - 1) / 2, 2)
     """
+
     ant_nums = np.asarray(ant_nums)
     pairs = np.array(list(it.combinations(ant_nums.tolist(), 2)), dtype=int)
 

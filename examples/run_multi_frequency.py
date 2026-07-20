@@ -44,6 +44,12 @@ if __name__ == "__main__":
     fixnmod = False         # if True, fix number of components to 'maxn'
     model = "gaussian"      # fit Gaussian models
     spectrum = "ssa"        # use synchrotron self-absorption spectrum
+                            # Availables:
+                                # "flat": flat spectrum (default)
+                                # "spl": simple power-law
+                                # "cpl": curved power-law
+                                # "ssa": synchrotron self-absorption
+                                # "poly": logarithmic 2nd-order polynomial
     snrflag = 5             # SNR threshold
     gaptime = 180           # gap time between scans (seconds)
     scanlen = gaptime       # scan length (seconds)
@@ -109,8 +115,7 @@ if __name__ == "__main__":
         uvfs[i].systematics_apply(dotype=syscal_type)
 
         # (optional) increase uncertainty of complex visibility: 0.1 = 10%
-        uvfs[i].add_fractional_error(value=0.1)
-        # uvfs[i].increase_sigma_factor(value=1)
+        uvfs[i].inflate_sigma_fractional(value=0.1)
 
         bands.append(f"{round(uvfs[i].freq_mean)}")
 
@@ -127,10 +132,17 @@ if __name__ == "__main__":
     # bnd_a = [[0, 3], [0, 3], [0, 5], [0, 5]] # (angular size, mas)
     # bnd_l = [[-1, +1], [-1, +3], [-1, +6], [-1, +6]] # (RA, mas)
     # bnd_m = [[-1, +1], [-1, +4], [-1, +6], [-1, +6]] # (Dec, mas)
+
+    # # (for "spl", "cpl", "ssa")
     # bnd_f = [[fmin, fmax], [fmin, fmax],
     #          [fmin, fmax], [fmin, fmax]] # (turnover frequency, GHz)
     # bnd_i = [[-3, 0], [-3, 0], [-3, 0], [-3, 0]] # (spectral index)
     # boundset = (bnd_s, bnd_a, bnd_l, bnd_m, bnd_f, bnd_i)
+
+    # # (for "poly")
+    # bnd_alpha = [[-3, +3], [-3, +3], [-3, +3], [-3, +3]] # (spectral index)
+    # bnd_beta = [[-3, 0], [-3, 0], [-3, 0], [-3, 0]] # (spectral curvature)
+    # boundset = (bnd_s, bnd_a, bnd_l, bnd_m, bnd_alpha, bnd_beta)
 
     # basic information
     source = uvf.source
@@ -171,7 +183,7 @@ if __name__ == "__main__":
         ftype=ftype, fwght=fwght, ufreq=ufreq, bands=bands, spectrum=spectrum,
         maxn=maxn, fixnmod=fixnmod, mapfov=mapfov, bnd_a=bnd_a, bnd_l=bnd_l,
         bnd_m=bnd_m, path_fig=path_fig_, source=source, date=date, ncpu=ncpu,
-        model=model, boundset=boundset
+        model=model, boundset=boundset, npix=1024
     )
     mfu.run()
 

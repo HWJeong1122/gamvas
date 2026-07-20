@@ -61,7 +61,6 @@ class plotter:
         self.fitset = None
         self.spectrum = None
 
-
     def convolve_image(self, uvf, npix, image=False, bprms=None):
         """
         Convolve the generated intensity image with restoring beam (Jy/beam)
@@ -94,7 +93,6 @@ class plotter:
         conv_image = convolve_fft(image, gauss_kernel, normalize_kernel=True)
         conv_image = bsize * conv_image
         return conv_image
-
 
     def draw_cgain(
         self,
@@ -668,7 +666,6 @@ class plotter:
                 for _nfig in range(nfig):
                     close_figure(figs[_nfig])
 
-
     def draw_cnplot(
         self,
         result=None, pol=False, nmod=None, relmod=True, spectrum="spl",
@@ -769,7 +766,6 @@ class plotter:
                 dpi=300
             )
             close_figure(fig_cn)
-
 
     def draw_dirtymap(
         self,
@@ -893,7 +889,6 @@ class plotter:
         if returned:
             return (beam, dirty, extent)
 
-
     def draw_crossvis(
         self,
         uvf, plotimg=True, save_path=False, save_name=False, save_form="png"
@@ -952,7 +947,6 @@ class plotter:
             plt.show()
 
         close_figure(fig_dterm)
-
 
     def draw_image(
         self,
@@ -1282,7 +1276,6 @@ class plotter:
             close_figure(fig)
         close_figure(fig)
 
-
     def draw_radplot(
         self,
         uvf, select_pol=None, plotmodel=False, plotimg=True,
@@ -1473,7 +1466,6 @@ class plotter:
 
         close_figure(fig)
 
-
     def draw_tplot(
         self,
         uvf, select_pol=None, plotimg=True, dotype="utc",
@@ -1597,7 +1589,6 @@ class plotter:
 
         close_figure(fig_tplot)
 
-
     def draw_trplot(
         self,
         result=None, pol=False, nmod=None, relmod=True, spectrum="spl",
@@ -1700,7 +1691,6 @@ class plotter:
                 dpi=300
             )
             close_figure(fig_tr)
-
 
     def draw_uvcover(
         self,
@@ -1842,7 +1832,6 @@ class plotter:
             plt.show()
 
         close_figure(fig_uvc)
-
 
     def generate_image(
         self,
@@ -2041,6 +2030,7 @@ class plotter:
                     idx_m = f"{i + 1}_m"
                     idx_i = f"{i + 1}_alpha"
                     idx_f = f"{i + 1}_freq"
+                    idx_b = f"{i + 1}_beta"
                     idx_t = f"{i + 1}_thick"
 
                     _dtype = theta.dtype.names
@@ -2049,6 +2039,7 @@ class plotter:
                     has_m = idx_m in _dtype
                     has_i = idx_i in _dtype
                     has_f = idx_f in _dtype
+                    has_b = idx_b in _dtype
                     has_t = idx_t in _dtype
 
                     _s = theta[idx_s]
@@ -2097,6 +2088,9 @@ class plotter:
                                     s = gv.functions.ssa(
                                         freq, _s, _f, _i
                                     )
+                    elif spectrum == "poly":
+                        _b = theta[idx_b]
+                        s = gv.functions.poly(freq_ref, freq, _s, _i, _b)
 
                     list_s.append(s)
                     list_a.append(_a)
@@ -2134,6 +2128,7 @@ class plotter:
                     idx_m = f"{i + 1}_m"
                     idx_i = f"{i + 1}_alpha"
                     idx_f = f"{i + 1}_freq"
+                    idx_b = f"{i + 1}_beta"
                     idx_t = f"{i + 1}_thick"
 
                     _dtype = theta.dtype.names
@@ -2142,6 +2137,7 @@ class plotter:
                     has_m = idx_m in _dtype
                     has_i = idx_i in _dtype
                     has_f = idx_f in _dtype
+                    has_b = idx_b in _dtype
                     has_t = idx_t in _dtype
 
                     _s = theta[idx_s]
@@ -2189,9 +2185,12 @@ class plotter:
                                     s = gv.functions.ssa(
                                         freq, _s, _f, _i
                                     )
+                    elif spectrum == "poly":
+                        _b = theta[idx_b]
+                        s = gv.functions.poly(freq_ref, freq, _s, _i, _b)
 
                     list_s.append(s)
-                    list_a.append(_a)
+                    list_a.append(0.0)
                     list_l.append(_l)
                     list_m.append(_m)
 
@@ -2221,13 +2220,11 @@ class plotter:
 
         self.image = np.flip(image.T, axis=0)
 
-
     def set_beamprms(self, uvf):
         uvc = uvf.set_uvcov(flatten=True, returned=True)
         uvw = uvf.uvw
         bprms = gv.utils.fit_beam(uvc=uvc, sig=None, uvw=uvw)
         self.bprms = bprms
-
 
     def set_imgprms(self, uvf, npix, mapfov):
         """
@@ -2246,7 +2243,6 @@ class plotter:
         self.imgprms = (mapfov, npix, psize)
         return self.imgprms
 
-
 def close_figure(fig):
     """
     close figure
@@ -2254,7 +2250,6 @@ def close_figure(fig):
     plt.close(fig)
     plt.close("all")
     gc.collect()
-
 
 def get_trcnidx(pol, model, spectrum, relmod, n):
     if pol:
@@ -2307,6 +2302,20 @@ def get_trcnidx(pol, model, spectrum, relmod, n):
                     else:
                         nidx_ = 7
 
+            elif spectrum == "poly":
+                if relmod and n == 1:
+                    nidx_ = 4
+                    field = [
+                        rf"$S_{n}$", rf"$a_{n}$",
+                        rf"$\alpha_{n}$", rf"$\beta_{n}$"
+                    ]
+                else:
+                    nidx_ = 6
+                    field = [
+                        rf"$S_{n}$", rf"$a_{n}$", rf"$l_{n}$", rf"$m_{n}$",
+                        rf"$\alpha_{n}$", rf"$\beta_{n}$"
+                    ]
+
         elif model == "delta":
             if spectrum == "flat":
                 if relmod and n == 1:
@@ -2351,8 +2360,18 @@ def get_trcnidx(pol, model, spectrum, relmod, n):
                         nidx_ = 5
                     else:
                         nidx_ = 6
-    return nidx_, field
 
+            elif spectrum == "poly":
+                if relmod and n == 1:
+                    nidx_ = 3
+                    field = [rf"$S_{n}$", rf"$\alpha_{n}$", rf"$\beta_{n}$"]
+                else:
+                    nidx_ = 5
+                    field = [
+                        rf"$S_{n}$", rf"$l_{n}$", rf"$m_{n}$",
+                        rf"$\alpha_{n}$", rf"$\beta_{n}$"
+                    ]
+    return nidx_, field
 
 def set_mapticks(ax, fov):
     if fov >= 2000:

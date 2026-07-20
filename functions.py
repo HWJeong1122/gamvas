@@ -1,10 +1,11 @@
 
 import numpy as np
+from uncertainties import ufloat
+from uncertainties import unumpy as unp
 from astropy import units as au
 
 r2m = au.rad.to(au.mas)
 d2m = au.deg.to(au.mas)
-
 
 def cpl(nu, smax, tf, alpha):
     """
@@ -18,7 +19,6 @@ def cpl(nu, smax, tf, alpha):
     out = smax * 10**(alpha * np.log10(nu / tf)**2)
 
     return out
-
 
 def dvis(args, S, l, m):
     """
@@ -37,34 +37,6 @@ def dvis(args, S, l, m):
     out = S * np.exp(2j * np.pi * (uu * l + vv * m))
 
     return out.astype("c8")
-
-
-def dvis_spl(args, smax, l, m, alpha):
-    """
-    Args:
-        args (tuple): input sub-arguments
-            args[0] (float): reference frequency (recommended to set at the
-                lowest one)
-            args[1] (array or float): input frequency
-            args[2] (1D-array): u-axis data points
-            args[3] (1D-array): v-axis data points
-        smax (float): flux density at 'args[0]'
-        l (float): right ascension position
-        m (float): declination position
-        alpha (float): optically thin spectral index
-    Returns:
-        complex visibility of delta-function model (based on simple power-law
-            spectrum)
-    """
-    nu_ref = args[0]
-    nu = args[1]
-    uu = args[2] / r2m
-    vv = args[3] / r2m
-    S = spl(nu_ref, nu, smax, alpha)
-    out = S * np.exp(2j * np.pi * (uu * l + vv * m))
-
-    return out.astype("c8")
-
 
 def dvis_cpl(args, smax, l, m, alpha, nu_m):
     """
@@ -92,6 +64,41 @@ def dvis_cpl(args, smax, l, m, alpha, nu_m):
 
     return out.astype("c8")
 
+def dvis_poly(args, s_ref, l, m, alpha, beta):
+    nu_ref = args[0]
+    nu = args[1]
+    uu = args[2] / r2m
+    vv = args[3] / r2m
+    S = poly(nu_ref, nu, s_ref, alpha, beta)
+    out = S * np.exp(2j * np.pi * (uu * l + vv * m))
+
+    return out.astype("c8")
+
+def dvis_spl(args, smax, l, m, alpha):
+    """
+    Args:
+        args (tuple): input sub-arguments
+            args[0] (float): reference frequency (recommended to set at the
+                lowest one)
+            args[1] (array or float): input frequency
+            args[2] (1D-array): u-axis data points
+            args[3] (1D-array): v-axis data points
+        smax (float): flux density at 'args[0]'
+        l (float): right ascension position
+        m (float): declination position
+        alpha (float): optically thin spectral index
+    Returns:
+        complex visibility of delta-function model (based on simple power-law
+            spectrum)
+    """
+    nu_ref = args[0]
+    nu = args[1]
+    uu = args[2] / r2m
+    vv = args[3] / r2m
+    S = spl(nu_ref, nu, smax, alpha)
+    out = S * np.exp(2j * np.pi * (uu * l + vv * m))
+
+    return out.astype("c8")
 
 def dvis_ssa(args, smax, l, m, alpha, nu_m):
     """
@@ -116,7 +123,6 @@ def dvis_ssa(args, smax, l, m, alpha, nu_m):
 
     return out.astype("c8")
 
-
 def gaussian_1d(x, peak, a, mx):
     """
     Args:
@@ -129,7 +135,6 @@ def gaussian_1d(x, peak, a, mx):
     """
     out = peak * np.exp(-((x - mx) / a)**2 / 2)
     return out
-
 
 def gaussian_2d(xy, peak, ax, ay, mx, my, theta):
     """
@@ -149,7 +154,6 @@ def gaussian_2d(xy, peak, ax, ay, mx, my, theta):
 
     return out
 
-
 def gvis(args, S, fwhm, l, m):
     """
     Args:
@@ -168,6 +172,37 @@ def gvis(args, S, fwhm, l, m):
     sigma = fwhm / (2 * (2 * np.log(2))**0.5)
     out = S * np.exp(
         -2 * np.pi**2 * sigma**2 * (uu**2 + vv**2)
+        + 2j * np.pi * (uu * l + vv * m)
+    )
+
+    return out.astype("c8")
+
+def gvis_cpl(args, smax, fwhm, l, m, alpha, nu_m):
+    """
+    Args:
+        args (tuple): input sub-arguments
+            args[0] (float): reference frequency (recommended to set at the
+                lowest one)
+            args[1] (array or float): input frequency
+            args[2] (1D-array): u-axis data points
+            args[3] (1D-array): v-axis data points
+        smax (float): flux density at 'nu_m'
+        fwhm (float): full-width at half maximum
+        l (float): right ascension position
+        m (float): declination position
+        alpha (float): optically thin spectral index
+        nu_m (float): turnover frequency
+    Returns:
+        complex visibility of Gaussian model (based on simple power-law
+            spectrum)
+    """
+    nu = args[0]
+    uu = args[1] / r2m
+    vv = args[2] / r2m
+    sigma = fwhm / (2 * (2 * np.log(2))**0.5)
+    S = cpl(nu, smax, nu_m, alpha)
+    out = S * np.exp(
+        -2 * (np.pi * sigma)**2 * (uu**2 + vv**2)
         + 2j * np.pi * (uu * l + vv * m)
     )
 
@@ -206,6 +241,19 @@ def gvis_elipse(args, S, major, minor, l, m, pa):
 
     return out.astype("c8")
 
+def gvis_poly(args, s_ref, fwhm, l, m, alpha, beta):
+    nu_ref = args[0]
+    nu = args[1]
+    uu = args[2] / r2m
+    vv = args[3] / r2m
+    sigma = fwhm / (2 * (2 * np.log(2))**0.5)
+    S = poly(nu_ref, nu, s_ref, alpha, beta)
+    out = S * np.exp(
+        -2 * (np.pi * sigma)**2 * (uu**2 + vv**2)
+        + 2j * np.pi * (uu * l + vv * m)
+    )
+
+    return out.astype("c8")
 
 def gvis_spl(args, smax, fwhm, l, m, alpha):
     """
@@ -238,39 +286,6 @@ def gvis_spl(args, smax, fwhm, l, m, alpha):
 
     return out.astype("c8")
 
-
-def gvis_cpl(args, smax, fwhm, l, m, alpha, nu_m):
-    """
-    Args:
-        args (tuple): input sub-arguments
-            args[0] (float): reference frequency (recommended to set at the
-                lowest one)
-            args[1] (array or float): input frequency
-            args[2] (1D-array): u-axis data points
-            args[3] (1D-array): v-axis data points
-        smax (float): flux density at 'nu_m'
-        fwhm (float): full-width at half maximum
-        l (float): right ascension position
-        m (float): declination position
-        alpha (float): optically thin spectral index
-        nu_m (float): turnover frequency
-    Returns:
-        complex visibility of Gaussian model (based on simple power-law
-            spectrum)
-    """
-    nu = args[0]
-    uu = args[1] / r2m
-    vv = args[2] / r2m
-    sigma = fwhm / (2 * (2 * np.log(2))**0.5)
-    S = cpl(nu, smax, nu_m, alpha)
-    out = S * np.exp(
-        -2 * (np.pi * sigma)**2 * (uu**2 + vv**2)
-        + 2j * np.pi * (uu * l + vv * m)
-    )
-
-    return out.astype("c8")
-
-
 def gvis_ssa(args, smax, fwhm, l, m, alpha, nu_m):
     """
     Args:
@@ -299,7 +314,6 @@ def gvis_ssa(args, smax, fwhm, l, m, alpha, nu_m):
 
     return out.astype("c8")
 
-
 def linear(x, m, a):
     """
     Args:
@@ -310,8 +324,14 @@ def linear(x, m, a):
         A linear function
     """
     out = m * x + a
+
     return out
 
+def poly(nu_ref, nu, s_ref, alpha, beta):
+    x = unp.log(nu / nu_ref)
+    out = s_ref * unp.exp(alpha * x + beta * x**2)
+
+    return out
 
 def ring(args, S, r, w):
     uu = args[0] / r2m
@@ -324,7 +344,6 @@ def ring(args, S, r, w):
     )
 
     return out.astype("c8")
-
 
 def spl(nu_ref, nu, smax, alpha):
     """
@@ -340,7 +359,6 @@ def spl(nu_ref, nu, smax, alpha):
     out = smax * (nu / nu_ref)**alpha
 
     return out
-
 
 def ssa(nu, smax, tf, alpha):
     """

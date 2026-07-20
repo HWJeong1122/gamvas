@@ -26,11 +26,11 @@ import gamvas as gv
 r2m = au.rad.to(au.mas)
 d2m = au.deg.to(au.mas)
 
-fields_sf = ["S", "a", "l", "m"]
-dtypes_sf = ["f8", "f8", "f8", "f8"]
+fields1 = ["S", "a", "l", "m", "freq", "alpha"]
+dtypes1 = ["f8", "f8", "f8", "f8", "f8", "f8"]
 
-fields_mf = ["S", "a", "l", "m", "freq", "alpha"]
-dtypes_mf = ["f8", "f8", "f8", "f8", "f8", "f8"]
+fields2 = ["S", "a", "l", "m", "alpha", "beta"]
+dtypes2 = ["f8", "f8", "f8", "f8", "f8", "f8"]
 
 class modeling:
     """
@@ -89,7 +89,7 @@ class modeling:
         factor_sblf=1.0, sampler="slice", bound="multi", runfit_pol=False,
         ftype=None, fwght=None, boundset=None, bnd_a=5, bnd_l=None,
         bnd_m=None, bnd_f=None, bnd_pa=(None, None), nflux=False, ufreq=None,
-        bands=None, spectrum=None, model="gaussian", uvw="u", shift=None,
+        bands=None, spectrum="flat", model="gaussian", uvw="u", shift=None,
         fixnmod=False, maxn=None, npix=1024, mindr=3, mapfov=None, gacalerr=0,
         dognorm=True, dogscale=False, doampcal=True, zero_cp=False,
         selfflag=True, rscsbl=True, dophscal=True, path_fig=None, source=None,
@@ -164,7 +164,6 @@ class modeling:
 
         self.pol = gv.polarization.modeling.polarization(ncpu=self.ncpu)
 
-
     def check_dof(self, uvfs=None, spectrum=None, maxn=None):
         if uvfs is None:
             raise ValueError("'uvfs' must be provided.")
@@ -230,7 +229,6 @@ class modeling:
                         UserWarning
                     )
 
-
     def get_results(
         self,
         qs=(0.025, 0.500, 0.975), save_path=False, save_name=False,
@@ -292,7 +290,6 @@ class modeling:
             out_xlsx["idx"] = idx_
             out_xlsx.to_excel(f"{save_path}{save_name}")
             self.out_xlsx = out_xlsx
-
 
     def get_ntheta(self):
         """
@@ -374,6 +371,7 @@ class modeling:
                     idx_m = f"{i + 1}_m"
                     idx_i = f"{i + 1}_alpha"
                     idx_f = f"{i + 1}_freq"
+                    idx_b = f"{i + 1}_beta"
                     idx_t = f"{i + 1}_thick"
 
                     _dtype = theta.dtype.names
@@ -382,6 +380,7 @@ class modeling:
                     has_m = idx_m in _dtype
                     has_i = idx_i in _dtype
                     has_f = idx_f in _dtype
+                    has_b = idx_b in _dtype
                     has_t = idx_t in _dtype
 
                     _s = theta[idx_s]
@@ -430,6 +429,9 @@ class modeling:
                                 S = gv.functions.ssa(
                                     freq, _s, _f, _i
                                 )
+                    elif spectrum == "poly":
+                        _b = theta[idx_b]
+                        S = gv.functions.poly(ufreq[0], freq, _s, _i, _b)
 
                     _r, _p = (
                         np.sqrt(_l**2 + _m**2),
@@ -457,6 +459,7 @@ class modeling:
                     idx_m = f"{i + 1}_m"
                     idx_i = f"{i + 1}_alpha"
                     idx_f = f"{i + 1}_freq"
+                    idx_b = f"{i + 1}_beta"
                     idx_t = f"{i + 1}_thick"
 
                     _dtype = theta.dtype.names
@@ -465,6 +468,7 @@ class modeling:
                     has_m = idx_m in _dtype
                     has_i = idx_i in _dtype
                     has_f = idx_f in _dtype
+                    has_b = idx_b in _dtype
                     has_t = idx_t in _dtype
 
                     _s = theta[idx_s]
@@ -512,6 +516,9 @@ class modeling:
                                 S = gv.functions.ssa(
                                     freq, _s, _f, _i
                                 )
+                    elif spectrum == "poly":
+                        _b = theta[idx_b]
+                        S = gv.functions.poly(ufreq[0], freq, _s, _i, _b)
 
                     _r, _p = (
                         np.sqrt(_l**2 + _m**2),
@@ -520,7 +527,8 @@ class modeling:
 
                     out_txt = (
                         f"# ({freq:.1f} GHz) Model {i + 1}: "
-                        f"{S:.3f}v {+_r:.3f}v {_p:.3f}v 0.000"
+                        f"{S:6.3f}v {+_r:6.3f}v {_p:8.3f}v "
+                        f"{0.0:6.3f}"
                     )
 
                     if prt:
@@ -556,7 +564,6 @@ class modeling:
             out_theta.write(f"logz : {stats[-2]:.3f} +/- {stats[-1]:.3f}\n")
             out_theta.close()
 
-
     def prior_transform(self, theta):
         """
         Transform priori boundary conditions
@@ -590,7 +597,6 @@ class modeling:
             ndim += self.dims
 
         return results
-
 
     def rsc_amplitude(
         self,
@@ -650,12 +656,11 @@ class modeling:
             if save_xlsx:
                 self.out_xlsx.to_excel(f"{save_path}{save_name}")
 
-
     def run(self, uvave=None):
         """
         Run the modeling utilies
         """
-        availables = ["flat", "spl", "cpl", "ssa", "quad"]
+        availables = ["flat", "spl", "cpl", "ssa", "poly"]
         if self.spectrum not in availables:
             raise ValueError(
                 f"Invalid spectrum: {self.spectrum!r}.\n"
@@ -752,7 +757,6 @@ class modeling:
 
         self.check_dof(uvfs=uvfs, spectrum=self.spectrum, maxn=self.maxn)
         self.run_modeling()
-
 
     def run_modeling(self):
         """
@@ -860,6 +864,13 @@ class modeling:
             )
 
         # set boundary conditions
+        if self.spectrum in ["flat", "spl", "cpl", "ssa"]:
+            fields_bnds = fields1
+            dtypes_bnds = dtypes1
+        elif self.spectrum == "poly":
+            fields_bnds = fields2
+            dtypes_bnds = dtypes2
+
         if self.boundset is None:
             if self.bnd_f is not None:
                 _bnds_f = self.bnd_f
@@ -875,16 +886,16 @@ class modeling:
 
             bnds = gv.utils.structured_array(
                 data=_bnds,
-                field=fields_mf,
-                dtype=dtypes_mf
+                field=fields_bnds,
+                dtype=dtypes_bnds
             )
 
         else:
             if isinstance(self.boundset, (list, tuple)):
                 bnds = gv.utils.structured_array(
                     data=self.boundset,
-                    field=fields_mf,
-                    dtype=dtypes_mf
+                    field=fields_bnds,
+                    dtype=dtypes_bnds
                 )
             else:
                 bnds = self.boundset
@@ -1018,7 +1029,8 @@ class modeling:
 
         # map parameter index to number
         theta_idx2num = {
-            "thick":0, "S":1, "a":2, "l":3, "m":4, "alpha":5, "freq":6
+            "thick":0, "S":1, "a":2, "l":3, "m":4, "alpha":5, "freq":6,
+            "beta":7
         }
 
         _index_num = self.index.copy()[1:]
@@ -1368,7 +1380,6 @@ class modeling:
         self.initialize_memory()
         del clamp_uvcomb, clphs_uvcomb
 
-
     def run_pol(self):
         _uvfs = copy.deepcopy(self.uvfs)
         _nuvf = len(_uvfs)
@@ -1390,7 +1401,6 @@ class modeling:
             freqtype=freqtype, bprms=_uvf.bprms, source=self.source,
             date=self.date, mindr=3, save_path=self.path_fig, ncpu=self.ncpu
         )
-
 
     def run_util(
         self,
@@ -1492,14 +1502,15 @@ class modeling:
         self.theta = theta
         self.get_ntheta()
 
-
     def set_field(self, nmod=1):
         """
         Set field names and dimensions
         Args:
             nmod (int): The number of models
         """
+        # Gaussian
         if self.model == "gaussian":
+            # flat spectrum
             if self.spectrum == "flat":
                 if self.relmod and nmod == 1:
                     self.dims = 2
@@ -1508,6 +1519,7 @@ class modeling:
                     self.dims = 4
                     self.fields = ["S", "a", "l", "m"]
 
+            # simple power-law
             elif self.spectrum == "spl":
                 if self.relmod and nmod == 1:
                     self.dims = 3
@@ -1516,6 +1528,7 @@ class modeling:
                     self.dims = 5
                     self.fields = ["S", "a", "l", "m", "alpha"]
 
+            # curved power-law or synchrotron self-absorption
             elif self.spectrum in ["cpl", "ssa"]:
                 if self.relmod:
                     if nmod == 1:
@@ -1532,7 +1545,18 @@ class modeling:
                     else:
                         self.dims = 7
 
+            # 2nd-order polynomial
+            elif self.spectrum == "poly":
+                if self.relmod and nmod == 1:
+                    self.dims = 4
+                    self.fields = ["S", "a", "alpha", "beta"]
+                else:
+                    self.dims = 6
+                    self.fields = ["S", "a", "l", "m", "alpha", "beta"]
+
+        # delta-function
         elif self.model == "delta":
+            # flat spectrum
             if self.spectrum == "flat":
                 if self.relmod and nmod == 1:
                     self.dims = 1
@@ -1541,6 +1565,7 @@ class modeling:
                     self.dims = 3
                     self.fields = ["S", "l", "m"]
 
+            # simple power-law
             elif self.spectrum == "spl":
                 if self.relmod and nmod == 1:
                     self.dims = 2
@@ -1549,6 +1574,7 @@ class modeling:
                     self.dims = 4
                     self.fields = ["S", "l", "m", "alpha"]
 
+            # curved power-law or synchrotron self-absorption
             elif self.spectrum in ["cpl", "ssa"]:
                 if self.relmod:
                     if nmod == 1:
@@ -1565,6 +1591,15 @@ class modeling:
                     else:
                         self.dims = 6
 
+            # 2nd-order polynomial
+            elif self.spectrum == "poly":
+                if self.relmod and nmod == 1:
+                    self.dims = 3
+                    self.fields = ["S", "alpha", "beta"]
+                else:
+                    self.dims = 5
+                    self.fields = ["S", "l", "m", "alpha", "beta"]
+
     def set_ndim(self, nmod=1):
         """
         Set the number of dimensions
@@ -1578,7 +1613,6 @@ class modeling:
             self.set_field(nmod=_nmod)
             ndim += self.dims
         self.ndim = ndim
-
 
     def set_index(self):
         """
@@ -1601,6 +1635,37 @@ class modeling:
 
             _index = _index + index_list
         self.index = _index
+
+def _prior_transform_static(
+    theta, fixnmod, maxn, nmod, spectrum,
+    fields_per_nmod, dims_per_nmod, boundset
+):
+    """
+    Module-level prior_transform so it is picklable under spawn.
+    Receives only small, picklable state (no 'self', no uvfs/file handles).
+    """
+    results = []
+    ndim = 0
+    if fixnmod:
+        results.append(1.0 * theta[0] + maxn - 0.5)
+    else:
+        results.append((maxn - 0.01) * theta[0] + 0.5)
+
+    for i in range(nmod):
+        thick_offset = 0
+        if spectrum in ("cpl", "ssa") and i != 0:
+            results.append(1.98 * theta[1 + ndim] - 0.49)
+            thick_offset = 1
+
+        for nfield, field in enumerate(fields_per_nmod[i]):
+            lo = boundset[field][i][0]
+            hi = boundset[field][i][1]
+            results.append(
+                (hi - lo) * theta[1 + thick_offset + ndim + nfield] + lo
+            )
+        ndim += dims_per_nmod[i]
+
+    return results
 
 @jit(nopython=True)
 def compute_bic(in_res, in_sig2, in_type, in_nobs, in_ntheta):
@@ -1637,19 +1702,18 @@ def compute_obj(in_res, in_sig2, in_type, in_nobs, in_ntheta, in_fixnmod):
         return compute_nll(in_res, in_sig2, in_type)
 
 @jit(nopython=True)
-def cpl(nu, Smax, tf, alpha):
+def cpl(nu, smax, tf, alpha):
     """
     Args:
         nu (array or float): input frequency
-        Smax (float): flux density at 'tf'
+        smax (float): flux density at 'tf'
         alpha (float): optically thin spectral index
     Returns:
         Curved power-law flux density at nu
     """
-    out = Smax * (nu / tf)**(alpha * np.log10(nu / tf))
+    out = smax * (nu / tf)**(alpha * np.log10(nu / tf))
 
     return out
-
 
 @jit(nopython=True)
 def dvis(args, S, l, m):
@@ -1668,9 +1732,40 @@ def dvis(args, S, l, m):
 
     return out
 
+@jit(nopython=True)
+def dvis_cpl(args, smax, l, m, alpha, nu_m):
+    """
+    Args:
+        args (tuple): input sub-arguments
+            args[0] (array or float): input frequency
+            args[1] (1D-array): u-axis data points
+            args[2] (1D-array): v-axis data points
+        smax (float): flux density of Gaussian model at 'nu_m'
+        l (float): right ascension position of Gaussian model
+        m (float): declination position of Gaussian model
+        alpha (float): optically thin spectral index of Gaussian model
+    Returns:
+        complex visibility of delta-function model (cpl-based)
+    """
+    out = cpl(args[0], smax, nu_m, alpha) * np.exp(
+        2j * np.pi * (args[1] * l + args[2] * m) / r2m
+    )
+
+    return out
 
 @jit(nopython=True)
-def dvis_spl(args, Smax, l, m, alpha):
+def dvis_poly(args, s_ref, l, m, alpha, beta):
+    nu_ref = args[0]
+    nu = args[1]
+    uu = args[2] / r2m
+    vv = args[3] / r2m
+    S = poly(nu_ref, nu, s_ref, alpha, beta)
+    out = S * np.exp(2j * np.pi * (uu * l + vv * m))
+
+    return out.astype("c8")
+
+@jit(nopython=True)
+def dvis_spl(args, smax, l, m, alpha):
     """
     Args:
         args (tuple): input sub-arguments
@@ -1679,51 +1774,28 @@ def dvis_spl(args, Smax, l, m, alpha):
             args[1] (array or float): input frequency
             args[2] (1D-array): u-axis data points
             args[3] (1D-array): v-axis data points
-        Smax (float): flux density of Gaussian model at 'args[0]'
+        smax (float): flux density of Gaussian model at 'args[0]'
         l (float): right ascension position of Gaussian model
         m (float): declination position of Gaussian model
         alpha (float): optically thin spectral index of Gaussian model
     Returns:
         complex visibility of delta-function model (spl-based)
     """
-    out = spl(args[0], args[1], Smax, alpha) * np.exp(
+    out = spl(args[0], args[1], smax, alpha) * np.exp(
         2j * np.pi * (args[2] * l + args[3] * m) / r2m
     )
 
     return out
 
-
 @jit(nopython=True)
-def dvis_cpl(args, Smax, l, m, alpha, nu_m):
+def dvis_ssa(args, smax, l, m, alpha, nu_m):
     """
     Args:
         args (tuple): input sub-arguments
             args[0] (array or float): input frequency
             args[1] (1D-array): u-axis data points
             args[2] (1D-array): v-axis data points
-        Smax (float): flux density of Gaussian model at 'nu_m'
-        l (float): right ascension position of Gaussian model
-        m (float): declination position of Gaussian model
-        alpha (float): optically thin spectral index of Gaussian model
-    Returns:
-        complex visibility of delta-function model (cpl-based)
-    """
-    out = cpl(args[0], Smax, nu_m, alpha) * np.exp(
-        2j * np.pi * (args[1] * l + args[2] * m) / r2m
-    )
-
-    return out
-
-
-@jit(nopython=True)
-def dvis_ssa(args, Smax, l, m, alpha, nu_m):
-    """
-    Args:
-        args (tuple): input sub-arguments
-            args[0] (array or float): input frequency
-            args[1] (1D-array): u-axis data points
-            args[2] (1D-array): v-axis data points
-        Smax (float): flux density of Gaussian model at 'nu_m'
+        smax (float): flux density of Gaussian model at 'nu_m'
         l (float): right ascension position of Gaussian model
         m (float): declination position of Gaussian model
         alpha (float): optically thin spectral index of Gaussian model
@@ -1731,12 +1803,11 @@ def dvis_ssa(args, Smax, l, m, alpha, nu_m):
     Returns:
         complex visibility of delta-function model (ssa-based)
     """
-    out = ssa(args[0], Smax, nu_m, alpha) * np.exp(
+    out = ssa(args[0], smax, nu_m, alpha) * np.exp(
         2j * np.pi * (args[1] * l + args[2] * m) / r2m
     )
 
     return out
-
 
 @jit(nopython=True)
 def gaussian_1d(x, peak, a, mx):
@@ -1752,7 +1823,6 @@ def gaussian_1d(x, peak, a, mx):
     out = peak * np.exp(-((x - mx) / a)**2 / 2)
 
     return out
-
 
 @jit(nopython=True)
 def gaussian_2d(xy, peak, ax, ay, mx, my, theta):
@@ -1774,7 +1844,6 @@ def gaussian_2d(xy, peak, ax, ay, mx, my, theta):
     )
 
     return out
-
 
 @jit(nopython=True)
 def gvis(args, S, fwhm, l, m):
@@ -1798,43 +1867,15 @@ def gvis(args, S, fwhm, l, m):
 
     return out
 
-
 @jit(nopython=True)
-def gvis_spl(args, Smax, fwhm, l, m, alpha):
-    """
-    Args:
-        args (tuple): input sub-arguments
-            args[0] (float): reference frequency (recommended to set at the
-                lowest one)
-            args[1] (array or float): input frequency
-            args[2] (1D-array): u-axis data points
-            args[3] (1D-array): v-axis data points
-        Smax (float): flux density of Gaussian model at 'args[0]'
-        fwhm (float): full-width at half maximum of Gaussian model
-        l (float): right ascension position of Gaussian model
-        m (float): declination position of Gaussian model
-        alpha (float): optically thin spectral index of Gaussian model
-    Returns:
-        complex visibility of Gaussian model (spl-based)
-    """
-    sigma = fwhm / (2 * (2 * np.log(2))**0.5)
-    out = spl(args[0], args[1], Smax, alpha) * np.exp(
-        -2 * (np.pi * sigma)**2 * (args[2]**2 + args[3]**2) / r2m**2
-        + 2j * np.pi * (args[2] * l + args[3] * m) / r2m
-    )
-
-    return out
-
-
-@jit(nopython=True)
-def gvis_cpl(args, Smax, fwhm, l, m, alpha, nu_m):
+def gvis_cpl(args, smax, fwhm, l, m, alpha, nu_m):
     """
     Args:
         args (tuple): input sub-arguments
             args[0] (array or float): input frequency
             args[1] (1D-array): u-axis data points
             args[2] (1D-array): v-axis data points
-        Smax (float): flux density of Gaussian model at 'nu_m'
+        smax (float): flux density of Gaussian model at 'nu_m'
         fwhm (float): full-width at half maximum of Gaussian model
         l (float): right ascension position of Gaussian model
         m (float): declination position of Gaussian model
@@ -1843,23 +1884,63 @@ def gvis_cpl(args, Smax, fwhm, l, m, alpha, nu_m):
         complex visibility of Gaussian model (cpl-based)
     """
     sigma = fwhm / (2 * (2 * np.log(2))**0.5)
-    out = cpl(args[0], Smax, nu_m, alpha) * np.exp(
+    out = cpl(args[0], smax, nu_m, alpha) * np.exp(
         -2 * (np.pi * sigma)**2 * (args[1]**2 + args[2]**2) / r2m**2
         + 2j * np.pi * (args[1] * l + args[2] * m) / r2m
     )
 
     return out
 
+@jit(nopython=True)
+def gvis_poly(args, s_ref, fwhm, l, m, alpha, beta):
+    nu_ref = args[0]
+    nu = args[1]
+    uu = args[2] / r2m
+    vv = args[3] / r2m
+    sigma = fwhm / (2 * (2 * np.log(2))**0.5)
+    S = poly(nu_ref, nu, s_ref, alpha, beta)
+    out = S * np.exp(
+        -2 * (np.pi * sigma)**2 * (uu**2 + vv**2)
+        + 2j * np.pi * (uu * l + vv * m)
+    )
+
+    return out.astype("c8")
 
 @jit(nopython=True)
-def gvis_ssa(args, Smax, fwhm, l, m, alpha, nu_m):
+def gvis_spl(args, smax, fwhm, l, m, alpha):
+    """
+    Args:
+        args (tuple): input sub-arguments
+            args[0] (float): reference frequency (recommended to set at the
+                lowest one)
+            args[1] (array or float): input frequency
+            args[2] (1D-array): u-axis data points
+            args[3] (1D-array): v-axis data points
+        smax (float): flux density of Gaussian model at 'args[0]'
+        fwhm (float): full-width at half maximum of Gaussian model
+        l (float): right ascension position of Gaussian model
+        m (float): declination position of Gaussian model
+        alpha (float): optically thin spectral index of Gaussian model
+    Returns:
+        complex visibility of Gaussian model (spl-based)
+    """
+    sigma = fwhm / (2 * (2 * np.log(2))**0.5)
+    out = spl(args[0], args[1], smax, alpha) * np.exp(
+        -2 * (np.pi * sigma)**2 * (args[2]**2 + args[3]**2) / r2m**2
+        + 2j * np.pi * (args[2] * l + args[3] * m) / r2m
+    )
+
+    return out
+
+@jit(nopython=True)
+def gvis_ssa(args, smax, fwhm, l, m, alpha, nu_m):
     """
     Args:
         args (tuple): input sub-arguments
             args[0] (array or float): input frequency
             args[1] (1D-array): u-axis data points
             args[2] (1D-array): v-axis data points
-        Smax (float): flux density of Gaussian model at 'nu_m'
+        smax (float): flux density of Gaussian model at 'nu_m'
         fwhm (float): full-width at half maximum of Gaussian model
         l (float): right ascension position of Gaussian model
         m (float): declination position of Gaussian model
@@ -1869,13 +1950,12 @@ def gvis_ssa(args, Smax, fwhm, l, m, alpha, nu_m):
         complex visibility of Gaussian model (ssa-based)
     """
     sigma = fwhm / (2 * (2 * np.log(2))**0.5)
-    out = ssa(args[0], Smax, nu_m, alpha) * np.exp(
+    out = ssa(args[0], smax, nu_m, alpha) * np.exp(
         -2 * (np.pi * sigma)**2 * (args[1]**2 + args[2]**2) / r2m**2
         + 2j * np.pi * (args[1] * l + args[2] * m) / r2m
     )
 
     return out
-
 
 def jit_ftw(fdict, nant):
     ftype_ = []
@@ -1898,7 +1978,6 @@ def jit_ftw(fdict, nant):
 
     return ftype_, fwght_
 
-
 def jit_model(model):
     if model == "delta":
         modeltype = 0
@@ -1912,7 +1991,6 @@ def jit_model(model):
 
     return modeltype
 
-
 def jit_spectrum(spectrum):
     if spectrum == "flat":
         spectrum = 0
@@ -1922,15 +2000,16 @@ def jit_spectrum(spectrum):
         spectrum = 2
     elif spectrum == "ssa":
         spectrum = 3
+    elif spectrum == "poly":
+        spectrum = 4
     else:
-        availables = ["flat", "spl", "cpl", "ssa"]
+        availables = ["flat", "spl", "cpl", "ssa", "poly"]
         raise ValueError(
             f"Invalid spectrum type: {spectrum!r}.\n"
             f"Available spectrum types are: {availables}."
         )
 
     return spectrum
-
 
 @jit(nopython=True)
 def linear(x, m, a):
@@ -1946,38 +2025,12 @@ def linear(x, m, a):
 
     return out
 
+@jit(nopython=True)
+def poly(nu_ref, nu, s_ref, alpha, beta):
+    x = np.log(nu / nu_ref)
+    out = s_ref * np.exp(alpha * x + beta * x**2)
 
-def _prior_transform_static(
-    theta, fixnmod, maxn, nmod, spectrum,
-    fields_per_nmod, dims_per_nmod, boundset
-):
-    """
-    Module-level prior_transform so it is picklable under spawn.
-    Receives only small, picklable state (no 'self', no uvfs/file handles).
-    """
-    results = []
-    ndim = 0
-    if fixnmod:
-        results.append(1.0 * theta[0] + maxn - 0.5)
-    else:
-        results.append((maxn - 0.01) * theta[0] + 0.5)
-
-    for i in range(nmod):
-        thick_offset = 0
-        if spectrum in ("cpl", "ssa") and i != 0:
-            results.append(1.98 * theta[1 + ndim] - 0.49)
-            thick_offset = 1
-
-        for nfield, field in enumerate(fields_per_nmod[i]):
-            lo = boundset[field][i][0]
-            hi = boundset[field][i][1]
-            results.append(
-                (hi - lo) * theta[1 + thick_offset + ndim + nfield] + lo
-            )
-        ndim += dims_per_nmod[i]
-
-    return results
-
+    return out
 
 @jit(nopython=True)
 def objective_function(theta, x, y, yerr, args):
@@ -2021,7 +2074,8 @@ def objective_function(theta, x, y, yerr, args):
     mask_pa = 0
 
     # compute model visibility
-    if args[3] == 1:    # model == "gaussian"
+    # model == "gaussian"
+    if args[3] == 1:
         for i in range(nmod):
             idxval_s = (i + 1) * 10 + 1
             idxval_a = (i + 1) * 10 + 2
@@ -2051,13 +2105,15 @@ def objective_function(theta, x, y, yerr, args):
                 if offset > span and _r > args[17][1]:
                     mask_pa = 1
 
-            if args[2] == 0: # flat spectrum
+            # Gaussian & flat spectrum
+            if args[2] == 0:
                 _args = (x[2], x[3])
 
                 model += gvis(_args, _s, _a, _l, _m)
                 ntheta += 4 if has_lm else 2
 
-            else:  # spl | cpl | ssa | quad
+            # Gaussian & (spl | cpl | ssa)
+            elif args[2] in [1, 2, 3]:
                 idxval_t = (i + 1) * 10 + 0
                 idxval_i = (i + 1) * 10 + 5
                 idxval_f = (i + 1) * 10 + 6
@@ -2070,11 +2126,14 @@ def objective_function(theta, x, y, yerr, args):
 
                 _i = theta[mask_i][0]
 
-                if args[2] == 1:    # simple power-law
+                # Gaussian & simple power-law
+                if args[2] == 1:
                     _args = (x[0], x[1], x[2], x[3])
                     model += gvis_spl(_args, _s, _a, _l, _m, _i)
                     ntheta += 5 if has_lm else 3
-                else:   # curved power-law or synchrotron self-absorption
+
+                # Gaussian & (curved power-law | synchrotron self-absorption)
+                else:
                     _f = theta[mask_f][0]
                     if i == 0:
                         _args = (x[1], x[2], x[3])
@@ -2109,7 +2168,23 @@ def objective_function(theta, x, y, yerr, args):
 
                             ntheta += 6 if has_lm else 4
 
-    elif args[3] == 0:  # model == "delta"
+            # Gaussian & 2nd-order polynomial
+            elif args[2] == 4:
+                idxval_i = (i + 1) * 10 + 5
+                idxval_b = (i + 1) * 10 + 7
+
+                mask_i = args[15] == idxval_i
+                mask_b = args[15] == idxval_b
+
+                _i = theta[mask_i][0]
+                _b = theta[mask_b][0]
+
+                _args = (x[0], x[1], x[2], x[3])
+                model += gvis_poly(_args, _s, _a, _l, _m, _i, _b)
+                ntheta += 6 if has_lm else 4
+
+    # model == "delta"
+    elif args[3] == 0:
         for i in range(nmod):
             idxval_s = (i + 1) * 10 + 1
             idxval_l = (i + 1) * 10 + 3
@@ -2135,7 +2210,8 @@ def objective_function(theta, x, y, yerr, args):
                 if offset > span:
                     mask_pa = 1
 
-            if args[2] == 0: # flat spectrum
+            # delta & flat spectrum
+            if args[2] == 0:
                 _args = (x[2], x[3])
 
                 if has_lm:
@@ -2145,7 +2221,8 @@ def objective_function(theta, x, y, yerr, args):
 
                 model += dvis(_args, _s, _l, _m)
 
-            elif args[2] in [1, 2, 3]:  # spl | cpl | ssa | quad
+            # delta & (spl | cpl | ssa)
+            elif args[2] in [1, 2, 3]:
                 idxval_t = (i + 1) * 10 + 0
                 idxval_i = (i + 1) * 10 + 5
                 idxval_f = (i + 1) * 10 + 6
@@ -2158,11 +2235,14 @@ def objective_function(theta, x, y, yerr, args):
 
                 _i = theta[mask_i][0]
 
-                if args[2] == 1:    # simple power-law
+                # delta & simple power-law
+                if args[2] == 1:
                     _args = (x[0], x[1], x[2], x[3])
                     model += dvis_spl(_args, _s, _l, _m, _i)
                     ntheta += 4 if has_lm else 2
-                else:   # curved power-law or synchrotron self-absorption
+
+                # delta & (curved power-law | synchrotron self-absorption)
+                else:
                     _f = theta[mask_f][0]
                     if i == 0:
                         _args = (x[1], x[2], x[3])
@@ -2196,13 +2276,29 @@ def objective_function(theta, x, y, yerr, args):
 
                             ntheta += 5 if has_lm else 3
 
+            # delta & 2nd-order polynomial
+            elif args[2] == 4:
+                idxval_i = (i + 1) * 10 + 5
+                idxval_b = (i + 1) * 10 + 7
+
+                mask_i = args[15] == idxval_i
+                mask_b = args[15] == idxval_b
+
+                _i = theta[mask_i][0]
+                _b = theta[mask_b][0]
+
+                _args = (x[0], x[1], x[2], x[3])
+                model += dvis_poly(_args, _s, _l, _m, _i, _b)
+                ntheta += 5 if has_lm else 3
+
     nansum_model = np.nansum(np.abs(model))
 
     # compute objective functions
     if not np.isnan(nansum_model) and not nansum_model == 0:
         objective = 0
 
-        if 0 in args[6]:    # complex visibility
+        # complex visibility
+        if 0 in args[6]:
             vis_obs = y[0]
             vis_mod = model
             vis_sig2 = yerr[0]**2
@@ -2213,7 +2309,8 @@ def objective_function(theta, x, y, yerr, args):
                 * compute_bic(vis_res, vis_sig2, 0, nobs, ntheta)
             )
 
-        if 1 in args[6]:    # visibility amplitude
+        # visibility amplitude
+        if 1 in args[6]:
             amp_obs = np.abs(y[0])
             amp_mod = np.abs(model)
             amp_sig2 = yerr[0]**2
@@ -2224,7 +2321,8 @@ def objective_function(theta, x, y, yerr, args):
                 * compute_bic(amp_res, amp_sig2, 1, nobs, ntheta)
             )
 
-        if 2 in args[6]:    # visibility phase
+        # visibility phase
+        if 2 in args[6]:
             phs_sig2 = (yerr[0] / np.abs(y[0]))**2
             phs_res = np.angle(model / y[0])
             nobs = y[0].size
@@ -2233,7 +2331,8 @@ def objective_function(theta, x, y, yerr, args):
                 * compute_bic(phs_res, phs_sig2, 2, nobs, ntheta)
             )
 
-        if 3 in args[6]:    # closure amplitude
+        # closure amplitude
+        if 3 in args[6]:
             amp12 = np.abs(model[args[8]])
             amp34 = np.abs(model[args[9]])
             amp13 = np.abs(model[args[10]])
@@ -2249,7 +2348,8 @@ def objective_function(theta, x, y, yerr, args):
                 * compute_bic(clamp_res, clamp_sig2, 3, nobs, ntheta)
             )
 
-        if 4 in args[6]:    # closure phase
+        # closure phase
+        if 4 in args[6]:
             phs12 = np.angle(model[args[12]])
             phs23 = np.angle(model[args[13]])
             phs31 = np.angle(model[args[14]].conjugate())
@@ -2272,325 +2372,29 @@ def objective_function(theta, x, y, yerr, args):
     return objective
 
 @jit(nopython=True)
-def objective_function2(theta, x, y, yerr, args):
-    """
-    Compute objective function (Bayesian Information Criterion)
-    Args:
-        theta (list): A list of parameters
-        x (tuple): A tuple of x-arguments
-        y (tuple): A tuple of y-arguments
-        yerr (tuple): A tuple of y-error-arguments
-        args (tuple): Arguments set
-            args[0] (array, str): antenna name 1
-            args[1] (array, str): antenna name 2
-            args[2] (int): spectrum ('flat', 'spl', 'cpl', 'ssa')
-            args[3] (int): modeltype (0:'delta', 1: 'gaussian')
-            args[4] (float): lower boundary for jet position angle
-            args[5] (float): upper boundary for jet position angle
-            args[6] (list, str): 'fdict' keys
-            args[7] (list, str): 'fdict' values
-            args[8 - 11] (array): mask for closure amplitudes
-            args[12 - 14] (array): mask for closure phases
-            args[15] (list, int): parameter index
-            args[16] (int): boolean of 'fixnmod'
-            args[17] (tuple): beam parameters
-    Returns:
-        Bayesian Information Criterion value (float)
-    """
-
-    dshape = x[1].shape
-
-    model = np.zeros(dshape, dtype=np.complex64)
-    ufreq = np.unique(x[1])
-
-    ntheta = 0
-
-    pa1 = np.exp(1j * np.deg2rad(args[4][0]))
-    pa2 = np.exp(1j * np.deg2rad(args[5][0]))
-    span = np.angle(pa2 / pa1) % (2 * np.pi)
-
-    nmod = round(float(theta[0]))
-    mask_pa = 0
-
-    # compute model visibility
-    if args[3] == 1:    # model == "gaussian"
-        for i in range(nmod):
-            idxval_s = (i + 1) * 10 + 1
-            idxval_a = (i + 1) * 10 + 2
-            idxval_l = (i + 1) * 10 + 3
-            idxval_m = (i + 1) * 10 + 4
-
-            mask_s = args[15] == idxval_s
-            mask_a = args[15] == idxval_a
-            mask_l = args[15] == idxval_l
-            mask_m = args[15] == idxval_m
-
-            _s = theta[mask_s][0]
-            _a = theta[mask_a][0]
-
-            if (mask_l.sum() == 0 and mask_m.sum() == 0):
-                _l = 0.0
-                _m = 0.0
-                has_lm = False
-            else:
-                _l = theta[mask_l][0]
-                _m = theta[mask_m][0]
-                _r = np.sqrt(_l**2 + _m**2)
-                has_lm = True
-
-                pa = np.exp(1j * np.angle(_m + 1j * _l))
-                offset = np.angle(pa / pa1) % (2 * np.pi)
-                if offset > span and _r > args[17][0]:
-                    mask_pa = 1
-
-            if args[2] == 0: # flat spectrum
-                _args = (x[2], x[3])
-
-                model += gvis(_args, _s, _a, _l, _m)
-                ntheta += 4 if has_lm else 2
-
-            else:  # spl | cpl | ssa | quad
-                idxval_t = (i + 1) * 10 + 0
-                idxval_i = (i + 1) * 10 + 5
-                idxval_f = (i + 1) * 10 + 6
-
-                mask_t = args[15] == idxval_t
-                mask_i = args[15] == idxval_i
-                mask_f = args[15] == idxval_f
-
-                has_t = mask_t.sum()
-
-                _i = theta[mask_i][0]
-
-                if args[2] == 1:    # simple power-law
-                    _args = (x[0], x[1], x[2], x[3])
-                    model += gvis_spl(_args, _s, _a, _l, _m, _i)
-                    ntheta += 5 if has_lm else 3
-                else:   # curved power-law or synchrotron self-absorption
-                    _f = theta[mask_f][0]
-                    if i == 0:
-                        _args = (x[1], x[2], x[3])
-                        if args[2] == 2:
-                            model += gvis_cpl(
-                                _args, _s, _a, _l, _m, _i, _f
-                            )
-
-                        elif args[2] == 3:
-                            model += gvis_ssa(
-                                _args, _s, _a, _l, _m, _i, _f
-                            )
-                        ntheta += 6 if has_lm else 4
-                    else:
-                        mask_t = round(float(theta[mask_t][0])) == 0
-
-                        if mask_t:
-                            _args = (x[0], x[1], x[2], x[3])
-                            model += gvis_spl(_args, _s, _a, _l, _m, _i)
-                            ntheta += 5 if has_lm else 3
-                        else:
-                            _args = (x[1], x[2], x[3])
-                            if args[2] == 2:
-                                model += gvis_cpl(
-                                    _args, _s, _a, _l, _m, _i, _f
-                                )
-
-                            elif args[2] == 3:
-                                model += gvis_ssa(
-                                    _args, _s, _a, _l, _m, _i, _f
-                                )
-
-                            ntheta += 6 if has_lm else 4
-
-    elif args[3] == 0:  # model == "delta"
-        for i in range(nmod):
-            idxval_s = (i + 1) * 10 + 1
-            idxval_l = (i + 1) * 10 + 3
-            idxval_m = (i + 1) * 10 + 4
-
-            mask_s = args[15] == idxval_s
-            mask_l = args[15] == idxval_l
-            mask_m = args[15] == idxval_m
-
-            _s = theta[mask_s][0]
-
-            if (mask_l.sum() == 0 and mask_m.sum() == 0):
-                _l = 0.0
-                _m = 0.0
-                has_lm = False
-            else:
-                _l = theta[mask_l][0]
-                _m = theta[mask_m][0]
-                has_lm = True
-
-                pa = np.exp(1j * np.angle(_m + 1j * _l))
-                offset = np.angle(pa / pa1) % (2 * np.pi)
-                if offset > span:
-                    mask_pa = 1
-
-            if args[2] == 0: # flat spectrum
-                _args = (x[2], x[3])
-
-                if has_lm:
-                    ntheta += 3
-                else:
-                    ntheta += 1
-
-                model += dvis(_args, _s, _l, _m)
-
-            elif args[2] in [1, 2, 3]:  # spl | cpl | ssa | quad
-                idxval_t = (i + 1) * 10 + 0
-                idxval_i = (i + 1) * 10 + 5
-                idxval_f = (i + 1) * 10 + 6
-
-                mask_t = args[15] == idxval_t
-                mask_i = args[15] == idxval_i
-                mask_f = args[15] == idxval_f
-
-                has_t = mask_t.sum()
-
-                _i = theta[mask_i][0]
-
-                if args[2] == 1:    # simple power-law
-                    _args = (x[0], x[1], x[2], x[3])
-                    model += dvis_spl(_args, _s, _l, _m, _i)
-                    ntheta += 4 if has_lm else 2
-                else:   # curved power-law or synchrotron self-absorption
-                    _f = theta[mask_f][0]
-                    if i == 0:
-                        _args = (x[1], x[2], x[3])
-                        if args[2] == 2:
-                            model += dvis_cpl(
-                                _args, _s, _l, _m, _i, _f
-                            )
-
-                        elif args[2] == 3:
-                            model += dvis_ssa(
-                                _args, _s, _l, _m, _i, _f
-                            )
-                    else:
-                        mask_t = round(float(theta[mask_t][0])) == 0
-
-                        if mask_t:
-                            _args = (x[0], x[1], x[2], x[3])
-                            model += dvis_spl(_args, _s, _l, _m, _i)
-                            ntheta += 4 if has_lm else 2
-                        else:
-                            _args = (x[1], x[2], x[3])
-                            if args[2] == 2:
-                                model += dvis_cpl(
-                                    _args, _s, _l, _m, _i, _f
-                                )
-
-                            elif args[2] == 3:
-                                model += dvis_ssa(
-                                    _args, _s, _l, _m, _i, _f
-                                )
-
-                            ntheta += 5 if has_lm else 3
-
-    nansum_model = np.nansum(np.abs(model))
-
-    nobs = 0
-
-    # compute objective functions
-    if not np.isnan(nansum_model) and not nansum_model == 0:
-        objective = 0
-
-        if 0 in args[6]:    # complex visibility
-            vis_obs = y[0]
-            vis_mod = model
-            vis_sig2 = yerr[0]**2
-            vis_res = np.abs(vis_mod - vis_obs)
-            nobs = +y[0].size
-            objective -= (
-                args[7][0]
-                * compute_nll(vis_res, vis_sig2, 0)
-            )
-
-        if 1 in args[6]:    # visibility amplitude
-            amp_obs = np.abs(y[0])
-            amp_mod = np.abs(model)
-            amp_sig2 = yerr[0]**2
-            amp_res = amp_mod - amp_obs
-            nobs += y[0].size
-            objective -= (
-                args[7][1]
-                * compute_nll(amp_res, amp_sig2, 1)
-            )
-
-        if 2 in args[6]:    # visibility phase
-            phs_sig2 = (yerr[0] / np.abs(y[0]))**2
-            phs_res = np.angle(model / y[0])
-            nobs += y[0].size
-            objective -= (
-                args[7][2]
-                * compute_nll(phs_res, phs_sig2, 2)
-            )
-
-        if 3 in args[6]:    # closure amplitude
-            amp12 = np.abs(model[args[8]])
-            amp34 = np.abs(model[args[9]])
-            amp13 = np.abs(model[args[10]])
-            amp24 = np.abs(model[args[11]])
-
-            clamp_obs = y[1]
-            clamp_mod = ((amp12 * amp34) / (amp13 * amp24))
-            clamp_sig2 = yerr[1]**2
-            clamp_res = np.abs(np.log(clamp_mod) - np.log(clamp_obs))
-            nobs += y[1].size
-            objective -= (
-                args[7][3]
-                * compute_nll(clamp_res, clamp_sig2, 3)
-            )
-
-        if 4 in args[6]:    # closure phase
-            phs12 = np.angle(model[args[12]])
-            phs23 = np.angle(model[args[13]])
-            phs31 = np.angle(model[args[14]].conjugate())
-
-            clphs_obs = y[2]
-            clphs_mod = (phs12 + phs23 + phs31)
-            clphs_sig2 = yerr[2]**2
-            clphs_res = np.angle(np.exp(1j * (clphs_mod - clphs_obs)))
-            nobs += y[2].size
-            objective -= (
-                args[7][4]
-                * compute_nll(clphs_res, clphs_sig2, 4)
-            )
-
-        objective = 2 * objective - ntheta * np.log(nobs)
-
-        if mask_pa == 1:
-            objective = -np.inf
-    else:
-        objective = -np.inf
-
-    return objective
-
-@jit(nopython=True)
-def spl(nu_ref, nu, Smax, alpha):
+def spl(nu_ref, nu, smax, alpha):
     """
     Args:
         nu_ref (float): reference frequency
                         (recommended to set at the lowest one)
         nu (array or float): input frequency
-        Smax (float): flux density at 'nu_ref'
+        smax (float): flux density at 'nu_ref'
         alpha (float): optically thin spectral index
     Returns:
         Simple power-law flux density at nu
     """
-    out = 10**(alpha * (np.log10(nu) - np.log10(nu_ref)) + np.log10(Smax))
+    out = 10**(alpha * (np.log10(nu) - np.log10(nu_ref)) + np.log10(smax))
 
     return out
 
 @jit(nopython=True)
-def ssa(nu, Smax, tf, alpha):
+def ssa(nu, smax, tf, alpha):
     """
     NOTE: This function assumes optically thick spectral index as 2.5
     (Turler+1999, A&A, 349, 45T)
     Args:
         nu (array or float): input frequency
-        Smax (float): flux density at 'tf'
+        smax (float): flux density at 'tf'
         tf (float): turnover frequency of the SSA spectrum
         alpha (float): optically thin spectral index
     Returns:
@@ -2598,10 +2402,9 @@ def ssa(nu, Smax, tf, alpha):
     """
     c = 1.5 * ((1 - (8 * alpha) / 7.5)**0.5 - 1)
     x = nu / tf
-    out = Smax * x**2.5 * (1 - np.exp(-c * x**(alpha - 2.5))) / (1 - np.exp(-c))
+    out = smax * x**2.5 * (1 - np.exp(-c * x**(alpha - 2.5))) / (1 - np.exp(-c))
 
     return out
-
 
 @jit(nopython=True)
 def set_closure(
