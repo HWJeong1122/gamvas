@@ -125,9 +125,6 @@ if __name__ == "__main__":
     #     },
     #     timerange=[0, 2]
     # )
-    # NOTE:
-    #     'timerange=None' indicates the entire time range
-    #     'antenna=None' indicates the entire antenna array
 
     # NOTE: manually define boundary conditions
     #     if needed, you can also define boundary conditions separately
