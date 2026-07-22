@@ -619,9 +619,11 @@ class modeling:
             )
             inmod.set_data(prt=False)
 
-            amp_obs = inobs.get_data(dotype="amp").flatten()[sbl_mask]
-            sig_obs = inobs.get_data(dotype="sig0").flatten()[sbl_mask]
-            amp_mod = np.abs(inmod.get_data(dotype="vism").flatten()[sbl_mask])
+            amp_obs = inobs.get_data(dotype="amp", flatten=True)[sbl_mask]
+            sig_obs = inobs.get_data(dotype="sig0", flatten=True)[sbl_mask]
+            amp_mod = np.abs(
+                inmod.get_data(dotype="vism", flatten=True)[sbl_mask]
+            )
             res = amp_mod - amp_obs
             sig2 = sig_obs**2
 
@@ -655,6 +657,23 @@ class modeling:
 
             if save_xlsx:
                 self.out_xlsx.to_excel(f"{save_path}{save_name}")
+
+    def _validate_closure_fit_types(self, uvf):
+        """Reject requested closure terms unavailable after flagging."""
+
+        requested = [] if self.ftype is None else self.ftype
+        missing = []
+        if "clamp" in requested and not uvf.clamp_check:
+            missing.append("clamp")
+        if "clphs" in requested and not uvf.clphs_check:
+            missing.append("clphs")
+        if missing:
+            missing_text = ", ".join(missing)
+            raise ValueError(
+                "Requested closure fit type(s) are unavailable after "
+                f"flagging: {missing_text}. Remove them from 'ftype' or "
+                "relax the flags and rebuild closures."
+            )
 
     def run(self, uvave=None):
         """
@@ -704,6 +723,7 @@ class modeling:
         nvis  = uvall.data.shape[0]
         mask_clamp = uvall.clamp_check
         mask_clphs = uvall.clphs_check
+        self._validate_closure_fit_types(uvall)
         if mask_clamp:
             ncamp = uvall.tmpl_clamp.shape[0]
         else:
@@ -775,6 +795,7 @@ class modeling:
             plotalif = False
 
         uvf = gv.utils.set_uvf(uvfs, dotype=freqtype)
+        self._validate_closure_fit_types(uvf)
 
         cg_pol1_ant1 = np.ones(uvf.data.shape[0], dtype=np.complex64)
         cg_pol1_ant2 = np.ones(uvf.data.shape[0], dtype=np.complex64)
@@ -924,14 +945,14 @@ class modeling:
         # set arguments: x
         self.x = (
             uvfs[0].freq0,
-            uvf.get_data(dotype="frequency").flatten(),
-            uvf.get_data(dotype="u").flatten(),
-            uvf.get_data(dotype="v").flatten()
+            uvf.get_data(dotype="frequency", flatten=True),
+            uvf.get_data(dotype="u", flatten=True),
+            uvf.get_data(dotype="v", flatten=True)
         )
 
         # set arguments: y
         self.y = (
-            uvf.get_data(dotype="vis").astype(np.complex64).flatten(),
+            uvf.get_data(dotype="vis", flatten=True),
             np.ma.getdata(uvf.clamp["clamp"]),
             np.ma.getdata(uvf.clphs["clphs"]),
             copy.deepcopy(clamp_uvcomb),
@@ -940,27 +961,22 @@ class modeling:
 
         # set arguments: y error
         self.yerr = (
-            uvf.get_data(dotype="sig").flatten(),
+            uvf.get_data(dotype="sig", flatten=True),
             np.ma.getdata(uvf.clamp["sig_logclamp"]),
             np.ma.getdata(uvf.clphs["sig_clphs"])
         )
 
         Nant = len(np.unique(
             np.append(
-                uvf.get_data(dotype="ant1").flatten(),
-                uvf.get_data(dotype="ant2").flatten()
+                uvf.get_data(dotype="ant1", flatten=True),
+                uvf.get_data(dotype="ant2", flatten=True)
             )
         ))
 
-        # set uv coordinate for mask indexing
-        uv_coord = np.column_stack((self.x[2], self.x[3]))
-        uv_coord = uv_coord.reshape(len(uv_coord), -1)
-
-        def _uv_idx(mask):
-            return np.argmax(
-                    (mask[:, None, :] == uv_coord[None, :, :]).all(axis=2),
-                    axis=1,
-                ).astype(np.int64)
+        def _uv_idx(mask, closure_freq):
+            return gv.utils._uv_lookup_indices(
+                self.x[1], self.x[2], self.x[3], closure_freq, mask
+            )
 
         # index mask for closure quantities by uv coordinate
         mask_clamp = uvf.clamp_check
@@ -982,10 +998,10 @@ class modeling:
                 len(self.clamp_uvcomb[4]), -1
             )
 
-            mask_amp12 = _uv_idx(mask_amp12)
-            mask_amp34 = _uv_idx(mask_amp34)
-            mask_amp13 = _uv_idx(mask_amp13)
-            mask_amp24 = _uv_idx(mask_amp24)
+            mask_amp12 = _uv_idx(mask_amp12, f_clamp)
+            mask_amp34 = _uv_idx(mask_amp34, f_clamp)
+            mask_amp13 = _uv_idx(mask_amp13, f_clamp)
+            mask_amp24 = _uv_idx(mask_amp24, f_clamp)
         else:
             mask_amp12 = np.array([0], dtype=np.int64)
             mask_amp34 = np.array([0], dtype=np.int64)
@@ -1005,9 +1021,9 @@ class modeling:
                 len(self.clphs_uvcomb[3]), -1
             )
 
-            mask_phs12 = _uv_idx(mask_phs12)
-            mask_phs23 = _uv_idx(mask_phs23)
-            mask_phs31 = _uv_idx(mask_phs31)
+            mask_phs12 = _uv_idx(mask_phs12, f_clphs)
+            mask_phs23 = _uv_idx(mask_phs23, f_clphs)
+            mask_phs31 = _uv_idx(mask_phs31, f_clphs)
         else:
             mask_phs12 = np.array([0], dtype=np.int64)
             mask_phs23 = np.array([0], dtype=np.int64)
@@ -1045,8 +1061,8 @@ class modeling:
         self.args = (
             self.x, self.y, self.yerr,
             (
-                uvf.get_data(dotype="ant1").flatten(),
-                uvf.get_data(dotype="ant2").flatten(),
+                uvf.get_data(dotype="ant1", flatten=True),
+                uvf.get_data(dotype="ant2", flatten=True),
                 spectrum, modeltype,
                 np.array([self.bnd_pa[0]], dtype=np.float32),
                 np.array([self.bnd_pa[1]], dtype=np.float32),
@@ -1474,7 +1490,7 @@ class modeling:
                 pool=pool
             )
 
-            sampler.run_nested()
+            sampler.run_nested(save_bounds=False)
 
         # extract dynesty results
         results = sampler.results

@@ -267,6 +267,19 @@ class plotter:
                             marker="o", s=15, fc=clrs[nf], ec="black"
                         )
 
+                        axes[_nax][idx_ax1].xaxis.set_minor_locator(
+                            AutoMinorLocator()
+                        )
+                        axes[_nax][idx_ax1].yaxis.set_minor_locator(
+                            AutoMinorLocator()
+                        )
+                        axes[_nax][idx_ax2].xaxis.set_minor_locator(
+                            AutoMinorLocator()
+                        )
+                        axes[_nax][idx_ax2].yaxis.set_minor_locator(
+                            AutoMinorLocator()
+                        )
+
         if save_name:
             save_path_ = save_path + "plot_cgain/"
             gv.utils.mkdir(save_path_)
@@ -334,7 +347,7 @@ class plotter:
             idx_x = "time"
             idx_y = "clamp"
             idx_yerr = "sig_logclamp"
-            idx_bsli = "quadra"
+            idx_bsli = "quadrangle"
 
             label_y = r"$\ln(A_{\rm C})$"
 
@@ -411,8 +424,9 @@ class plotter:
                         )
                     axes[_nax].set_rasterized(True)
 
-                    axes[_nax].xaxis.set_major_locator(MultipleLocator(2.0))
-                    axes[_nax].xaxis.set_minor_locator(MultipleLocator(1.0))
+                    axes[_nax].xaxis.set_minor_locator(AutoMinorLocator())
+                    axes[_nax].yaxis.set_minor_locator(AutoMinorLocator())
+
                     if _nax != nax - 1:
                         axes[_nax].tick_params(labelbottom=False)
                     else:
@@ -560,12 +574,9 @@ class plotter:
                             )
                         axes[_nax].set_rasterized(True)
 
-                        axes[_nax].xaxis.set_major_locator(
-                            MultipleLocator(2.0)
-                        )
-                        axes[_nax].xaxis.set_minor_locator(
-                            MultipleLocator(1.0)
-                        )
+                        axes[_nax].xaxis.set_minor_locator(AutoMinorLocator())
+                        axes[_nax].yaxis.set_minor_locator(AutoMinorLocator())
+
                         if _nax != nax - 1:
                             axes[_nax].tick_params(labelbottom=False)
                         else:
@@ -784,6 +795,8 @@ class plotter:
 
         beam, dirty = gv.utils.dft_vis(uvf, plot_resi=plot_resi, npix=npix)
 
+        uvf.uvbim = beam
+
         if plot_resi:
             uvf.resid = dirty
         else:
@@ -871,8 +884,14 @@ class plotter:
                 spine.set_edgecolor(ccontour)
                 spine.set_linewidth(1)
 
-            ax_bim = set_mapticks(ax_bim, mapfov)
-            ax_dir = set_mapticks(ax_dir, mapfov)
+            ax_bim.xaxis.set_minor_locator(AutoMinorLocator())
+            ax_bim.yaxis.set_minor_locator(AutoMinorLocator())
+
+            ax_dir.xaxis.set_minor_locator(AutoMinorLocator())
+            ax_dir.yaxis.set_minor_locator(AutoMinorLocator())
+
+            cbar_bim.ax.xaxis.set_minor_locator(AutoMinorLocator())
+            cbar_dir.ax.xaxis.set_minor_locator(AutoMinorLocator())
 
             if plotimg:
                 plt.show()
@@ -1079,7 +1098,7 @@ class plotter:
 
             levels = [mindr * rms]
             if mindr * rms < image.max() * np.sqrt(2):
-                while levels[-1] < image.max():
+                while levels[-1] < image.max() / np.sqrt(2):
                     levels.append(levels[-1] * np.sqrt(2))
 
             if pol and uvf.select_pol != "p":
@@ -1088,7 +1107,10 @@ class plotter:
                     while np.abs(levels_n[-1]) < np.abs(image.min()):
                         levels_n.append(levels_n[-1] * np.sqrt(2))
         else:
-            levels = np.array([1, 2, 4, 8, 16, 32, 64]) / 100 * image.max()
+            levels = [1]
+            while levels[-1] < 100 / np.sqrt(2):
+                levels.append(levels[-1] * np.sqrt(2))
+            levels = np.array(levels) / 100 * image.max()
 
         # set contour levels
         if genlevels:
@@ -1099,11 +1121,12 @@ class plotter:
 
         uvf.image = np.flip(image, axis=0)
 
-        # assign Stokes Q/U maps
+        # assign Stokes Q/U maps (same display orientation as uvf.image,
+        # so that save_imgfits can treat all Stokes maps identically)
         if uvf.select_pol == "q":
-            uvf.image_q = image
+            uvf.image_q = np.flip(image, axis=0)
         elif uvf.select_pol == "u":
-            uvf.image_u = image
+            uvf.image_u = np.flip(image, axis=0)
 
         # plot figure
         fsize = 9
@@ -1148,14 +1171,19 @@ class plotter:
             if evpa_gap is None:
                 evpa_gap = npix // 75
 
+            # uvf.image_q/u are stored in display orientation; flip back
+            # to match the local (row 0 = South) 'image' array
             evpa, evpa_x, evpa_y, evpa_set = gv.utils.cal_evpa(
-                p=image, q=uvf.image_q, u=uvf.image_u, rms=rms, snr=3,
+                p=image,
+                q=np.flip(uvf.image_q, axis=0),
+                u=np.flip(uvf.image_u, axis=0),
+                rms=rms, snr=3,
                 mapfov=mapfov, npix=npix, evpa_length=evpa_length,
                 evpa_width=evpa_width
             )
 
             cmap_map = ax_map.imshow(image,
-                cmap=polcba, interpolation="gaussian", extent=extent,
+                cmap=cmap_pol, interpolation="gaussian", extent=extent,
                 vmin=image.min(), vmax=image.max(), origin="lower"
             )
             ax_map.contour(image,
@@ -1198,7 +1226,9 @@ class plotter:
                 spine.set_edgecolor(ccontour)
                 spine.set_linewidth(1)
 
-        ax_map = set_mapticks(ax_map, mapfov)
+        ax_map.xaxis.set_minor_locator(AutoMinorLocator())
+        ax_map.yaxis.set_minor_locator(AutoMinorLocator())
+        cbar_map.ax.xaxis.set_minor_locator(AutoMinorLocator())
 
         ang = np.deg2rad(bpa)
         beam_hw = np.hypot(bmaj / 2 * np.cos(ang), bmin / 2 * np.sin(ang))
@@ -1377,12 +1407,14 @@ class plotter:
             else:
                 axes[nt] = fig.add_subplot(gs_main[nt], sharex=axes[0])
             axes[nt].set_rasterized(True)
+            axes[nt].yaxis.set_minor_locator(AutoMinorLocator())
 
             axes[nt].tick_params(labelsize=13)
             if nt != ntype - 1:
                 axes[nt].tick_params(labelbottom=False, bottom=False)
             else:
                 axes[nt].set_xlabel(label_uvr, fontsize=17)
+                axes[nt].xaxis.set_minor_locator(AutoMinorLocator())
 
             x = uvr
             if _type == "amp":
@@ -1553,8 +1585,9 @@ class plotter:
 
             ax_tplot.set_xlabel(f"Time (hour, {dotype.upper()})", fontsize=20)
             ax_tplot.set_ylabel("Antenna", fontsize=20)
-            ax_tplot.xaxis.set_major_locator(MultipleLocator(2.0))
-            ax_tplot.xaxis.set_minor_locator(MultipleLocator(1.0))
+            ax_tplot.xaxis.set_minor_locator(AutoMinorLocator())
+            # ax_tplot.xaxis.set_major_locator(MultipleLocator(2.0))
+            # ax_tplot.xaxis.set_minor_locator(MultipleLocator(1.0))
             ax_tplot.tick_params("both", labelsize=15)
             ax_tplot.set_yticks(ytick_valid)
             ax_tplot.set_yticklabels(yticks)
@@ -1726,6 +1759,8 @@ class plotter:
             ax.set_xlim(+limv, -limv)
             ax.set_ylim(-limv, +limv)
             ax.tick_params("both", labelsize=15)
+            ax.xaxis.set_minor_locator(AutoMinorLocator())
+            ax.yaxis.set_minor_locator(AutoMinorLocator())
             ax.grid(True)
             ax.set_xlabel(r"$\rm U~(10^{6}~\lambda)$", fontsize=20)
             if ylabel:
@@ -1757,6 +1792,8 @@ class plotter:
             )
             cbar1.set_label("Amplitude (Jy)", fontsize=15)
             cbar2.set_label("Phase (deg)", fontsize=15)
+            cbar1.ax.xaxis.set_minor_locator(AutoMinorLocator())
+            cbar2.ax.xaxis.set_minor_locator(AutoMinorLocator())
             _setup_ax(ax_amp, ylabel=True)
             _setup_ax(ax_phs, ylabel=False)
 
@@ -2204,9 +2241,12 @@ class plotter:
                     addimg[loc[0], loc[1]] = I
                     image += addimg
 
+        # difmap convention: TYPE OBJ 0 = delta, 1 = Gaussian
+        ncomp = len(list_s)
         comp_prms = [
             list_s, list_l, list_m, list_a, list_a,
-            [0 for i in range(nmod)], [0 for i in range(nmod)]
+            [0 for i in range(ncomp)],
+            [1 if _a > 0 else 0 for _a in list_a]
         ]
         comp_keys = [
             "FLUX", "DELTAX", "DELTAY", "MAJOR AX", "MINOR AX",
@@ -2245,10 +2285,9 @@ class plotter:
 
 def close_figure(fig):
     """
-    close figure
+    Close figure and free memory
     """
     plt.close(fig)
-    plt.close("all")
     gc.collect()
 
 def get_trcnidx(pol, model, spectrum, relmod, n):
@@ -2373,58 +2412,16 @@ def get_trcnidx(pol, model, spectrum, relmod, n):
                     ]
     return nidx_, field
 
-def set_mapticks(ax, fov):
-    if fov >= 2000:
-        ax.xaxis.set_major_locator(MultipleLocator(100))
-        ax.yaxis.set_major_locator(MultipleLocator(100))
-        ax.xaxis.set_minor_locator(MultipleLocator(20))
-        ax.yaxis.set_minor_locator(MultipleLocator(20))
-    elif 500 <= fov < 2000:
-        ax.xaxis.set_major_locator(MultipleLocator(250))
-        ax.yaxis.set_major_locator(MultipleLocator(250))
-        ax.xaxis.set_minor_locator(MultipleLocator(50))
-        ax.yaxis.set_minor_locator(MultipleLocator(50))
-    elif 80 <= fov < 500:
-        ax.xaxis.set_major_locator(MultipleLocator(20))
-        ax.yaxis.set_major_locator(MultipleLocator(20))
-        ax.xaxis.set_minor_locator(MultipleLocator(4))
-        ax.yaxis.set_minor_locator(MultipleLocator(4))
-    elif 40 <= fov < 80:
-        ax.xaxis.set_major_locator(MultipleLocator(10))
-        ax.yaxis.set_major_locator(MultipleLocator(10))
-        ax.xaxis.set_minor_locator(MultipleLocator(2))
-        ax.yaxis.set_minor_locator(MultipleLocator(2))
-    elif 12 <= fov < 40:
-        ax.xaxis.set_major_locator(MultipleLocator(5.0))
-        ax.yaxis.set_major_locator(MultipleLocator(5.0))
-        ax.xaxis.set_minor_locator(MultipleLocator(1.0))
-        ax.yaxis.set_minor_locator(MultipleLocator(1.0))
-    elif 2 <= fov < 12:
-        ax.xaxis.set_major_locator(MultipleLocator(1.0))
-        ax.yaxis.set_major_locator(MultipleLocator(1.0))
-        ax.xaxis.set_minor_locator(MultipleLocator(0.2))
-        ax.yaxis.set_minor_locator(MultipleLocator(0.2))
-    elif 0.5 <= fov < 2.0:
-        ax.xaxis.set_major_locator(MultipleLocator(0.25))
-        ax.yaxis.set_major_locator(MultipleLocator(0.25))
-        ax.xaxis.set_minor_locator(MultipleLocator(0.05))
-        ax.yaxis.set_minor_locator(MultipleLocator(0.05))
-    else:
-        ax.xaxis.set_major_locator(MultipleLocator(0.10))
-        ax.yaxis.set_major_locator(MultipleLocator(0.10))
-        ax.xaxis.set_minor_locator(MultipleLocator(0.02))
-        ax.yaxis.set_minor_locator(MultipleLocator(0.02))
-    return ax
-
-
-colors = [
-    cls.hsv_to_rgb((240/360,0.05,1.00)),    # whiteblue
-    cls.hsv_to_rgb((240/360,0.91,0.86)),    # blue
-    cls.hsv_to_rgb((266/360,0.88,0.90)),    # purple
-    cls.hsv_to_rgb((355/360,0.95,0.89)),    # pink
-    cls.hsv_to_rgb((0/360,0.79,0.90)),      # red
-    cls.hsv_to_rgb((27/360,0.91,0.88)),     # orange
-    cls.hsv_to_rgb((60/360,1.00,1.00))      # yellow
-]
-
-polcba = cls.LinearSegmentedColormap.from_list("fpmap", colors, gamma=2)
+cmap_pol = cls.LinearSegmentedColormap.from_list(
+    "pol_intensity",
+    [
+        cls.hsv_to_rgb((240/360,0.05,1.00)),    # whiteblue
+        cls.hsv_to_rgb((240/360,0.91,0.86)),    # blue
+        cls.hsv_to_rgb((266/360,0.88,0.90)),    # purple
+        cls.hsv_to_rgb((355/360,0.95,0.89)),    # pink
+        cls.hsv_to_rgb((0/360,0.79,0.90)),      # red
+        cls.hsv_to_rgb((27/360,0.91,0.88)),     # orange
+        cls.hsv_to_rgb((60/360,1.00,1.00))      # yellow
+    ],
+    gamma=2
+)

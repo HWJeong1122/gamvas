@@ -166,10 +166,9 @@ def convert_mapfov_unit(in_mapfov, in_mapunit, out_mapunit):
 
 def close_figure(fig):
     """
-    Close all figures and free memory.
+    Close figure and free memory
     """
     plt.close(fig)
-    plt.close("all")
     gc.collect()
 
 def dft_fits(path="", file="", uvcov=None, dotype="component"):
@@ -200,7 +199,15 @@ def dft_fits(path="", file="", uvcov=None, dotype="component"):
     v = np.asarray(uvcov["v"]).flatten()
 
     if dotype == "image":
-        image = model[0]
+        # NUFFT (type-2) following the difmap-style WCS of 'get_fits'
+        # images: image[row, col] = [DEC, RA] with CDELT1 < 0, CDELT2 > 0
+        # and the phase-center pixel at npix/2 + 1.
+        # pynufft.forward is center-origin,
+        #   y_j = sum_n x[n] exp(-1j * om_j . (n - npix/2)),
+        # so om = (-2 pi dx v, +2 pi dx u) yields
+        #   V(u, v) = sum_{r, c} I[r, c] exp(+2j pi (u l_c + v m_r)),
+        # matching the sign convention of gamvas model visibilities
+        image = np.asarray(model[0], dtype="f8")
         npix = image.shape[0]
 
         mapfov = model[1] * au.mas.to(au.rad)
@@ -208,8 +215,8 @@ def dft_fits(path="", file="", uvcov=None, dotype="component"):
 
         om = np.stack(
             [
-                2 * np.pi * dx * u,
-                2 * np.pi * dx * v
+                -2 * np.pi * dx * v,
+                +2 * np.pi * dx * u
             ],
             axis=1
         )
@@ -217,10 +224,10 @@ def dft_fits(path="", file="", uvcov=None, dotype="component"):
         nfft = pynufft.NUFFT()
         nfft.plan(om, (npix, npix), (2 * npix, 2 * npix), (6, 6))
 
-        visibility = nfft.forward(image).flatten()
+        visibility = nfft.forward(image).flatten().astype("c8")
 
     else:
-        n = len(uvcov)
+        n = len(u)
         nmod = len(model)
         visibility = np.zeros(n, dtype="complex64")
         for i in range(nmod):
@@ -314,8 +321,10 @@ def fit_beam(uvc, sig=None, uvw="u"):
             - w: weighting by visibility weight
             - u: unity weighting
     """
-    u = uvc["u"]
-    v = uvc["v"]
+    mask_nan = ~np.isnan(uvc["vis"])
+
+    u = uvc["u"][mask_nan]
+    v = uvc["v"][mask_nan]
 
     if uvw == "u":
         wfn = np.ones_like(u)
@@ -353,6 +362,9 @@ def get_data(uvf, dotype=None, flatten=False):
         uvf: uvf object.
         dotype (str): one of the entries in `_GET_DATA_AVAILABLE`.
     """
+
+    dotype = dotype.lower()
+
     if dotype is None or dotype not in _GET_DATA_AVAILABLE:
         raise ValueError(
             f"Invalid data type: {dotype!r}.\n"
@@ -375,12 +387,104 @@ def get_data(uvf, dotype=None, flatten=False):
     elif dotype in _GET_DATA_PANGLE_FIELDS:
         out = _get_pangle_field(uvf, dotype, _shape)
 
-    # model visibility (no deepcopy, no set_data)
-    elif dotype == "vism":
+    # model
+    elif dotype in _GET_DATA_MODEL_FIELDS:
         if "vism" not in uvf.data.dtype.names:
             raise ValueError("Model visibility is not found.")
-        out = np.ma.getdata(uvf.data["vism"]).reshape(_shape)
 
+        if dotype == "vism":
+            out = np.ma.getdata(uvf.data["vism"]).reshape(_shape)
+
+        else:
+            vism = np.ma.getdata(uvf.data["vism"]).flatten()
+
+            clamp_uvcomb, clphs_uvcomb = gv.utils.set_uvcombination(uvf)
+
+            def _uv_idx(mask, closure_freq):
+                return gv.utils._uv_lookup_indices(
+                    uvf.get_data(dotype="frequency").flatten(),
+                    uvf.get_data(dotype="u").flatten(),
+                    uvf.get_data(dotype="v").flatten(),
+                    closure_freq,
+                    mask
+                )
+
+            if dotype in _GET_DATA_CLOSURE_AMPLITUDE_FIELDS:
+                if not uvf.clamp_check:
+                    raise ValueError("Closure amplitude is not found.")
+
+                f_clamp = np.ma.getdata(uvf.tmpl_clamp["freq"])
+
+                mask_amp12 = clamp_uvcomb[1].reshape(len(clamp_uvcomb[1]), -1)
+                mask_amp34 = clamp_uvcomb[2].reshape(len(clamp_uvcomb[2]), -1)
+                mask_amp13 = clamp_uvcomb[3].reshape(len(clamp_uvcomb[3]), -1)
+                mask_amp24 = clamp_uvcomb[4].reshape(len(clamp_uvcomb[4]), -1)
+
+                mask_amp12 = _uv_idx(mask_amp12, f_clamp)
+                mask_amp34 = _uv_idx(mask_amp34, f_clamp)
+                mask_amp13 = _uv_idx(mask_amp13, f_clamp)
+                mask_amp24 = _uv_idx(mask_amp24, f_clamp)
+
+                amp12 = np.abs(vism[mask_amp12])
+                amp34 = np.abs(vism[mask_amp34])
+                amp13 = np.abs(vism[mask_amp13])
+                amp24 = np.abs(vism[mask_amp24])
+
+                out = (amp12 * amp34) / (amp13 * amp24)
+
+            elif dotype in _GET_DATA_CLOSURE_PHASE_FIELDS:
+                if not uvf.clphs_check:
+                    raise ValueError("Closure phase is not found.")
+
+                f_clphs = np.ma.getdata(uvf.tmpl_clphs["freq"])
+
+                mask_phs12 = clphs_uvcomb[1].reshape(len(clphs_uvcomb[1]), -1)
+                mask_phs23 = clphs_uvcomb[2].reshape(len(clphs_uvcomb[2]), -1)
+                mask_phs31 = clphs_uvcomb[3].reshape(len(clphs_uvcomb[3]), -1)
+
+                mask_phs12 = _uv_idx(mask_phs12, f_clphs)
+                mask_phs23 = _uv_idx(mask_phs23, f_clphs)
+                mask_phs31 = _uv_idx(mask_phs31, f_clphs)
+
+                phs12 = np.angle(vism[mask_phs12])
+                phs23 = np.angle(vism[mask_phs23])
+                phs31 = np.angle(vism[mask_phs31].conjugate())
+
+                out = phs12 + phs23 + phs31
+
+    # closure quantity
+    elif dotype in _GET_DATA_CLOSURE_DERIVED_FIELDS:
+        if dotype in _GET_DATA_CLOSURE_AMPLITUDE_FIELDS:
+            if not uvf.clamp_check:
+                raise ValueError("Closure amplitude is not found.")
+
+            if dotype in _GET_DATA_CLOSURE_SIGMA_FIELDS:
+                out = np.ma.getdata(uvf.clamp["sig_logclamp"])
+            elif dotype in _GET_DATA_CLOSURE_TIME_FIELDS:
+                out = np.ma.getdata(uvf.clamp["time"])
+            elif dotype in _GET_DATA_CLOSURE_FREQUENCY_FIELDS:
+                out = np.ma.getdata(uvf.clamp["freq"])
+            elif dotype in _GET_DATA_CLOSURE_PAIR_FIELDS:
+                out = np.ma.getdata(uvf.clamp["quadrangle"])
+            else:
+                out = np.ma.getdata(uvf.clamp["clamp"])
+
+        elif dotype in _GET_DATA_CLOSURE_PHASE_FIELDS:
+            if not uvf.clphs_check:
+                raise ValueError("Closure phase is not found.")
+
+            if dotype in _GET_DATA_CLOSURE_SIGMA_FIELDS:
+                out = np.ma.getdata(uvf.clphs["sig_clphs"])
+            elif dotype in _GET_DATA_CLOSURE_TIME_FIELDS:
+                out = np.ma.getdata(uvf.clphs["time"])
+            elif dotype in _GET_DATA_CLOSURE_FREQUENCY_FIELDS:
+                out = np.ma.getdata(uvf.clphs["freq"])
+            elif dotype in _GET_DATA_CLOSURE_PAIR_FIELDS:
+                out = np.ma.getdata(uvf.clphs["triangle"])
+            else:
+                out = np.ma.getdata(uvf.clphs["clphs"])
+
+    # remaining
     else:
         # everything below needs a fresh set_data on a deepcopy
         _uvf = _silent_deepcopy(uvf)
@@ -389,6 +493,10 @@ def get_data(uvf, dotype=None, flatten=False):
         # derived: amp / phs / snr (and their sig_* variants)
         if dotype in _GET_DATA_DERIVED_FIELDS:
             out = _get_derived_field(_uvf.data, dotype).reshape(_shape)
+        elif dotype == "uvr":
+            _u = np.ma.getdata(_uvf.data["u"]).reshape(_shape)
+            _v = np.ma.getdata(_uvf.data["v"]).reshape(_shape)
+            out = np.sqrt(_u**2 + _v**2)
         else:
             out = np.ma.getdata(_uvf.data[dotype]).reshape(_shape)
 
@@ -421,7 +529,6 @@ def get_fits(path="", file="", unit="mas", dotype="component"):
     _fits = fits.open(fitsfile)
 
     _primary = _fits["PRIMARY"]
-    _cc = _fits["AIPS CC"]
 
     dict_unit = {
         "deg": au.deg, "degree": au.deg, "degrees": au.deg,
@@ -453,11 +560,12 @@ def get_fits(path="", file="", unit="mas", dotype="component"):
         return _image_corrected[0][0], _mapfov
 
     else:
+        _cc = _fits["AIPS CC"]
         _comp = _cc.data
         _unit_x = _cc.columns["DELTAX"].unit.lower()
         _unit_y = _cc.columns["DELTAY"].unit.lower()
         _unit_maj = _cc.columns["MAJOR AX"].unit.lower()
-        _unit_min = _cc.columns["MAJOR AX"].unit.lower()
+        _unit_min = _cc.columns["MINOR AX"].unit.lower()
         _unit_pa = _cc.columns["POSANGLE"].unit.lower()
         _comp["DELTAX"] *= dict_unit[_unit_x].to(dict_unit[unit])
         _comp["DELTAY"] *= dict_unit[_unit_y].to(dict_unit[unit])
@@ -513,13 +621,16 @@ def get_fwght(dotype, vdat, tmpl_clamp, tmpl_clphs):
 def get_turnover(freq_ref, alpha, beta):
     """
     Compute turnover frequency estimated in 2nd-order polynomial
+
     Args:
         freq_ref (float): reference frequency
         alpha (float): alpha parameter
         beta (float): beta parameter
+
     Returns:
         float: turnover frequency
     """
+
     out = freq_ref * np.exp(0.5 * alpha / beta)
     return out
 
@@ -616,6 +727,7 @@ def model_visibility_append(args, theta, mask):
         vism = np.zeros(dshape, dtype="c8")
 
         nmod = round(float(theta["nmod"]))
+
         if model == "gaussian":
             # gaussian with flat spectrum
             if spectrum == "flat":
@@ -645,7 +757,7 @@ def model_visibility_append(args, theta, mask):
                     vism += _fn(args, *_theta)
 
             # gaussian with spectrum model: spl, cpl, ssa
-            elif spectrum == ["spl", "cpl", "ssa"]:
+            elif spectrum in ["spl", "cpl", "ssa"]:
                 for i in range(nmod):
                     idx_s = f"{i + 1}_S"
                     idx_a = f"{i + 1}_a"
@@ -1211,6 +1323,10 @@ def save_imgfits(
     ra = _resolve(ra, "ra", default=None, required=False)
     dec = _resolve(dec, "dec", default=None, required=False)
     freq = _resolve(freq, "freq_mean", default=None, required=True)
+    # gamvas stores frequencies in GHz; the FITS FREQ axis expects Hz
+    freq = float(freq)
+    if freq < 1e6:
+        freq = freq * 1e9
     mapfov = _resolve(mapfov, "mapfov", default=None, required=True)
     source = _resolve(source, "source", default=None, required=False)
     date = _resolve(date, "date", default=None, required=False)
@@ -1255,7 +1371,10 @@ def save_imgfits(
     # ==================================================
     # make PRIMARY table: image
     # ==================================================
-    img_4d = image.reshape(1, 1, npix, npix)
+    # 'uvf.image' is stored in display orientation (row 0 = North);
+    # the FITS convention with CDELT2 > 0 requires row 0 = South
+    # (as written by difmap), so flip the DEC axis before writing
+    img_4d = np.flip(image, axis=0).reshape(1, 1, npix, npix)
     hdu_pr = fits.PrimaryHDU(img_4d)
     h = hdu_pr.header
 
@@ -1326,9 +1445,11 @@ def save_imgfits(
 
         cols = []
         for k, u in zip(keys, units):
-            if u == "DEGREES":
+            if u == "DEGREES" and k != "POSANGLE":
+                # spatial columns are given in 'unit' -> convert to degrees
                 cf = unit.to(au.deg)
             else:
+                # POSANGLE is already in degrees; FLUX / TYPE OBJ unitless
                 cf = 1.0
 
             arr = np.asarray(component[k] * cf, dtype="f4")
@@ -1459,6 +1580,45 @@ def set_boundary(
             in_bnd_f, in_bnd_rm
         )
 
+
+def _uv_lookup_indices(
+    data_freq, data_u, data_v, query_freq, query_uv
+):
+    """Map exact (frequency, u, v) coordinates without broadcasting."""
+
+    data_freq = np.asarray(data_freq).reshape(-1)
+    data_u = np.asarray(data_u).reshape(-1)
+    data_v = np.asarray(data_v).reshape(-1)
+    if not (len(data_freq) == len(data_u) == len(data_v)):
+        raise ValueError("Data frequency/u/v arrays must have equal lengths.")
+
+    # Preserve the previous first-match behavior for duplicate coordinates.
+    coord_idx = {}
+    for idx, coord in enumerate(zip(data_freq, data_u, data_v)):
+        coord_idx.setdefault(tuple(coord), idx)
+
+    query_uv = np.asarray(query_uv).reshape(-1, 2)
+    query_freq = np.asarray(query_freq).reshape(-1)
+    if query_freq.size == 1 and len(query_uv) != 1:
+        query_freq = np.full(len(query_uv), query_freq[0])
+    if len(query_freq) != len(query_uv):
+        raise ValueError(
+            "Query frequency and uv-coordinate lengths do not match."
+        )
+
+    out = np.empty(len(query_uv), dtype=np.int64)
+    for idx, (freq, uv) in enumerate(zip(query_freq, query_uv)):
+        key = (freq, uv[0], uv[1])
+        try:
+            out[idx] = coord_idx[key]
+        except KeyError as exc:
+            raise ValueError(
+                "Closure coordinate is absent from visibility data: "
+                f"freq={freq}, u={uv[0]}, v={uv[1]}"
+            ) from exc
+    return out
+
+
 def set_closure(
     uvf, data_u, data_v, data_vis, data_sig, data_ant1, data_ant2,
     clamp_uvcomb, clphs_uvcomb
@@ -1467,10 +1627,7 @@ def set_closure(
     # strip mask to avoid ComplexWarning from np.abs / .conj on complex MA
     data_vis = np.ma.getdata(data_vis)
 
-    nant = len(np.unique(np.append(data_ant1, data_ant2)))
-
-    uv_coord = np.column_stack((data_u, data_v))
-    uv_coord = uv_coord.reshape(len(uv_coord), -1)
+    data_freq = uvf.get_data(dotype="frequency").flatten()
 
     clamp = np.array([])
     clphs = np.array([])
@@ -1485,22 +1642,18 @@ def set_closure(
         mask_amp34 = clamp_uvcomb[2].reshape(len(clamp_uvcomb[2]), -1)
         mask_amp13 = clamp_uvcomb[3].reshape(len(clamp_uvcomb[3]), -1)
         mask_amp24 = clamp_uvcomb[4].reshape(len(clamp_uvcomb[4]), -1)
-        mask_amp12 = np.argmax(
-            (mask_amp12[:, None, :] == uv_coord[None, :, :]).all(axis=2),
-            axis=1
+        clamp_freq = clamp_uvcomb[0]
+        mask_amp12 = _uv_lookup_indices(
+            data_freq, data_u, data_v, clamp_freq, mask_amp12
         )
-
-        mask_amp34 = np.argmax(
-            (mask_amp34[:, None, :] == uv_coord[None, :, :]).all(axis=2),
-            axis=1
+        mask_amp34 = _uv_lookup_indices(
+            data_freq, data_u, data_v, clamp_freq, mask_amp34
         )
-        mask_amp13 = np.argmax(
-            (mask_amp13[:, None, :] == uv_coord[None, :, :]).all(axis=2),
-            axis=1
+        mask_amp13 = _uv_lookup_indices(
+            data_freq, data_u, data_v, clamp_freq, mask_amp13
         )
-        mask_amp24 = np.argmax(
-            (mask_amp24[:, None, :] == uv_coord[None, :, :]).all(axis=2),
-            axis=1
+        mask_amp24 = _uv_lookup_indices(
+            data_freq, data_u, data_v, clamp_freq, mask_amp24
         )
 
         amp12 = np.abs(data_vis[mask_amp12])
@@ -1518,17 +1671,15 @@ def set_closure(
         mask_phs12 = clphs_uvcomb[1].reshape(len(clphs_uvcomb[1]), -1)
         mask_phs23 = clphs_uvcomb[2].reshape(len(clphs_uvcomb[2]), -1)
         mask_phs31 = clphs_uvcomb[3].reshape(len(clphs_uvcomb[3]), -1)
-        mask_phs12 = np.argmax(
-            (mask_phs12[:, None, :] == uv_coord[None, :, :]).all(axis=2),
-            axis=1
+        clphs_freq = clphs_uvcomb[0]
+        mask_phs12 = _uv_lookup_indices(
+            data_freq, data_u, data_v, clphs_freq, mask_phs12
         )
-        mask_phs23 = np.argmax(
-            (mask_phs23[:, None, :] == uv_coord[None, :, :]).all(axis=2),
-            axis=1
+        mask_phs23 = _uv_lookup_indices(
+            data_freq, data_u, data_v, clphs_freq, mask_phs23
         )
-        mask_phs31 = np.argmax(
-            (mask_phs31[:, None, :] == uv_coord[None, :, :]).all(axis=2),
-            axis=1
+        mask_phs31 = _uv_lookup_indices(
+            data_freq, data_u, data_v, clphs_freq, mask_phs31
         )
 
         vis12 = data_vis[mask_phs12]
@@ -1620,14 +1771,8 @@ def set_uvcombination(uvf):
     Returns:
         tuple: (uv_closure_amplitude, uv_closure_phase)
     """
-    ant1 = uvf.ant1
-    ant2 = uvf.ant2
     tmpl_clamp = uvf.tmpl_clamp
     tmpl_clphs = uvf.tmpl_clphs
-
-    uant = np.unique(np.append(ant1, ant2))
-
-    nant = len(uant)
 
     mask_clamp = uvf.clamp_check
     mask_clphs = uvf.clphs_check
@@ -1657,27 +1802,6 @@ def set_uvcombination(uvf):
             list(zip(
                 np.ma.getdata(tmpl_clamp["u24"]),
                 np.ma.getdata(tmpl_clamp["v24"])
-            ))
-        )
-
-        clphs_uv12 = np.array(
-            list(zip(
-                np.ma.getdata(tmpl_clphs["u12"]),
-                np.ma.getdata(tmpl_clphs["v12"])
-            ))
-        )
-
-        clphs_uv23 = np.array(
-            list(zip(
-                np.ma.getdata(tmpl_clphs["u23"]),
-                np.ma.getdata(tmpl_clphs["v23"])
-            ))
-        )
-
-        clphs_uv31 = np.array(
-            list(zip(
-                np.ma.getdata(tmpl_clphs["u31"]),
-                np.ma.getdata(tmpl_clphs["v31"])
             ))
         )
 
@@ -2027,7 +2151,7 @@ def _get_derived_field(uvf_data=None, dotype=None):
 
     is_sig = "sig" in dotype
     if "amp" in dotype:
-        return _vis if is_sig else np.abs(_vis)
+        return _sig if is_sig else np.abs(_vis)
     if "phs" in dotype:
         return _sig / np.abs(_vis) if is_sig else np.angle(_vis)
     return np.abs(_vis) / _sig    # snr
@@ -2037,7 +2161,7 @@ _GET_DATA_TARR_FIELDS = {
     "ant_number": "number",
     "ant_x":      "x",
     "ant_y":      "y",
-    "ant_z":      "z",
+    "ant_z":      "z"
 }
 
 _GET_DATA_NAME_FIELDS = ("baseline_name", "ant1_name", "ant2_name")
@@ -2048,7 +2172,7 @@ _GET_DATA_PANGLE_FIELDS = {
     "ant1_pangle":    "pangle1",
     "ant2_azimuth":   "az2",
     "ant2_elevation": "el2",
-    "ant2_pangle":    "pangle2",
+    "ant2_pangle":    "pangle2"
 }
 
 _GET_DATA_DERIVED_FIELDS = frozenset([
@@ -2061,7 +2185,80 @@ _GET_DATA_DERIVED_FIELDS = frozenset([
     "phs_i", "phs_q", "phs_u", "phs_v",
     "sig_phs_i", "sig_phs_q", "sig_phs_u", "sig_phs_v",
     "snr", "snr_rr", "snr_ll", "snr_rl", "snr_lr",
-    "snr_i", "snr_q", "snr_u", "snr_v",
+    "snr_i", "snr_q", "snr_u", "snr_v"
+])
+
+_GET_DATA_CLOSURE_TIME_FIELDS = frozenset([
+    "time_cla", "time_camp", "time_clamp",
+    "time_clp", "time_cphs", "time_clphs"
+])
+
+_GET_DATA_CLOSURE_FREQUENCY_FIELDS = frozenset([
+    "freq_cla", "freq_camp", "freq_clamp",
+    "freq_clp", "freq_cphs", "freq_clphs",
+    "frequency_cla", "frequency_camp", "frequency_clamp",
+    "frequency_clp", "frequency_cphs", "frequency_clphs"
+])
+
+_GET_DATA_CLOSURE_PAIR_FIELDS = frozenset([
+    "quadrangle", "quad", "pair_cla", "pair_camp", "pair_clamp",
+    "triangle", "tri", "pair_clp", "pair_cphs", "pair_clphs"
+])
+
+_GET_DATA_CLOSURE_DERIVED_FIELDS = frozenset([
+    "time_cla", "time_camp", "time_clamp",
+    "time_clp", "time_cphs", "time_clphs",
+    "freq_cla", "freq_camp", "freq_clamp",
+    "freq_clp", "freq_cphs", "freq_clphs",
+    "frequency_cla", "frequency_camp", "frequency_clamp",
+    "frequency_clp", "frequency_cphs", "frequency_clphs",
+    "quadrangle", "quad", "pair_cla", "pair_camp", "pair_clamp",
+    "triangle", "tri", "pair_clp", "pair_cphs", "pair_clphs",
+    "cla", "camp", "clamp",
+    "sig_cla", "sig_camp", "sig_clamp",
+    "sigma_cla", "sigma_camp", "sigma_clamp",
+    "clp", "cphs", "clphs",
+    "sig_clp", "sig_cphs", "sig_clphs",
+    "sigma_clp", "sigma_cphs", "sigma_clphs"
+])
+
+_GET_DATA_CLOSURE_SIGMA_FIELDS = frozenset([
+    "sig_cla", "sig_camp", "sig_clamp",
+    "sig_clp", "sig_cphs", "sig_clphs",
+    "sigma_cla", "sigma_camp", "sigma_clamp",
+    "sigma_clp", "sigma_cphs", "sigma_clphs"
+])
+
+_GET_DATA_CLOSURE_AMPLITUDE_FIELDS = frozenset([
+    "time_cla", "time_camp", "time_clamp",
+    "freq_cla", "freq_camp", "freq_clamp",
+    "frequency_cla", "frequency_camp", "frequency_clamp",
+    "quadrangle", "quad", "pair_cla", "pair_camp", "pair_clamp",
+    "cla", "camp", "clamp",
+    "sig_cla", "sig_camp", "sig_clamp",
+    "sigma_cla", "sigma_camp", "sigma_clamp",
+    "mod_cla", "mod_camp", "mod_clamp",
+    "model_cla", "model_camp", "model_clamp"
+])
+
+_GET_DATA_CLOSURE_PHASE_FIELDS = frozenset([
+    "time_clp", "time_cphs", "time_clphs",
+    "freq_clp", "freq_cphs", "freq_clphs",
+    "frequency_clp", "frequency_cphs", "frequency_clphs",
+    "triangle", "tri", "pair_clp", "pair_cphs", "pair_clphs",
+    "clp", "cphs", "clphs",
+    "sig_clp", "sig_cphs", "sig_clphs",
+    "sigma_clp", "sigma_cphs", "sigma_clphs",
+    "mod_clp", "mod_cphs", "mod_clphs",
+    "model_clp", "model_cphs", "model_clphs"
+])
+
+_GET_DATA_MODEL_FIELDS = frozenset([
+    "vism",
+    "mod_cla", "mod_camp", "mod_clamp",
+    "model_cla", "model_camp", "model_clamp",
+    "mod_clp", "mod_cphs", "mod_clphs",
+    "model_clp", "model_cphs", "model_clphs"
 ])
 
 _GET_DATA_POL_SUFFIXES = frozenset(
@@ -2073,10 +2270,18 @@ _GET_DATA_AVAILABLE = frozenset(
     + list(_GET_DATA_NAME_FIELDS)
     + list(_GET_DATA_PANGLE_FIELDS)
     + list(_GET_DATA_DERIVED_FIELDS)
+    + list(_GET_DATA_CLOSURE_TIME_FIELDS)
+    + list(_GET_DATA_CLOSURE_FREQUENCY_FIELDS)
+    + list(_GET_DATA_CLOSURE_PAIR_FIELDS)
+    + list(_GET_DATA_CLOSURE_DERIVED_FIELDS)
+    + list(_GET_DATA_CLOSURE_SIGMA_FIELDS)
+    + list(_GET_DATA_CLOSURE_AMPLITUDE_FIELDS)
+    + list(_GET_DATA_CLOSURE_PHASE_FIELDS)
+    + list(_GET_DATA_MODEL_FIELDS)
     + [
         "mjd", "time", "frequency", "scan",
         "baseline", "ant1", "ant2",
-        "u", "v", "w",
+        "u", "v", "w", "uvr",
         "r_1", "i_1", "w_1", "w0_1", "r_2", "i_2", "w_2", "w0_2",
         "r_3", "i_3", "w_3", "w0_3", "r_4", "i_4", "w_4", "w0_4",
         "vis", "vis_rr", "vis_ll", "vis_rl", "vis_lr",
@@ -2085,6 +2290,6 @@ _GET_DATA_AVAILABLE = frozenset(
         "vis_i", "vis_q", "vis_u", "vis_v", "vis_p",
         "sig_i", "sig_q", "sig_u", "sig_v", "sig_p",
         "sig0_i", "sig0_q", "sig0_u", "sig0_v", "sig0_p",
-        "vism",
+        "vism"
     ]
 )

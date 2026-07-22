@@ -115,7 +115,7 @@ if __name__ == "__main__":
         uvfs[i].systematics_apply(dotype=syscal_type)
 
         # (optional) increase uncertainty of complex visibility: 0.1 = 10%
-        uvfs[i].inflate_sigma_fractional(value=0.1)
+        uvfs[i].inflate_sigma_fractional(inflate=0.1)
 
         bands.append(f"{round(uvfs[i].freq_mean)}")
 
