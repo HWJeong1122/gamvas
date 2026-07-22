@@ -100,8 +100,16 @@ if __name__ == "__main__":
     )
 
     # flag data
+    #   available types:
+    #       'time', 'sigma', 'snr', 'nant', 'antenna', 'baseline', 'uvradius'
     uvf.flag_data(dotype="snr", value=snrflag)
     uvf.flag_data(dotype="nant", value=3)
+    # another example:
+    # uvf.flag_data(
+    #     dotype="baseline",
+    #     value=["KC", "KT"],
+    #     timerange=[17, 19]    # units: hours (UTC)
+    # )
 
     # set data (averaged): complex visibility & closure relations
     uvf.set_data()
