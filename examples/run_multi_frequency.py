@@ -104,8 +104,16 @@ if __name__ == "__main__":
         uvfs[i].debias_amplitude()
 
         # flag data
+        #   available types:
+        #       'time', 'sigma', 'snr', 'nant', 'antenna', 'baseline', 'uvradius'
         uvfs[i].flag_data(dotype="snr", value=snrflag)
         uvfs[i].flag_data(dotype="nant", value=3)
+        # another example:
+        # uvfs[i].flag_data(
+        #     dotype="baseline",
+        #     value=["KC", "KT"],
+        #     timerange=[17, 19]    # units: hours (UTC)
+        # )
 
         # set data (averaged): complex visibility & closure relations
         uvfs[i].set_data()
